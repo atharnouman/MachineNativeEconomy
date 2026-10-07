@@ -1,0 +1,23 @@
+{
+  "name": "@apgw/example-thin-slice",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Phase 0 thin slice: one agent, one budget, one sub-agent credential pays one payee over x402 and MPP; one policy denial (gateway + on-chain); kill switch; anchored, offline-verifiable evidence bundle",
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@apgw/core": "workspace:*",
+    "@apgw/gateway": "workspace:*",
+    "@apgw/payee": "workspace:*",
+    "@apgw/sdk": "workspace:*",
+    "@apgw/cli": "workspace:*",
+    "viem": "^2.21.54",
+    "yaml": "^2.6.1"
+  }
+}

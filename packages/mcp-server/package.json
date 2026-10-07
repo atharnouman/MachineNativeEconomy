@@ -1,0 +1,23 @@
+{
+  "name": "@apgw/mcp-server",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "MCP server exposing the Agentic Payment Gateway as tools (pay, simulate, receipts, export evidence) to Claude, ChatGPT, Gemini and any MCP client",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "apgw-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@apgw/sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.1"
+  }
+}

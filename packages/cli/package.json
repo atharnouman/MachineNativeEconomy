@@ -1,0 +1,24 @@
+{
+  "name": "@apgw/cli",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Operator CLI for the Agentic Payment Gateway: export-evidence, verify (offline), policy lint",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "apgw": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@apgw/core": "workspace:*",
+    "viem": "^2.21.54",
+    "yaml": "^2.6.1"
+  }
+}

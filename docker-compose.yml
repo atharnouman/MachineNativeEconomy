@@ -1,0 +1,21 @@
+# Local stack: anvil + gateway + payee + the thin-slice demo.
+# NOTE: written against the same scripts the demo uses; not yet exercised on a machine with Docker running.
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337", "--silent"]
+    ports: ["8545:8545"]
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain-id --rpc-url http://127.0.0.1:8545 || exit 1"]
+      interval: 2s
+      retries: 20
+
+  demo:
+    build: .
+    depends_on:
+      anvil: { condition: service_healthy }
+    environment:
+      ANVIL_EXTERNAL: "http://anvil:8545"
+    command: ["pnpm", "demo"]
+    volumes:
+      - ./evidence:/app/evidence

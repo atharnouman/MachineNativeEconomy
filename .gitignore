@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.tsbuildinfo
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+packages/contracts/lib/
+data/
+*.log
+.env
+.env.*
+!.env.example
+evidence/*.json
+.DS_Store
+# personal-project rules: never committed (identity notes live in memory/)
+CLAUDE.local.md
+local/
+outreach/
+memory/

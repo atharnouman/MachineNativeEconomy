@@ -1,0 +1,5 @@
+# Normalise line endings so checkouts are identical on every OS (overrides the machine core.autocrlf).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary

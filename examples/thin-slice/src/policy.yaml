@@ -1,0 +1,29 @@
+# Principal-level policy for the thin slice. Hash of this document appears in every decision receipt.
+version: 1
+principalId: org-acme
+currency: { asset: USDC, decimals: 6 }
+
+# Budget tree. Caps are lifetime for the demo; later phases add periods.
+budgets:
+  org:      { cap: "5.00" }
+  research: { cap: "2.00", parent: org }
+
+# Which budget each top-level agent draws from. Sub-agents inherit through credential lineage.
+agents:
+  research-agent: { budget: research }
+
+rules:
+  - id: deny-blocked-payees
+    description: Never pay these hosts, whatever the credential says
+    effect: deny
+    match: { payees: [evil.example, phish.example] }
+
+  - id: escalate-large
+    description: Anything above 0.50 USDC needs a human
+    effect: escalate
+    match: { amount_gt: "0.50" }
+
+  - id: allow-research-data
+    description: Research purchases over either rail
+    effect: allow
+    match: { purposes: [research], rails: [x402, mpp] }

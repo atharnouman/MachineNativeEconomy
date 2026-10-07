@@ -1,0 +1,27 @@
+{
+  "name": "@apgw/payee",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Accept-side middleware: charge AI agents for any HTTP resource over x402 and MPP with one configuration block, plus an example payee server",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@apgw/core": "workspace:*",
+    "fastify": "^5.2.0",
+    "viem": "^2.21.54"
+  }
+}

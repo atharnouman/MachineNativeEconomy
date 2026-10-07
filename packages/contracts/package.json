@@ -1,0 +1,15 @@
+{
+  "name": "@apgw/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Solidity contracts for the Agentic Payment Gateway: AgentAccount with session caveats, enforcers, MockUSDC (EIP-3009), ReceiptRegistry",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test -vv",
+    "test:gas": "forge test --gas-report",
+    "fmt": "forge fmt",
+    "typecheck": "echo skip"
+  }
+}

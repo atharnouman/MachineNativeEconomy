@@ -1,0 +1,30 @@
+{
+  "name": "apgw",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Agentic Payment Gateway: neutral policy, settlement and evidence control plane between AI agents and any payment rail",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.17"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter './packages/**' run build",
+    "typecheck": "pnpm -r --filter './packages/**' --filter './examples/**' run typecheck",
+    "test": "pnpm -r run test",
+    "test:unit": "pnpm -r --filter './packages/**' run test",
+    "test:e2e": "pnpm --filter @apgw/example-thin-slice run test",
+    "contracts:build": "pnpm --filter @apgw/contracts run build",
+    "contracts:test": "pnpm --filter @apgw/contracts run test",
+    "demo": "pnpm --filter @apgw/example-thin-slice run demo",
+    "gateway": "pnpm --filter @apgw/gateway run start",
+    "payee": "pnpm --filter @apgw/payee run start"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8",
+    "@types/node": "^20.17.0"
+  }
+}

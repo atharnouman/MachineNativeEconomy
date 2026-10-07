@@ -1,0 +1,32 @@
+{
+  "name": "@apgw/core",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Canonical types for the Agentic Payment Gateway: PaymentIntent, attenuable credentials, policy evaluation, signed receipts, evidence bundles, rail wire formats",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "^2.21.54",
+    "zod": "^3.24.1",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.1"
+  }
+}
