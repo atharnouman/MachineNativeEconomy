@@ -45,6 +45,27 @@ importers:
         specifier: ^2.21.54
         version: 2.57.3(typescript@5.9.3)(zod@3.25.76)
 
+  examples/testnet:
+    dependencies:
+      '@spendmarshal/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@spendmarshal/devnet':
+        specifier: workspace:*
+        version: link:../../packages/devnet
+      '@spendmarshal/gateway':
+        specifier: workspace:*
+        version: link:../../packages/gateway
+      '@spendmarshal/payee':
+        specifier: workspace:*
+        version: link:../../packages/payee
+      '@spendmarshal/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk-ts
+      viem:
+        specifier: ^2.21.54
+        version: 2.57.3(typescript@5.9.3)(zod@3.25.76)
+
   examples/thin-slice:
     dependencies:
       '@spendmarshal/cli':

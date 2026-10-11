@@ -24,6 +24,7 @@
     "contracts:test": "pnpm --filter @spendmarshal/contracts run test",
     "demo": "pnpm --filter @spendmarshal/example-thin-slice run demo",
     "demo:phase1": "pnpm --filter @spendmarshal/example-phase1 run demo",
+    "demo:testnet": "pnpm --filter @spendmarshal/example-testnet run demo",
     "gateway": "pnpm --filter @spendmarshal/gateway run start",
     "payee": "pnpm --filter @spendmarshal/payee run start"
   },

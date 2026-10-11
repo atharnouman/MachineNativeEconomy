@@ -1,0 +1,21 @@
+# Testnet policy: one lifetime budget sized so the third payment is denied, one escalation threshold.
+version: 1
+principalId: org-acme
+currency: { asset: USDC, decimals: 6 }
+
+budgets:
+  org: { cap: "0.06" }
+
+agents:
+  research-agent: { budget: org }
+
+rules:
+  - id: escalate-above-3c
+    description: Anything above 0.03 USDC needs a human (the CFO key is registered as approver)
+    effect: escalate
+    match: { amount_gt: "0.03" }
+
+  - id: allow-research
+    description: Research purchases over x402
+    effect: allow
+    match: { purposes: [research], rails: [x402] }

@@ -1,0 +1,22 @@
+{
+  "name": "@spendmarshal/example-testnet",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Live run on Base Sepolia: EIP-7702 account, bounded-operator gateway, standard x402 payloads settled by the public x402.org facilitator with real testnet USDC, escalation, budget denial, anchored and verified evidence",
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@spendmarshal/core": "workspace:*",
+    "@spendmarshal/devnet": "workspace:*",
+    "@spendmarshal/gateway": "workspace:*",
+    "@spendmarshal/payee": "workspace:*",
+    "@spendmarshal/sdk": "workspace:*",
+    "viem": "^2.21.54"
+  }
+}

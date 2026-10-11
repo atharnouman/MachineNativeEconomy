@@ -75,6 +75,12 @@ export async function startAnvil(opts: { port?: number; chainId?: number; log?: 
   return { rpcUrl, chainId, chain, pub: createPublicClient({ chain, transport: http(rpcUrl), pollingInterval: 500 }), stop: () => child.kill() };
 }
 
+/** Use an existing chain (a public testnet, a node you run) with the same helpers as `startAnvil`. */
+export function connectChain(opts: { rpcUrl: string; chainId: number }): Devnet {
+  const chain = chainFor(opts.chainId, opts.rpcUrl);
+  return { rpcUrl: opts.rpcUrl, chainId: opts.chainId, chain, pub: createPublicClient({ chain, transport: http(opts.rpcUrl), pollingInterval: 1_000 }), stop: () => undefined };
+}
+
 export function walletFor(net: Pick<Devnet, "chain" | "rpcUrl">, key: Hex): WalletClient<ReturnType<typeof http>, Chain, Account> {
   return createWalletClient({ chain: net.chain, transport: http(net.rpcUrl), account: privateKeyToAccount(key) });
 }
@@ -88,7 +94,8 @@ export interface CoreContracts {
 }
 
 /** Deploy USDC, the registry, the three enforcers and an uninitialised AgentAccount implementation. */
-export async function deployCore(net: Devnet, deployerKey: Hex): Promise<CoreContracts> {
+/** Deploys the contracts. With `opts.usdc` (a real stablecoin on a public chain) the mock token is not deployed. */
+export async function deployCore(net: Devnet, deployerKey: Hex, opts: { usdc?: Address } = {}): Promise<CoreContracts> {
   const w = walletFor(net, deployerKey);
   const deploy = async (name: string, bytecode: Hex, abi: readonly unknown[] = [], args: unknown[] = []): Promise<Address> => {
     const hash = await w.deployContract({ abi: abi as never, bytecode, args: args as never });
@@ -96,7 +103,7 @@ export async function deployCore(net: Devnet, deployerKey: Hex): Promise<CoreCon
     if (!r.contractAddress) throw new Error(`deploy ${name} failed`);
     return r.contractAddress;
   };
-  const usdc = await deploy("MockUSDC", MockUSDCBytecode);
+  const usdc = opts.usdc ?? (await deploy("MockUSDC", MockUSDCBytecode));
   const receiptRegistry = await deploy("ReceiptRegistry", ReceiptRegistryBytecode);
   const spendLimit = await deploy("SpendLimitEnforcer", SpendLimitEnforcerBytecode);
   const timeWindow = await deploy("TimeWindowEnforcer", TimeWindowEnforcerBytecode);
