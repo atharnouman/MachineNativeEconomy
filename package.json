@@ -5,6 +5,11 @@
   "description": "Agentic Payment Gateway: neutral policy, settlement and evidence control plane between AI agents and any payment rail",
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atharnouman/MachineNativeEconomy.git"
+  },
+  "homepage": "https://github.com/atharnouman/MachineNativeEconomy#readme",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.17"

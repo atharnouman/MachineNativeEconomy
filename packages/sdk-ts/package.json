@@ -4,6 +4,29 @@
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
   "description": "TypeScript SDK for the Agentic Payment Gateway: pay(), simulate(), delegate(), receipts(), exportEvidence(), plus framework-neutral tool definitions",
+  "keywords": [
+    "agentic payments",
+    "sdk",
+    "x402",
+    "mpp",
+    "ai agents",
+    "tool definitions"
+  ],
+  "homepage": "https://github.com/atharnouman/MachineNativeEconomy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atharnouman/MachineNativeEconomy.git",
+    "directory": "packages/sdk-ts"
+  },
+  "bugs": {
+    "url": "https://github.com/atharnouman/MachineNativeEconomy/issues"
+  },
+  "engines": {
+    "node": ">=20.17"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,5 +43,10 @@
   },
   "dependencies": {
     "@spendmarshal/core": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
 }
