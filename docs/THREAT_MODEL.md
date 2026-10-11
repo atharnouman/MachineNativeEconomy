@@ -1,6 +1,6 @@
 # Threat model (Phase 1)
 
-Scope: an organisation runs `apgw` so its agents can buy resources with USDC. Attackers want to move funds outside policy, consume services without paying, or falsify the record.
+Scope: an organisation runs SpendMarshal so its agents can buy resources with USDC. Attackers want to move funds outside policy, consume services without paying, or falsify the record.
 
 | # | Threat | Control | Where enforced | Test |
 |---|---|---|---|---|

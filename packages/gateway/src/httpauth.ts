@@ -1,5 +1,5 @@
 import type { FastifyRequest } from "fastify";
-import { effectiveLimits, verifyMessage, publicKeyFromJwk, jwkThumbprint, contentDigestMatches, NonceWindow, HOLDER_TAG, type Credential } from "@apgw/core";
+import { effectiveLimits, verifyMessage, publicKeyFromJwk, jwkThumbprint, contentDigestMatches, NonceWindow, HOLDER_TAG, type Credential } from "@spendmarshal/core";
 
 const nonces = new NonceWindow();
 
@@ -12,7 +12,7 @@ export interface HolderCheck {
 
 /**
  * Inbound proof of possession. If the credential carries a `holder_key` caveat, the request must be signed with
- * that key (RFC 9421, tag apgw-holder) over @method, @authority, @path and, for bodies, Content-Digest.
+ * that key (RFC 9421, tag spendmarshal-holder) over @method, @authority, @path and, for bodies, Content-Digest.
  */
 export async function checkHolder(req: FastifyRequest, cred: Credential, rawBody: string | undefined): Promise<HolderCheck> {
   const holder = effectiveLimits(cred.caveats).holderKey;

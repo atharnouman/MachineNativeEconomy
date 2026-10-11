@@ -1,4 +1,4 @@
-import { describeRevert } from "@apgw/core";
+import { describeRevert } from "@spendmarshal/core";
 import type { Address } from "viem";
 import {
   issueRoot,
@@ -13,7 +13,7 @@ import {
   nowIso,
   type Credential,
   type Caveat,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import type { Store, RegisteredCredential } from "./store.js";
 import type { Signer } from "./signer.js";

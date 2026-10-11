@@ -1,7 +1,7 @@
 # MachineNativeEconomy — project instructions
 
 ## What this repo is
-`apgw`, an open-source Agentic Payment Gateway: the neutral policy, settlement and evidence control plane between AI agents and any payment rail (x402, MPP, …). Phase 0 thin slice is complete and passing (8 Oct 2026). See `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the product prompt in `output/agentic-payment-gateway-prompt.md`.
+SpendMarshal (packages `@spendmarshal/*`, formerly `apgw`), an open-source Agentic Payment Gateway: the neutral policy, settlement and evidence control plane between AI agents and any payment rail (x402, MPP, …). Phase 0 thin slice is complete and passing (8 Oct 2026). See `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the product prompt in `output/agentic-payment-gateway-prompt.md`.
 
 ## File locations (set 8 Oct 2026)
 
@@ -31,9 +31,9 @@ pnpm demo                                           # the Phase 0 thin slice
 pnpm demo:phase1                                    # Phase 1: EIP-7702, bounded operator, approvals, policy versions
 ```
 
-- Contracts target `evm_version = "prague"`; `@apgw/devnet` starts anvil with `--hardfork prague` so EIP-7702 type-4 transactions work.
+- Contracts target `evm_version = "prague"`; `@spendmarshal/devnet` starts anvil with `--hardfork prague` so EIP-7702 type-4 transactions work.
 - Phase 1 plan and status: `docs/PHASE1.md`. Work happens on the `phase-1` branch.
 
-- Packages import each other from `dist/`, so rebuild `@apgw/core` before typechecking dependants.
+- Packages import each other from `dist/`, so rebuild `@spendmarshal/core` before typechecking dependants.
 - The demo uses anvil dev keys only; `data/` and `evidence/*.json` are gitignored.
 - Docker is installed but the daemon was not running when `docker-compose.yml` was written; it is untested.

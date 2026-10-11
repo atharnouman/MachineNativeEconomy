@@ -85,7 +85,7 @@ export function describeRevert(err: unknown): string {
 export function chainFor(chainId: number, rpcUrl: string): Chain {
   return defineChain({
     id: chainId,
-    name: `apgw-${chainId}`,
+    name: `spendmarshal-${chainId}`,
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [rpcUrl] } },
   });

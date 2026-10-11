@@ -22,11 +22,11 @@ import {
   agentAccountDomain,
   toHuman,
   type EvidenceBundle,
-} from "@apgw/core";
-import { buildGateway, type Gateway } from "@apgw/gateway";
-import { buildPayee } from "@apgw/payee";
-import { ApgwAdmin, type ApgwClient, type PayResponse } from "@apgw/sdk";
-import { verifyEvidence, formatReport } from "@apgw/cli";
+} from "@spendmarshal/core";
+import { buildGateway, type Gateway } from "@spendmarshal/gateway";
+import { buildPayee } from "@spendmarshal/payee";
+import { SpendMarshalAdmin, type SpendMarshalClient, type PayResponse } from "@spendmarshal/sdk";
+import { verifyEvidence, formatReport } from "@spendmarshal/cli";
 
 /**
  * Phase 0 thin slice.
@@ -140,7 +140,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
     step("services", true, `gateway ${gatewayUrl} (signer ${gw.signer.address}), payee ${payeeUrl} (treasury ${payeeTreasury})`);
 
     // ── 3. credentials: org -> research-agent -> fetcher (sub-agent) ───────────────
-    const admin = new ApgwAdmin(gatewayUrl, "dev-admin-token");
+    const admin = new SpendMarshalAdmin(gatewayUrl, "dev-admin-token");
     const payeeHost = new URL(payeeUrl).host;
     const researchAgent = await admin.issueCredential({
       principalId: "org-acme",

@@ -1,5 +1,5 @@
 import type { Address, Hex } from "viem";
-import { randomId, nowIso, intentHash, verifyApprovalSignature, type Approval, type Approver, type ApprovalVerdict, type Decision, type PaymentIntent } from "@apgw/core";
+import { randomId, nowIso, intentHash, verifyApprovalSignature, type Approval, type Approver, type ApprovalVerdict, type Decision, type PaymentIntent } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
 import type { ReceiptLog } from "./receipts.js";

@@ -51,7 +51,7 @@ export type ApprovalVerdict = "approve" | "reject";
 
 /** The exact text an approver signs. Binding the intent hash and amount prevents reuse for another purchase. */
 export function approvalMessage(a: Pick<Approval, "id" | "principalId" | "intentHash" | "amount">, verdict: ApprovalVerdict): string {
-  return ["apgw-approval v1", `id=${a.id}`, `principal=${a.principalId}`, `intentHash=${a.intentHash}`, `amount=${a.amount}`, `verdict=${verdict}`].join("\n");
+  return ["spendmarshal-approval v1", `id=${a.id}`, `principal=${a.principalId}`, `intentHash=${a.intentHash}`, `amount=${a.amount}`, `verdict=${verdict}`].join("\n");
 }
 
 export async function verifyApprovalSignature(

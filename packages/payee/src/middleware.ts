@@ -31,7 +31,7 @@ import {
   type Ed25519Jwk,
   type SubscriptionOffer,
   type LightningNode,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { SubscriptionBook } from "./subscriptions.js";
 
 /**

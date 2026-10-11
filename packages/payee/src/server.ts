@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import type { LightningNode } from "@apgw/core";
+import type { LightningNode } from "@spendmarshal/core";
 import { paid, type PaidConfig, type SettledInfo } from "./middleware.js";
 import { SubscriptionBook } from "./subscriptions.js";
 
@@ -29,7 +29,7 @@ export function buildPayee(opts: {
   const interval = opts.feedInterval ?? "1s";
 
   app.get("/", async () => ({
-    name: "apgw example payee",
+    name: "SpendMarshal example payee",
     resources: ["/v1/quote?symbol=ETH (0.01 USDC)", "/v1/report?symbol=ETH (0.04 USDC)", "/v1/feed (subscription 0.01/cycle)", "/v1/stream (metered 0.0001/token)", ...(opts.lightning ? ["/v1/lightning-quote (10 sats, L402)"] : [])],
     rails: opts.pricing.rails,
   }));

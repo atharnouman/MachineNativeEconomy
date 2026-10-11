@@ -46,7 +46,7 @@ jobs:
         run: pnpm test:unit
 
       - name: End-to-end (thin slice + Phase 1, local anvil)
-        run: pnpm test:e2e && pnpm --filter @apgw/example-phase1 test
+        run: pnpm test:e2e && pnpm --filter @spendmarshal/example-phase1 test
 
       - name: OpenAPI drift
         run: |

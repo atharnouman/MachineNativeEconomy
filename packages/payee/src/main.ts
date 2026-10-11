@@ -17,4 +17,4 @@ const payee = buildPayee({
     mpp: { rpcUrl: process.env.PAYEE_RPC_URL ?? "http://127.0.0.1:8545", relayerPrivateKey: need("PAYEE_RELAYER_PRIVATE_KEY") as `0x${string}` },
   },
 });
-payee.listen().then((a) => console.log(`apgw example payee listening on ${a}`));
+payee.listen().then((a) => console.log(`SpendMarshal example payee listening on ${a}`));

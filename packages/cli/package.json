@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/cli",
+  "name": "@spendmarshal/cli",
   "version": "0.0.1",
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
@@ -8,7 +8,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "apgw": "./dist/index.js"
+    "spendmarshal": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -17,7 +17,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*",
+    "@spendmarshal/core": "workspace:*",
     "viem": "^2.21.54",
     "yaml": "^2.6.1"
   }

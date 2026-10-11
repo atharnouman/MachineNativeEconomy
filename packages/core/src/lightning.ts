@@ -3,7 +3,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 /**
  * Lightning (L402) abstractions. The gateway pays invoices through a `LightningBackend`; a payee mints
  * invoices and verifies preimages through a `LightningNode`. Real implementations wrap LND / CLN / an LSP;
- * `MockLightning` in @apgw/devnet implements both against an in-memory ledger for demos and tests.
+ * `MockLightning` in @spendmarshal/devnet implements both against an in-memory ledger for demos and tests.
  *
  * Proof of payment is the preimage: sha256(preimage) == invoice.paymentHash. The gateway checks that itself,
  * so it never has to trust the payee's word, exactly as it confirms EVM settlements on-chain.

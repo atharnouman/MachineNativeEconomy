@@ -3,13 +3,13 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { privateKeyToAccount } from "viem/accounts";
 import { keccak256, toHex } from "viem";
-import { AgentAccountAbi, describeRevert, verifyBundle, credentialId, toHuman, type EvidenceBundle } from "@apgw/core";
-import { ANVIL_KEYS, MockLightning, startAnvil, deployCore, delegateEoaToAccount, mintUsdc, usdcBalance, grantRootSession, ownerUnpause, readSession, walletFor } from "@apgw/devnet";
-import { preimageMatches } from "@apgw/core";
-import { buildGateway, type Gateway } from "@apgw/gateway";
-import { buildPayee } from "@apgw/payee";
-import { ApgwAdmin, ApgwClient, ApgwError, generateHolderKey, type PayResponse } from "@apgw/sdk";
-import { verifyEvidence, formatReport } from "@apgw/cli";
+import { AgentAccountAbi, describeRevert, verifyBundle, credentialId, toHuman, type EvidenceBundle } from "@spendmarshal/core";
+import { ANVIL_KEYS, MockLightning, startAnvil, deployCore, delegateEoaToAccount, mintUsdc, usdcBalance, grantRootSession, ownerUnpause, readSession, walletFor } from "@spendmarshal/devnet";
+import { preimageMatches } from "@spendmarshal/core";
+import { buildGateway, type Gateway } from "@spendmarshal/gateway";
+import { buildPayee } from "@spendmarshal/payee";
+import { SpendMarshalAdmin, SpendMarshalClient, SpendMarshalError, generateHolderKey, type PayResponse } from "@spendmarshal/sdk";
+import { verifyEvidence, formatReport } from "@spendmarshal/cli";
 
 /**
  * Phase 1 demo. Everything Phase 0 showed, plus:
@@ -135,7 +135,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
       feedInterval: "1s",
     });
     const payeeUrl = await payee.listen();
-    const admin = new ApgwAdmin(gatewayUrl, "dev-admin-token");
+    const admin = new SpendMarshalAdmin(gatewayUrl, "dev-admin-token");
     const health = await admin.health();
     step("services", health.policies["org-acme"]?.version === 1, `gateway ${gatewayUrl} (store: sqlite), payee ${payeeUrl}, policy v1 ${health.policies["org-acme"]?.hash.slice(0, 10)}…`);
 
@@ -190,18 +190,18 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
     try {
       proxy = await fetcher.pay({ url: "http://169.254.169.254/latest/meta-data/", maxAmount: "0.01", purpose: "research" });
     } catch (e) {
-      proxy = { ok: false, status: (e as ApgwError).status, error: (e as Error).message };
+      proxy = { ok: false, status: (e as SpendMarshalError).status, error: (e as Error).message };
     }
     step("gateway refuses to fetch private addresses", proxy.ok === false && proxy.status === 403 && (proxy.error ?? "").includes("private"), `${proxy.status} ${proxy.error}`);
 
     // a stolen bearer credential is useless without the holder key: wrong key → 401, no payment, no signing
-    const thief = new ApgwClient(gatewayUrl, fetcher.credential, { holderKey: generateHolderKey().privateJwk });
+    const thief = new SpendMarshalClient(gatewayUrl, fetcher.credential, { holderKey: generateHolderKey().privateJwk });
     let theftStatus = 0;
     let theftMessage = "";
     try {
       await thief.pay({ url: quoteUrl, maxAmount: "0.02", purpose: "research" });
     } catch (e) {
-      theftStatus = (e as ApgwError).status;
+      theftStatus = (e as SpendMarshalError).status;
       theftMessage = (e as Error).message;
     }
     step("stolen credential is useless without the holder key", theftStatus === 401 && theftMessage.includes("holder signature"), `${theftStatus} ${theftMessage}`);
@@ -272,7 +272,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
     try {
       await fetcher.cancelSubscription(feed.subscription!.id);
     } catch (e) {
-      childCancelStatus = (e as ApgwError).status;
+      childCancelStatus = (e as SpendMarshalError).status;
     }
     step(
       "subscription visibility follows the credential chain",
@@ -342,11 +342,11 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
     // ── 11b. observability: Prometheus metrics and the OpenAPI document ─────────────
     const metricsText = await admin.metrics();
     const openapi = (await admin.openapi()) as { openapi?: string; paths?: Record<string, unknown> };
-    const settledCount = /apgw_payments_total\{rail="x402",outcome="settled",payload_kind="standard"\} (\d+)/.exec(metricsText)?.[1];
+    const settledCount = /spendmarshal_payments_total\{rail="x402",outcome="settled",payload_kind="standard"\} (\d+)/.exec(metricsText)?.[1];
     step(
       "metrics + OpenAPI",
-      metricsText.includes("apgw_payments_total") && metricsText.includes("apgw_receipts_total") && settledCount === "1" && openapi.openapi === "3.1.0" && Object.keys(openapi.paths ?? {}).length >= 20,
-      `/metrics has apgw_payments_total (standard x402 settled = ${settledCount}); /openapi.json is OpenAPI ${openapi.openapi} with ${Object.keys(openapi.paths ?? {}).length} paths`,
+      metricsText.includes("spendmarshal_payments_total") && metricsText.includes("spendmarshal_receipts_total") && settledCount === "1" && openapi.openapi === "3.1.0" && Object.keys(openapi.paths ?? {}).length >= 20,
+      `/metrics has spendmarshal_payments_total (standard x402 settled = ${settledCount}); /openapi.json is OpenAPI ${openapi.openapi} with ${Object.keys(openapi.paths ?? {}).length} paths`,
     );
 
     // ── 12. anchor, export, verify ─────────────────────────────────────────────────

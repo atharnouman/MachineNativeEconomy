@@ -1,4 +1,4 @@
-import { randomId, nowIso, receiptHash, type Receipt, type ReceiptBody, type ReceiptKind } from "@apgw/core";
+import { randomId, nowIso, receiptHash, type Receipt, type ReceiptBody, type ReceiptKind } from "@spendmarshal/core";
 import type { Store } from "./store.js";
 import type { Signer } from "./signer.js";
 import type { Metrics } from "./metrics.js";

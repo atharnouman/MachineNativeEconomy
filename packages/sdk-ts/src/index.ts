@@ -18,7 +18,7 @@ import {
   type PolicyVersion,
   type Ed25519Jwk,
   type Subscription,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 
 export type { Credential, Caveat, Receipt, EvidenceBundle, Rail, Approval, ApprovalVerdict, Ed25519Jwk, Subscription };
 
@@ -91,7 +91,7 @@ export interface SubscribeResponse {
   error?: string;
 }
 
-export class ApgwError extends Error {
+export class SpendMarshalError extends Error {
   constructor(message: string, readonly status: number, readonly response?: unknown) {
     super(message);
   }
@@ -117,7 +117,7 @@ export function generateHolderKey(): { privateJwk: Ed25519Jwk; publicJwk: Ed2551
  * dance on whichever rail the payee offers, enforces policy, settles, confirms on-chain and returns the
  * resource body plus receipts. A 202 means a human has to approve; `waitForApproval()` then `resume()`.
  */
-export class ApgwClient {
+export class SpendMarshalClient {
   readonly credential: Credential;
   private readonly holder?: ReturnType<typeof ed25519FromJwk>;
   private readonly fetchImpl: typeof fetch;
@@ -147,7 +147,7 @@ export class ApgwClient {
     if (this.holder) headers = { ...headers, ...signAsHolder({ method, url, headers }, this.holder, body) };
     const r = await this.fetchImpl(url, { ...init, method, headers });
     const json = (await r.json()) as unknown;
-    if (!okStatuses.includes(r.status)) throw new ApgwError((json as { error?: string }).error ?? `HTTP ${r.status}`, r.status, json);
+    if (!okStatuses.includes(r.status)) throw new SpendMarshalError((json as { error?: string }).error ?? `HTTP ${r.status}`, r.status, json);
     return json as T;
   }
 
@@ -155,7 +155,7 @@ export class ApgwClient {
 
   /** Pay for a resource. Resolves for denials and pending approvals too (ok=false) so agents can act on them. */
   pay(req: PayRequest): Promise<PayResponse> {
-    return this.call<PayResponse>("/v1/intents", { method: "POST", body: JSON.stringify(req) }, ApgwClient.PAY_STATUSES);
+    return this.call<PayResponse>("/v1/intents", { method: "POST", body: JSON.stringify(req) }, SpendMarshalClient.PAY_STATUSES);
   }
 
   simulate(req: PayRequest): Promise<PayResponse> {
@@ -164,7 +164,7 @@ export class ApgwClient {
 
   /** Continue an escalated payment after approval. The gateway re-quotes and re-checks everything. */
   resume(approvalId: string): Promise<PayResponse> {
-    return this.call<PayResponse>("/v1/intents/resume", { method: "POST", body: JSON.stringify({ approvalId }) }, ApgwClient.PAY_STATUSES);
+    return this.call<PayResponse>("/v1/intents/resume", { method: "POST", body: JSON.stringify({ approvalId }) }, SpendMarshalClient.PAY_STATUSES);
   }
 
   async approval(id: string): Promise<ApprovalPublic> {
@@ -186,7 +186,7 @@ export class ApgwClient {
    * the result is registered so the chain enforces it too. With `bindTo: "new"` a fresh holder key is generated
    * and bound, so the sub-agent's credential is useless without that key; the returned client holds it.
    */
-  async delegate(opts: { agentId: string; caveats: Caveat[]; bindTo?: "new" | Ed25519Jwk }): Promise<ApgwClient> {
+  async delegate(opts: { agentId: string; caveats: Caveat[]; bindTo?: "new" | Ed25519Jwk }): Promise<SpendMarshalClient> {
     let holderKey: Ed25519Jwk | undefined;
     let caveats = opts.caveats;
     if (opts.bindTo === "new") {
@@ -199,14 +199,14 @@ export class ApgwClient {
     }
     const child = attenuate(this.credential, caveats, { agentId: opts.agentId, nonce: randomId("n") });
     await this.call("/v1/credentials/register", { method: "POST", body: JSON.stringify({ credential: child }) });
-    return new ApgwClient(this.baseUrl, child, { holderKey: holderKey ?? (opts.bindTo ? undefined : this.holder?.jwk), fetch: this.fetchImpl });
+    return new SpendMarshalClient(this.baseUrl, child, { holderKey: holderKey ?? (opts.bindTo ? undefined : this.holder?.jwk), fetch: this.fetchImpl });
   }
 
   /** Restrict this credential further without delegating (same agent, tighter limits). */
-  async restrict(caveats: Caveat[]): Promise<ApgwClient> {
+  async restrict(caveats: Caveat[]): Promise<SpendMarshalClient> {
     const c = attenuate(this.credential, caveats);
     await this.call("/v1/credentials/register", { method: "POST", body: JSON.stringify({ credential: c }) });
-    return new ApgwClient(this.baseUrl, c, { holderKey: this.holder?.jwk, fetch: this.fetchImpl });
+    return new SpendMarshalClient(this.baseUrl, c, { holderKey: this.holder?.jwk, fetch: this.fetchImpl });
   }
 
   async receipts(): Promise<Receipt[]> {
@@ -238,7 +238,7 @@ export interface ApprovalSigner {
 }
 
 /** Operator-side client (admin token). */
-export class ApgwAdmin {
+export class SpendMarshalAdmin {
   constructor(readonly baseUrl: string, private readonly adminToken: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
@@ -246,14 +246,14 @@ export class ApgwAdmin {
   private async call<T>(path: string, init: RequestInit = {}): Promise<T> {
     const r = await fetch(`${this.baseUrl}${path}`, { ...init, headers: { "content-type": "application/json", "x-admin-token": this.adminToken, ...(init.headers ?? {}) } });
     const json = (await r.json()) as unknown;
-    if (!r.ok) throw new ApgwError((json as { error?: string }).error ?? `HTTP ${r.status}`, r.status, json);
+    if (!r.ok) throw new SpendMarshalError((json as { error?: string }).error ?? `HTTP ${r.status}`, r.status, json);
     return json as T;
   }
 
-  async issueCredential(args: { principalId: string; agentId: string; caveats: Exclude<Caveat, { type: "delegate" }>[]; holderKey?: Ed25519Jwk }): Promise<ApgwClient> {
+  async issueCredential(args: { principalId: string; agentId: string; caveats: Exclude<Caveat, { type: "delegate" }>[]; holderKey?: Ed25519Jwk }): Promise<SpendMarshalClient> {
     const caveats = args.holderKey ? [...args.caveats, { type: "holder_key" as const, jwk: { kty: "OKP" as const, crv: "Ed25519" as const, x: args.holderKey.x } }] : args.caveats;
     const r = await this.call<{ credential: Credential }>("/v1/credentials", { method: "POST", body: JSON.stringify({ principalId: args.principalId, agentId: args.agentId, caveats }) });
-    return new ApgwClient(this.baseUrl, r.credential, { holderKey: args.holderKey?.d ? args.holderKey : undefined });
+    return new SpendMarshalClient(this.baseUrl, r.credential, { holderKey: args.holderKey?.d ? args.holderKey : undefined });
   }
 
   // approvals
@@ -275,7 +275,7 @@ export class ApgwAdmin {
     let signature: `0x${string}` | undefined;
     if (opts.signer) {
       const a = opts.approval ?? (opts.principalId ? await this.getApproval(opts.principalId, id) : undefined);
-      if (!a) throw new ApgwError("signing an approval needs opts.approval or opts.principalId", 400);
+      if (!a) throw new SpendMarshalError("signing an approval needs opts.approval or opts.principalId", 400);
       signature = await opts.signer.signMessage({ message: approvalMessage(a, verdict) });
     }
     return (await this.call<{ approval: ApprovalPublic }>(`/v1/approvals/${encodeURIComponent(id)}/${verdict}`, { method: "POST", body: JSON.stringify({ approverId, signature, note: opts.note }) })).approval;
@@ -284,7 +284,7 @@ export class ApgwAdmin {
   async getApproval(principalId: string, id: string): Promise<ApprovalPublic> {
     const hit = (await this.listApprovals(principalId)).find((a) => a.id === id);
     if (hit) return hit;
-    throw new ApgwError(`approval ${id} not found for ${principalId}`, 404);
+    throw new SpendMarshalError(`approval ${id} not found for ${principalId}`, 404);
   }
 
   // policies
@@ -367,46 +367,46 @@ const payParams = {
 } as const;
 
 /** Give an agent framework the gateway as tools. The model never sees keys or signs anything. */
-export function apgwTools(client: ApgwClient): ToolDefinition[] {
+export function spendmarshalTools(client: SpendMarshalClient): ToolDefinition[] {
   return [
     {
-      name: "apgw_pay",
-      description: "Pay for an HTTP resource through the Agentic Payment Gateway under the agent's spending policy. Returns the resource body, the policy decision and signed receipts. If denied, returns the reasons; do not retry with a higher amount. If status is 202, a human must approve: report the approvalId and use apgw_resume once approved.",
+      name: "spendmarshal_pay",
+      description: "Pay for an HTTP resource through the Agentic Payment Gateway under the agent's spending policy. Returns the resource body, the policy decision and signed receipts. If denied, returns the reasons; do not retry with a higher amount. If status is 202, a human must approve: report the approvalId and use spendmarshal_resume once approved.",
       parameters: payParams,
       execute: (a) => client.pay(a as unknown as PayRequest),
     },
     {
-      name: "apgw_simulate",
+      name: "spendmarshal_simulate",
       description: "Dry-run a payment: returns whether policy and the on-chain account would allow it, without paying.",
       parameters: payParams,
       execute: (a) => client.simulate(a as unknown as PayRequest),
     },
     {
-      name: "apgw_resume",
+      name: "spendmarshal_resume",
       description: "Continue a payment that was waiting for human approval. Returns the resource if the approval was granted.",
       parameters: { type: "object", properties: { approvalId: { type: "string" } }, required: ["approvalId"] },
       execute: (a) => client.resume(String(a.approvalId)),
     },
     {
-      name: "apgw_approval",
+      name: "spendmarshal_approval",
       description: "Check the status of a pending approval.",
       parameters: { type: "object", properties: { approvalId: { type: "string" } }, required: ["approvalId"] },
       execute: (a) => client.approval(String(a.approvalId)),
     },
     {
-      name: "apgw_subscribe",
+      name: "spendmarshal_subscribe",
       description: "Open a subscription to a resource the payee offers on a cadence (fixed amount per cycle, or metered usage). The first cycle is paid now; later charges are initiated by the payee and still go through the agent's policy. Returns the subscription and its terms.",
       parameters: { type: "object", properties: { url: { type: "string" }, purpose: { type: "string" }, maxAmountPerCharge: { type: "string", description: "Most the payee may charge per cycle, in USDC" }, maxCharges: { type: "integer" }, maxTotal: { type: "string" } }, required: ["url", "purpose", "maxAmountPerCharge"] },
       execute: (a) => client.subscribe(a as unknown as SubscribeRequest),
     },
     {
-      name: "apgw_cancel_subscription",
+      name: "spendmarshal_cancel_subscription",
       description: "Cancel a subscription; the payee can no longer charge it.",
       parameters: { type: "object", properties: { subscriptionId: { type: "string" } }, required: ["subscriptionId"] },
       execute: (a) => client.cancelSubscription(String(a.subscriptionId)),
     },
     {
-      name: "apgw_receipts",
+      name: "spendmarshal_receipts",
       description: "List the signed receipts (decisions, settlements, denials, approvals) for this agent's principal.",
       parameters: { type: "object", properties: {} },
       execute: () => client.receipts(),

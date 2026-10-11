@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { CaveatSchema, CredentialSchema, ApprovalSchema, ReceiptSchema, EvidenceBundleSchema, PolicySchema, X402SignatureSchema, X402AcceptSchema } from "@apgw/core";
+import { CaveatSchema, CredentialSchema, ApprovalSchema, ReceiptSchema, EvidenceBundleSchema, PolicySchema, X402SignatureSchema, X402AcceptSchema } from "@spendmarshal/core";
 
 /** The request body for /v1/intents and /v1/intents/simulate (kept in sync with server.ts). */
 export const PayBodySchema = z.object({
@@ -25,7 +25,7 @@ export function buildOpenApi(info: { url: string; version: string }) {
   return {
     openapi: "3.1.0",
     info: {
-      title: "apgw — Agentic Payment Gateway",
+      title: "SpendMarshal — Agentic Payment Gateway",
       version: info.version,
       description: "Policy, settlement and evidence control plane between AI agents and any payment rail. Agents authenticate with a bearer credential (and, when holder-bound, an RFC 9421 signature); operators with an admin token.",
       license: { name: "Apache-2.0" },
@@ -33,7 +33,7 @@ export function buildOpenApi(info: { url: string; version: string }) {
     servers: [{ url: info.url }],
     components: {
       securitySchemes: {
-        credential: { type: "http", scheme: "bearer", description: "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag apgw-holder) and Content-Digest for bodies." },
+        credential: { type: "http", scheme: "bearer", description: "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag spendmarshal-holder) and Content-Digest for bodies." },
         adminToken: { type: "apiKey", in: "header", name: "x-admin-token" },
       },
       schemas: {

@@ -19,7 +19,7 @@ import {
   describeRevert,
   type PaymentAuthorizationStruct,
   type TokenAuthorizationStruct,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 
 export interface SessionCaveatsOnChain {

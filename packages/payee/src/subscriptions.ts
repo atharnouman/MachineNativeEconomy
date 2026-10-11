@@ -1,4 +1,4 @@
-import type { SubscriptionTerms, ChargeRequest } from "@apgw/core";
+import type { SubscriptionTerms, ChargeRequest } from "@spendmarshal/core";
 import type { AgentIdentity } from "./middleware.js";
 
 /** A subscription as the payee sees it: where to charge and with what token. */

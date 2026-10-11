@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@apgw/core";
+import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
 import type { Store, RegisteredCredential, AnchorRecord, LedgerEntry, IntentRecord, PreApprovalRecord } from "./store.js";
 
 interface State {

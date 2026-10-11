@@ -1,5 +1,5 @@
 import type { Address, Hex } from "viem";
-import type { LightningBackend } from "@apgw/core";
+import type { LightningBackend } from "@spendmarshal/core";
 
 export interface ContractAddresses {
   usdc: Address;
@@ -80,34 +80,34 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     if (!v) throw new Error(`missing env ${k}`);
     return v;
   };
-  const contracts = JSON.parse(need("APGW_CONTRACTS")) as ContractAddresses;
-  const principals = JSON.parse(need("APGW_PRINCIPALS")) as Record<string, PrincipalConfig>;
+  const contracts = JSON.parse(need("SPENDMARSHAL_CONTRACTS")) as ContractAddresses;
+  const principals = JSON.parse(need("SPENDMARSHAL_PRINCIPALS")) as Record<string, PrincipalConfig>;
   return {
-    host: env.APGW_HOST ?? "127.0.0.1",
-    port: Number(env.APGW_PORT ?? 4402),
-    rpcUrl: env.APGW_RPC_URL ?? "http://127.0.0.1:8545",
-    chainId: Number(env.APGW_CHAIN_ID ?? 31337),
-    gatewayPrivateKey: need("APGW_GATEWAY_PRIVATE_KEY") as Hex,
-    sessionSecret: need("APGW_SESSION_SECRET"),
-    credentialRootKey: need("APGW_CREDENTIAL_ROOT_KEY"),
-    adminToken: need("APGW_ADMIN_TOKEN"),
-    dataDir: env.APGW_DATA_DIR ?? "./data",
-    storeDriver: env.APGW_STORE === "sqlite" ? "sqlite" : "json",
-    policyYaml: need("APGW_POLICY_YAML"),
+    host: env.SPENDMARSHAL_HOST ?? "127.0.0.1",
+    port: Number(env.SPENDMARSHAL_PORT ?? 4402),
+    rpcUrl: env.SPENDMARSHAL_RPC_URL ?? "http://127.0.0.1:8545",
+    chainId: Number(env.SPENDMARSHAL_CHAIN_ID ?? 31337),
+    gatewayPrivateKey: need("SPENDMARSHAL_GATEWAY_PRIVATE_KEY") as Hex,
+    sessionSecret: need("SPENDMARSHAL_SESSION_SECRET"),
+    credentialRootKey: need("SPENDMARSHAL_CREDENTIAL_ROOT_KEY"),
+    adminToken: need("SPENDMARSHAL_ADMIN_TOKEN"),
+    dataDir: env.SPENDMARSHAL_DATA_DIR ?? "./data",
+    storeDriver: env.SPENDMARSHAL_STORE === "sqlite" ? "sqlite" : "json",
+    policyYaml: need("SPENDMARSHAL_POLICY_YAML"),
     contracts,
     principals,
-    asset: { symbol: env.APGW_ASSET ?? "USDC", decimals: Number(env.APGW_DECIMALS ?? 6) },
-    facilitator: { enabled: (env.APGW_FACILITATOR ?? "true") !== "false" },
-    authorizationTtlSeconds: Number(env.APGW_AUTH_TTL ?? 120),
-    approvers: env.APGW_APPROVERS ? (JSON.parse(env.APGW_APPROVERS) as Record<string, Address>) : undefined,
-    requireSignedApprovals: env.APGW_REQUIRE_SIGNED_APPROVALS === "true",
-    approvalTtlSeconds: env.APGW_APPROVAL_TTL ? Number(env.APGW_APPROVAL_TTL) : undefined,
-    x402Mode: env.APGW_X402_MODE === "standard" ? "standard" : "agent-account",
-    publicUrl: env.APGW_PUBLIC_URL,
-    signOutbound: env.APGW_SIGN_OUTBOUND !== "false",
-    logLevel: env.APGW_LOG_LEVEL,
-    defaultMetrics: env.APGW_DEFAULT_METRICS === "true",
-    fx: env.APGW_SATS_PER_USDC ? { satsPerUsdc: Number(env.APGW_SATS_PER_USDC) } : undefined,
-    outbound: { allowLoopback: env.APGW_OUTBOUND_ALLOW_LOOPBACK === "true", allowPrivate: env.APGW_OUTBOUND_ALLOW_PRIVATE === "true", allowedHosts: env.APGW_OUTBOUND_ALLOWED_HOSTS ? env.APGW_OUTBOUND_ALLOWED_HOSTS.split(",").map((s) => s.trim()).filter(Boolean) : undefined },
+    asset: { symbol: env.SPENDMARSHAL_ASSET ?? "USDC", decimals: Number(env.SPENDMARSHAL_DECIMALS ?? 6) },
+    facilitator: { enabled: (env.SPENDMARSHAL_FACILITATOR ?? "true") !== "false" },
+    authorizationTtlSeconds: Number(env.SPENDMARSHAL_AUTH_TTL ?? 120),
+    approvers: env.SPENDMARSHAL_APPROVERS ? (JSON.parse(env.SPENDMARSHAL_APPROVERS) as Record<string, Address>) : undefined,
+    requireSignedApprovals: env.SPENDMARSHAL_REQUIRE_SIGNED_APPROVALS === "true",
+    approvalTtlSeconds: env.SPENDMARSHAL_APPROVAL_TTL ? Number(env.SPENDMARSHAL_APPROVAL_TTL) : undefined,
+    x402Mode: env.SPENDMARSHAL_X402_MODE === "standard" ? "standard" : "agent-account",
+    publicUrl: env.SPENDMARSHAL_PUBLIC_URL,
+    signOutbound: env.SPENDMARSHAL_SIGN_OUTBOUND !== "false",
+    logLevel: env.SPENDMARSHAL_LOG_LEVEL,
+    defaultMetrics: env.SPENDMARSHAL_DEFAULT_METRICS === "true",
+    fx: env.SPENDMARSHAL_SATS_PER_USDC ? { satsPerUsdc: Number(env.SPENDMARSHAL_SATS_PER_USDC) } : undefined,
+    outbound: { allowLoopback: env.SPENDMARSHAL_OUTBOUND_ALLOW_LOOPBACK === "true", allowPrivate: env.SPENDMARSHAL_OUTBOUND_ALLOW_PRIVATE === "true", allowedHosts: env.SPENDMARSHAL_OUTBOUND_ALLOWED_HOSTS ? env.SPENDMARSHAL_OUTBOUND_ALLOWED_HOSTS.split(",").map((s) => s.trim()).filter(Boolean) : undefined },
   };
 }

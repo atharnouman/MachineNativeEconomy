@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/devnet",
+  "name": "@spendmarshal/devnet",
   "version": "0.0.1",
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
@@ -14,7 +14,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*",
+    "@spendmarshal/core": "workspace:*",
     "viem": "^2.21.54"
   }
 }

@@ -1,5 +1,5 @@
 import { createPublicClient, http, type Address, type Hex } from "viem";
-import { verifyBundle, EvidenceBundleSchema, ReceiptRegistryAbi, chainFor, type EvidenceBundle, type VerifyReport } from "@apgw/core";
+import { verifyBundle, EvidenceBundleSchema, ReceiptRegistryAbi, chainFor, type EvidenceBundle, type VerifyReport } from "@spendmarshal/core";
 
 /** Offline verification plus, when an RPC is given, confirmation that each anchor exists on-chain. */
 export async function verifyEvidence(bundle: unknown, opts: { rpcUrl?: string } = {}): Promise<VerifyReport & { bundle: EvidenceBundle | null }> {

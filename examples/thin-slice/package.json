@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/example-thin-slice",
+  "name": "@spendmarshal/example-thin-slice",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*",
-    "@apgw/gateway": "workspace:*",
-    "@apgw/payee": "workspace:*",
-    "@apgw/sdk": "workspace:*",
-    "@apgw/cli": "workspace:*",
+    "@spendmarshal/core": "workspace:*",
+    "@spendmarshal/gateway": "workspace:*",
+    "@spendmarshal/payee": "workspace:*",
+    "@spendmarshal/sdk": "workspace:*",
+    "@spendmarshal/cli": "workspace:*",
     "viem": "^2.21.54",
     "yaml": "^2.6.1"
   }

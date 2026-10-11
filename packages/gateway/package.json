@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/gateway",
+  "name": "@spendmarshal/gateway",
   "version": "0.0.1",
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
@@ -20,7 +20,7 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*",
+    "@spendmarshal/core": "workspace:*",
     "better-sqlite3": "^11",
     "fastify": "^5.2.0",
     "prom-client": "^15",

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { issueRoot, credentialId } from "@apgw/core";
+import { issueRoot, credentialId } from "@spendmarshal/core";
 import { openStore } from "../src/store.js";
 import { LocalSigner } from "../src/signer.js";
 import { ReceiptLog } from "../src/receipts.js";
@@ -19,7 +19,7 @@ const cfg = { credentialRootKey: "k", principals: { org: { account: ACCOUNT, own
 const session = (key: string, active = true) => ({ key, parent: `0x${"0".repeat(40)}`, spendCap: 10n, spent: 0n, perTxMax: 1n, validAfter: 0n, validUntil: 2n ** 40n, anyTarget: true, active });
 
 async function service(chain: Partial<ChainClient>) {
-  const store = await openStore({ driver: "json", dataDir: mkdtempSync(join(tmpdir(), "apgw-reg-")) });
+  const store = await openStore({ driver: "json", dataDir: mkdtempSync(join(tmpdir(), "spendmarshal-reg-")) });
   const signer = new LocalSigner(PK, "secret");
   return { store, svc: new CredentialService(cfg, store, signer, chain as ChainClient, new ReceiptLog(store, signer)) };
 }

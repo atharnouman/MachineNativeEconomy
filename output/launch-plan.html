@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>apgw Launch Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a ledger. One ruled column of waves on the left, a narrow margin column of pillars, targets and decisions on the right; a receipt tape under the headline. */
+  :root {
+    --bg: #f4f6f8;
+    --paper: #ffffff;
+    --ink: #151c23;
+    --muted: #5d6974;
+    --line: #d6dde3;
+    --rail: #c3ccd4;
+    --seal: #b9671c;      /* the one warm accent: stamps, numbers, the rail marker */
+    --seal-soft: #f6e7d6;
+    --tint: #1f6e8a;      /* cool ink for labels and links */
+    --tint-soft: #e2eff4;
+    --good: #2f7d5c;
+    --good-soft: #e0f1e8;
+    --warn: #9a6b00;
+    --warn-soft: #f7eed3;
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1418; --paper: #161c22; --ink: #e9eef2; --muted: #96a2ad; --line: #2a333c; --rail: #37424c;
+      --seal: #e39b4d; --seal-soft: #3a2a18; --tint: #63b6d1; --tint-soft: #16303a;
+      --good: #5cc490; --good-soft: #15302a; --warn: #e0b24a; --warn-soft: #352c14;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1418; --paper: #161c22; --ink: #e9eef2; --muted: #96a2ad; --line: #2a333c; --rail: #37424c;
+    --seal: #e39b4d; --seal-soft: #3a2a18; --tint: #63b6d1; --tint-soft: #16303a;
+    --good: #5cc490; --good-soft: #15302a; --warn: #e0b24a; --warn-soft: #352c14;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.55;
+    padding-block: 32px 48px;
+    padding-inline: clamp(16px, 4vw, 40px);
+  }
+  a { color: var(--tint); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+  .page { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+
+  /* ---------- masthead ---------- */
+  .masthead { display: grid; gap: 14px; }
+  .eyebrow {
+    display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline;
+    font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  }
+  .eyebrow strong { color: var(--seal); font-weight: 500; }
+  h1 {
+    font-family: var(--display); font-weight: 800; font-size: clamp(34px, 5.2vw, 60px); line-height: 1.02;
+    letter-spacing: -.02em; margin: 0; max-width: 18ch; text-wrap: balance;
+  }
+  .lede { max-width: 62ch; margin: 0; font-size: 17px; color: var(--ink); }
+  .lede b { font-weight: 600; }
+
+  /* the receipt tape: the subject's own artefact, hash-chained receipts */
+  .tape {
+    display: flex; gap: 0; overflow-x: auto; border-top: 1px dashed var(--rail); border-bottom: 1px dashed var(--rail);
+    font-family: var(--mono); font-size: 12.5px; white-space: nowrap; padding-block: 10px; scrollbar-width: thin;
+  }
+  .tape span { padding-inline: 14px; border-right: 1px solid var(--line); color: var(--muted); }
+  .tape span:first-child { padding-left: 0; }
+  .tape span:last-child { border-right: 0; }
+  .tape em { font-style: normal; color: var(--ink); }
+  .tape .ok { color: var(--good); }
+
+  /* ---------- status strip ---------- */
+  .status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); background: var(--paper); border-radius: 6px; overflow: hidden; }
+  .status > div { padding: 16px 18px; border-right: 1px solid var(--line); display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .status > div:last-child { border-right: 0; }
+  .status .v { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+  .status .name { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+  .status .what { color: var(--muted); font-size: 14px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; padding: 3px 9px; border-radius: 999px; width: fit-content; }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.done { background: var(--good-soft); color: var(--good); }
+  .pill.now { background: var(--seal-soft); color: var(--seal); }
+  .pill.next { background: var(--tint-soft); color: var(--tint); }
+
+  /* ---------- two columns ---------- */
+  .cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .col { display: grid; gap: 28px; min-width: 0; }
+  h2 {
+    font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.01em; margin: 0 0 12px;
+    display: flex; align-items: baseline; gap: 10px; text-wrap: balance;
+  }
+  h2 small { font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+
+  /* waves: a vertical rail with stamped numbers; the order is the plan */
+  .waves { display: grid; gap: 0; }
+  .wave { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; position: relative; padding-block: 16px 20px; border-top: 1px solid var(--line); }
+  .wave:last-child { border-bottom: 1px solid var(--line); }
+  .wave .n {
+    font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; color: var(--seal);
+    font-variant-numeric: tabular-nums; padding-top: 2px;
+  }
+  .wave .head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .wave .title { font-family: var(--display); font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
+  .wave .when { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .wave ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+  .wave li { max-width: 62ch; }
+  .exit { margin-top: 10px; font-size: 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: baseline; }
+  .exit .k { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+
+  /* pillars */
+  .pillars { display: grid; gap: 12px; }
+  .pillar { padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 4px; }
+  .pillar .t { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+  .pillar p { margin: 0; color: var(--muted); font-size: 14px; }
+  .pillar p b { color: var(--ink); font-weight: 500; }
+  .not { font-size: 14px; color: var(--muted); padding: 10px 2px 0; }
+  .not b { color: var(--ink); font-weight: 600; }
+
+  /* targets table */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; color: var(--seal); font-weight: 500; }
+  th.num { text-align: right; }
+  .tablewrap { overflow-x: auto; }
+  .fine { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+
+  /* decisions checklist */
+  .decisions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .decisions li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 14.5px; }
+  .decisions .box { width: 15px; height: 15px; margin-top: 4px; border: 1.5px solid var(--seal); border-radius: 3px; }
+  .decisions .why { color: var(--muted); font-size: 13px; }
+
+  /* channels + risks: full width */
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; align-items: start; }
+  .channels { display: grid; gap: 10px; }
+  .channel { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; font-size: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .channel .who { font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .channel p { margin: 0; color: var(--muted); }
+  .channel p b { color: var(--ink); font-weight: 500; }
+  .risks { display: grid; gap: 10px; }
+  .risk { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 12px; font-size: 14px; }
+  .risk .bar { border-radius: 2px; background: var(--warn); }
+  .risk .bar.hi { background: var(--seal); }
+  .risk .r { font-weight: 600; }
+  .risk p { margin: 2px 0 0; color: var(--muted); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 860px) {
+    .cols, .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .status { grid-template-columns: minmax(0, 1fr); }
+    .status > div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .status > div:last-child { border-bottom: 0; }
+    .channel { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .wave .n { transition: transform .2s ease; }
+    .wave:hover .n { transform: translateX(2px); }
+  }
+  @media print {
+    body { background: #fff; color: #111; padding: 0; font-size: 12px; }
+    .page { gap: 16px; }
+    .cols, .grid2 { gap: 20px; }
+    .tape { display: none; }
+    .wave { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span><strong>Launch plan</strong></span>
+      <span>Drafted 11 Oct 2026</span>
+      <span>Working name <strong>apgw</strong> → <strong>SpendMarshal</strong></span>
+      <span>Apache-2.0</span>
+    </div>
+    <h1>The neutral control plane for agent payments.</h1>
+    <p class="lede">One self-hosted service between an organisation's AI agents and any payment rail. Agents hold <b>shrink-only credentials, never keys</b>. Every payment passes <b>policy</b>, is <b>capped on-chain</b>, and leaves a <b>signed receipt</b> an auditor can verify offline. The gateway never holds funds.</p>
+    <div class="tape" aria-label="A real receipt chain from the Phase 1 demo">
+      <span><em>decision</em> precheck <span class="ok">allow</span></span>
+      <span><em>payment.settled</em> x402 0.01 USDC</span>
+      <span><em>approval.requested</em> 0.04 &gt; 0.03</span>
+      <span><em>approval.granted</em> cfo sig <span class="ok">verified</span></span>
+      <span><em>policy.updated</em> v1 → v2</span>
+      <span><em>subscription.charged</em> mpp</span>
+      <span><em>payment.settled</em> l402 10 sats</span>
+      <span><em>preapproval.reclaimed</em> 0.001</span>
+      <span><em>anchor</em> block 30 <span class="ok">verified 11/11</span></span>
+    </div>
+  </header>
+
+  <section class="status" aria-label="Where the project is">
+    <div>
+      <span class="v">v0.1 · Phase 0</span>
+      <span class="name">Thin slice</span>
+      <span class="pill done">done 8 Oct 2026</span>
+      <span class="what">Account contract, attenuable credentials, policy engine, receipt chain, x402 + MPP, SDK, MCP server, CLI. Demo 14/14, evidence verifies offline.</span>
+    </div>
+    <div>
+      <span class="v">v0.2 · Phase 1</span>
+      <span class="name">Bounded operator</span>
+      <span class="pill now">code complete 11 Oct 2026</span>
+      <span class="what">EIP-7702, capability chain, approvals, policy versions, standard x402 interop, Web Bot Auth, subscriptions, Lightning, ERC-4337, hardening. Demo 28/28, 47 Foundry tests, Slither clean. Open: live testnet run, Postgres, FX oracle, tracing, audit.</span>
+    </div>
+    <div>
+      <span class="v">v1.0 · GA</span>
+      <span class="name">Multi-rail</span>
+      <span class="pill next">planned</span>
+      <span class="what">Hold / capture / refund hub, dispute module with pluggable arbiters, AP2 and card-token adapters, reputation from settled receipts, Python SDK, framework adapters, accounting exports.</span>
+    </div>
+  </section>
+
+  <div class="cols">
+    <div class="col">
+      <section aria-labelledby="waves">
+        <h2 id="waves">Launch sequence <small>four waves, each with an exit test</small></h2>
+        <div class="waves">
+          <article class="wave">
+            <div class="n">1</div>
+            <div>
+              <div class="head"><span class="title">Ready</span><span class="when">weeks 0–2 · to 25 Oct</span></div>
+              <ul>
+                <li>Decide the product name; register the npm org; rename the packages once.</li>
+                <li>Live run on Base Sepolia against a public x402 facilitator with real testnet USDC, recorded like the local transcripts.</li>
+                <li>Docker image, docs site built from the README and the 16 ADRs, CI badge, disclosure path in SECURITY.md.</li>
+                <li>Push <code>phase-1</code>, merge to <code>main</code>, tag v0.2.0.</li>
+              </ul>
+              <div class="exit"><span class="k">exit</span><span>A stranger runs the demo from a clean clone with one command and the evidence bundle verifies offline.</span></div>
+            </div>
+          </article>
+          <article class="wave">
+            <div class="n">2</div>
+            <div>
+              <div class="head"><span class="title">Show</span><span class="when">weeks 2–6 · to 22 Nov</span></div>
+              <ul>
+                <li>Launch post built on the recorded transcript: one agent, one budget, three rails, a denial, an approval, a receipt bundle.</li>
+                <li>Show HN and the agent-builder communities; MCP registry listing; adapter examples for the Claude Agent SDK, LangGraph and the OpenAI Agents SDK.</li>
+                <li>Payee pitch to API owners: accept paying agents in five lines, any rail, with Web Bot Auth telling you who called.</li>
+                <li>Visible participation in the x402, MPP, Web Bot Auth and ERC-8004 threads: interop results, not opinions.</li>
+              </ul>
+              <div class="exit"><span class="k">exit</span><span>First external payee and first external gateway deployment; three adapters listed or merged.</span></div>
+            </div>
+          </article>
+          <article class="wave">
+            <div class="n">3</div>
+            <div>
+              <div class="head"><span class="title">Prove</span><span class="when">months 2–4 · Dec to Feb</span></div>
+              <ul>
+                <li>Third-party audit of the contracts; publish the report and the fixes.</li>
+                <li>Base mainnet beta with low caps: bounded operator, kill switch, small root sessions.</li>
+                <li>Two to five design partners: API vendors with agent traffic and agent-platform teams; co-fund the work they need first.</li>
+                <li>Postgres driver, FX oracle with a freshness bound, accounting export of receipts.</li>
+              </ul>
+              <div class="exit"><span class="k">exit</span><span>Real USDC settles through policy on mainnet with signed receipts, and the audit report is public.</span></div>
+            </div>
+          </article>
+          <article class="wave">
+            <div class="n">4</div>
+            <div>
+              <div class="head"><span class="title">Scale</span><span class="when">months 4–9 · to Jul 2027</span></div>
+              <ul>
+                <li>v1.0: settlement hub (hold, capture, partial capture, refund), dispute module with bonded challenges and pluggable arbiters.</li>
+                <li>AP2 mandate adapter and the card-network token interface (Visa TAP, Mastercard Agent Pay); ERC-8004 reputation computed only from settled receipts.</li>
+                <li>Python SDK; adapters for Google ADK, Coinbase AgentKit and Bedrock AgentCore.</li>
+                <li>Decide the neutral home: own organisation or a foundation; publish governance.</li>
+              </ul>
+              <div class="exit"><span class="k">exit</span><span>Receipt volume grows month over month and a rail owner recommends the gateway as the policy layer.</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <aside class="col">
+      <section aria-labelledby="pillars">
+        <h2 id="pillars">Message pillars</h2>
+        <div class="pillars">
+          <div class="pillar">
+            <span class="t">Enforcement below the model</span>
+            <p>Agents carry credentials that can only shrink. <b>Caps, payees and expiry are enforced on-chain</b>, so a prompt injection cannot spend what the policy never allowed.</p>
+          </div>
+          <div class="pillar">
+            <span class="t">Receipts are the unit of truth</span>
+            <p>Every decision, settlement, approval and policy change is a <b>signed, hash-chained receipt</b>. The bundle verifies offline and anchors on-chain. Reconciliation, audit and later reputation all come from it.</p>
+          </div>
+          <div class="pillar">
+            <span class="t">Any rail, any payee, one config block</span>
+            <p>x402, MPP and Lightning today; AP2 and card tokens next. A payee accepts every governed agent with <b>one middleware call</b>; standard payloads mean any public facilitator can settle.</p>
+          </div>
+        </div>
+        <p class="not"><b>What it is not:</b> a wallet, a facilitator, a chain, or a consumer checkout. It never holds funds or risk.</p>
+      </section>
+
+      <section aria-labelledby="targets">
+        <h2 id="targets">Targets at month six <small>after wave 2</small></h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Signal</th><th class="num">Target</th></tr></thead>
+            <tbody>
+              <tr><td>External payees running the middleware</td><td class="num">10</td></tr>
+              <tr><td>Organisations self-hosting a gateway</td><td class="num">5</td></tr>
+              <tr><td>Framework adapters listed or merged</td><td class="num">3</td></tr>
+              <tr><td>Receipts per month, external deployments</td><td class="num">100 000</td></tr>
+              <tr><td>Design partners settling on mainnet</td><td class="num">2</td></tr>
+              <tr><td>Published audit reports</td><td class="num">1</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="fine">Targets, not forecasts. Stars and followers are vanity; receipts through other people's deployments are the only number that proves the thesis. Revisit monthly.</p>
+      </section>
+
+      <section aria-labelledby="decisions">
+        <h2 id="decisions">Decisions needed <small>this week</small></h2>
+        <ul class="decisions">
+          <li><span class="box"></span><span>Product name: SpendMarshal <span class="why">· cleared 11 Oct (USPTO, EUIPO, WIPO, registries, handles); PayReeve is blocked by the Cardano Foundation's REEVE mark; register spendmarshal.com and .dev and the handles now</span></span></li>
+          <li><span class="box"></span><span>npm organisation and package scope</span></li>
+          <li><span class="box"></span><span>A funded Base Sepolia key <span class="why">· personal, for the live facilitator run</span></span></li>
+          <li><span class="box"></span><span>Audit firm and budget <span class="why">· before any mainnet funds</span></span></li>
+          <li><span class="box"></span><span>First design-partner shortlist</span></li>
+          <li><span class="box"></span><span>Neutral home: own organisation or a foundation</span></li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <div class="grid2">
+    <section aria-labelledby="channels">
+      <h2 id="channels">Channels and audiences</h2>
+      <div class="channels">
+        <div class="channel"><span class="who">Agent builders</span><p><b>MCP registry, framework example repos, the launch post.</b> They want the five-minute path from "my agent needs to buy data" to a governed payment with a receipt.</p></div>
+        <div class="channel"><span class="who">API owners</span><p><b>The payee middleware guide.</b> They want paying agents without learning three rails, and to know which gateway stood behind a call.</p></div>
+        <div class="channel"><span class="who">Finance and compliance</span><p><b>The offline verifier and the accounting export.</b> They want one record that explains every agent payment after the fact.</p></div>
+        <div class="channel"><span class="who">Standards and rails</span><p><b>Interop results in the x402, MPP, Web Bot Auth and ERC-8004 threads.</b> Rail owners structurally cannot be the neutral layer; show them the gap filled.</p></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="risks">
+      <h2 id="risks">Risks and the answer to each</h2>
+      <div class="risks">
+        <div class="risk"><span class="bar hi"></span><div><span class="r">Agent payment volume arrives later than expected</span><p>Keep costs near zero, stay open-source, let design partners pull the roadmap. The window to be the reference implementation is the next one to two years.</p></div></div>
+        <div class="risk"><span class="bar hi"></span><div><span class="r">A rail owner ships its own policy layer</span><p>Neutrality and multi-rail are the moat they cannot copy; receipts across rails are the data they cannot see. Interoperate through standard payloads so switching is free.</p></div></div>
+        <div class="risk"><span class="bar"></span><div><span class="r">A security incident with real funds</span><p>Audit before mainnet, low caps in beta, bounded operator and kill switch by design, a published disclosure policy.</p></div></div>
+        <div class="risk"><span class="bar"></span><div><span class="r">One maintainer</span><p>Sequence ruthlessly, co-fund partner work, write contributor docs early, ship fewer things fully.</p></div></div>
+        <div class="risk"><span class="bar"></span><div><span class="r">Name or trademark collision</span><p>Search before publishing; rename is cheap today and expensive after wave 2.</p></div></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <span>Personal project of Athar Nouman · everything public carries this identity</span>
+    <span>Source of truth: docs/ROADMAP.md, docs/PHASE1.md, context/positioning.md</span>
+    <span>Kept at output/launch-plan.html</span>
+  </footer>
+</main>
+</body>
+</html>

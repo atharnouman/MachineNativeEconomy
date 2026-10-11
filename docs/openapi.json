@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "apgw — Agentic Payment Gateway",
+    "title": "SpendMarshal — Agentic Payment Gateway",
     "version": "0.0.2",
     "description": "Policy, settlement and evidence control plane between AI agents and any payment rail. Agents authenticate with a bearer credential (and, when holder-bound, an RFC 9421 signature); operators with an admin token.",
     "license": {
@@ -18,7 +18,7 @@
       "credential": {
         "type": "http",
         "scheme": "bearer",
-        "description": "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag apgw-holder) and Content-Digest for bodies."
+        "description": "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag spendmarshal-holder) and Content-Digest for bodies."
       },
       "adminToken": {
         "type": "apiKey",

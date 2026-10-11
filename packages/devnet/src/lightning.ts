@@ -1,5 +1,5 @@
-import type { LightningBackend, LightningNode, DecodedInvoice } from "@apgw/core";
-import { randomPreimage } from "@apgw/core";
+import type { LightningBackend, LightningNode, DecodedInvoice } from "@spendmarshal/core";
+import { randomPreimage } from "@spendmarshal/core";
 
 /**
  * An in-memory Lightning "network" for demos and tests: invoices are created by the payee side and paid by the

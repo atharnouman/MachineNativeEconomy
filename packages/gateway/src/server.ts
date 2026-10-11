@@ -14,7 +14,7 @@ import {
   DIRECTORY_CONTENT_TYPE,
   type Credential,
   type EvidenceBundle,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import { openStore, type Store } from "./store.js";
 import { LocalSigner, type Signer } from "./signer.js";
@@ -206,7 +206,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   // ───────── subscriptions ─────────
   app.post("/v1/subscriptions", async (req, reply) => {
     const c = await requireCredential(req);
-    const { SubscribeRequestSchema } = await import("@apgw/core");
+    const { SubscribeRequestSchema } = await import("@spendmarshal/core");
     const r = await payments.subscribe(c, SubscribeRequestSchema.parse(req.body));
     return reply.code(r.ok ? 200 : r.status).send(r);
   });
@@ -233,7 +233,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   /** Called by the payee with the charge token it received when the subscription opened. */
   app.post("/v1/subscriptions/:id/charges", async (req, reply) => {
-    const { ChargeRequestSchema } = await import("@apgw/core");
+    const { ChargeRequestSchema } = await import("@spendmarshal/core");
     const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "")?.[1];
     const r = await payments.charge((req.params as { id: string }).id, token, ChargeRequestSchema.parse(req.body ?? {}));
     return reply.code(r.status).send(r);

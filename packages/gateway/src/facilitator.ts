@@ -9,7 +9,7 @@ import {
   settleAgentAccountPayload,
   verifyStandardPayload,
   settleStandardPayload,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import type { ChainClient } from "./chain.js";
 

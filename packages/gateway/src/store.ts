@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Receipt, CredentialPublic, SpendLedgerView, Approval, PaymentIntent, PolicyVersion, Subscription } from "@apgw/core";
+import type { Receipt, CredentialPublic, SpendLedgerView, Approval, PaymentIntent, PolicyVersion, Subscription } from "@spendmarshal/core";
 
 export interface RegisteredCredential extends CredentialPublic {
   sessionKey: string;
@@ -112,12 +112,12 @@ export interface StoreOptions {
   dataDir: string;
 }
 
-/** Open the configured store. JSON lives at `<dataDir>/state.json`, SQLite at `<dataDir>/apgw.sqlite`. */
+/** Open the configured store. JSON lives at `<dataDir>/state.json`, SQLite at `<dataDir>/spendmarshal.sqlite`. */
 export async function openStore(opts: StoreOptions): Promise<Store> {
   mkdirSync(opts.dataDir, { recursive: true });
   if ((opts.driver ?? "json") === "sqlite") {
     const { SqliteStore } = await import("./store-sqlite.js");
-    return new SqliteStore(join(opts.dataDir, "apgw.sqlite"));
+    return new SqliteStore(join(opts.dataDir, "spendmarshal.sqlite"));
   }
   const { JsonStore } = await import("./store-json.js");
   return new JsonStore(join(opts.dataDir, "state.json"));

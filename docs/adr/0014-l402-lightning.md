@@ -13,7 +13,7 @@ The L402 adapter follows the same pay-side flow as the others, with two differen
 
 The on-chain account is not involved: an L402 payment is bounded by policy and by the Lightning wallet's balance, not by session caveats. This is stated in the threat model; operators should fund the Lightning wallet modestly.
 
-`MockLightning` in `@apgw/devnet` implements both sides against an in-memory ledger so demos and tests need no node. A real backend wraps LND, CLN or an LSP behind the same two-method interface.
+`MockLightning` in `@spendmarshal/devnet` implements both sides against an in-memory ledger so demos and tests need no node. A real backend wraps LND, CLN or an LSP behind the same two-method interface.
 
 Rejected: converting at settlement time only (policy would run on unknown amounts); treating L402 as "trusted payee" (the preimage check is cheap and keeps principle 4).
 

@@ -1,4 +1,6 @@
-# apgw — Agentic Payment Gateway
+# SpendMarshal — Agentic Payment Gateway
+
+Formerly `apgw` (renamed 11 October 2026); the old name still appears in early design notes.
 
 **The neutral policy, settlement and evidence control plane between AI agents and any payment rail.**
 Open source (Apache-2.0), self-hostable, no vendor key on the core path.
@@ -18,7 +20,7 @@ agent / MCP client ──▶ gateway ──▶ payee (x402 | MPP | …)
 
 As of October 2026 every payment rail for agents is vendor-bundled and none of them interoperate: x402 (Coinbase → Linux Foundation), MPP (Stripe/Tempo), L402, AP2 (Google), Visa TAP, Mastercard Agent Pay. Wallets from Coinbase, Cloudflare and Circle each bundle custody + policy + one rail. Disputes, refunds, multi-agent budgets, portable audit evidence and sybil-resistant reputation are unsolved. More than $45M was lost in 2026 to prompt-injected agents with wallet access.
 
-`apgw` is the piece nobody ships: rail-agnostic on both the paying and the accepting side, with spending policy enforced *below* the model (gateway + on-chain caveats), hierarchical delegation that can only shrink, human approvals that are signed and verifiable, and a signed receipt chain an auditor verifies offline.
+SpendMarshal is the piece nobody ships: rail-agnostic on both the paying and the accepting side, with spending policy enforced *below* the model (gateway + on-chain caveats), hierarchical delegation that can only shrink, human approvals that are signed and verifiable, and a signed receipt chain an auditor verifies offline.
 
 Full positioning: [`context/positioning.md`](context/positioning.md). Landscape research: [`context/2026-10-08-agentic-payments-landscape.md`](context/2026-10-08-agentic-payments-landscape.md).
 
@@ -47,7 +49,7 @@ Full positioning: [`context/positioning.md`](context/positioning.md). Landscape 
 ✔ metered stream: 30 tokens × 0.0001 → settled 0.003 USDC; 60 tokens (0.006) → 403 charge exceeds amountPerCharge
 ✔ L402 over Lightning: 10 sats at 1600 sats/USDC = 0.00625 USDC against policy; preimage matches invoice hash
 ✔ orphaned pre-approval reclaimed after expiry: charge +0.001 at approval; after expiry → 1 reclaimed, session spent back
-✔ metrics + OpenAPI: /metrics has apgw_payments_total; /openapi.json is OpenAPI 3.1.0 with 29 paths
+✔ metrics + OpenAPI: /metrics has spendmarshal_payments_total; /openapi.json is OpenAPI 3.1.0 with 29 paths
 VERIFIED: 11/11 checks
 PHASE 1 PASSED: 28/28 steps
 ```
@@ -58,7 +60,7 @@ Prerequisites: Node ≥ 20.17, pnpm 9, [Foundry](https://getfoundry.sh) (`forge`
 
 ```bash
 pnpm install
-pnpm contracts:build && node scripts/sync-abi.mjs   # compile Solidity, copy ABIs into @apgw/core
+pnpm contracts:build && node scripts/sync-abi.mjs   # compile Solidity, copy ABIs into @spendmarshal/core
 pnpm build                                          # TypeScript packages
 pnpm test                                           # Foundry (unit/fuzz/invariant/7702) + vitest (unit/property/e2e)
 pnpm demo                                           # Phase 0
@@ -68,7 +70,7 @@ pnpm demo:phase1                                    # Phase 1
 Each demo starts a local anvil chain (Prague hardfork), deploys the contracts, runs the gateway and an example payee in-process, drives the scenario through the public SDK, and writes `evidence/<name>-<timestamp>.json`. Verify any bundle offline, and optionally confirm its anchor on-chain:
 
 ```bash
-pnpm --filter @apgw/cli start verify evidence/phase1-<timestamp>.json --rpc http://127.0.0.1:8545
+pnpm --filter @spendmarshal/cli start verify evidence/phase1-<timestamp>.json --rpc http://127.0.0.1:8545
 ```
 
 ## Using it from an agent
@@ -76,8 +78,8 @@ pnpm --filter @apgw/cli start verify evidence/phase1-<timestamp>.json --rpc http
 **SDK (TypeScript)** — the whole integration is `pay()`; a 202 means a human must approve:
 
 ```ts
-import { ApgwClient } from "@apgw/sdk";
-const agent = new ApgwClient("http://127.0.0.1:4402", process.env.APGW_CREDENTIAL!);
+import { SpendMarshalClient } from "@spendmarshal/sdk";
+const agent = new SpendMarshalClient("http://127.0.0.1:4402", process.env.SPENDMARSHAL_CREDENTIAL!);
 
 const r = await agent.pay({ url: "https://data.example/v1/report", maxAmount: "0.05", purpose: "research" });
 if (r.status === 202) {
@@ -95,8 +97,8 @@ const fetcher = await agent.delegate({
 **Operator** — approve with a signature, version a policy, pull the evidence:
 
 ```ts
-import { ApgwAdmin } from "@apgw/sdk";
-const admin = new ApgwAdmin("http://127.0.0.1:4402", process.env.APGW_ADMIN_TOKEN!);
+import { SpendMarshalAdmin } from "@spendmarshal/sdk";
+const admin = new SpendMarshalAdmin("http://127.0.0.1:4402", process.env.SPENDMARSHAL_ADMIN_TOKEN!);
 await admin.resolveApproval(id, "approve", "cfo", { signer: cfoAccount, principalId: "org-acme" });
 const { diff, impact } = await admin.updatePolicy("org-acme", newYaml, "alice@org-acme");
 const bundle = await admin.exportEvidence("org-acme");
@@ -105,19 +107,19 @@ const bundle = await admin.exportEvidence("org-acme");
 **MCP server** — for Claude, ChatGPT, Gemini, Cursor or any MCP client:
 
 ```json
-{ "mcpServers": { "apgw": { "command": "npx", "args": ["-y", "@apgw/mcp-server"], "env": { "APGW_URL": "http://127.0.0.1:4402", "APGW_CREDENTIAL": "<base64url credential>" } } } }
+{ "mcpServers": { "spendmarshal": { "command": "npx", "args": ["-y", "@spendmarshal/mcp-server"], "env": { "SPENDMARSHAL_URL": "http://127.0.0.1:4402", "SPENDMARSHAL_CREDENTIAL": "<base64url credential>" } } } }
 ```
 
-Tools: `apgw_pay`, `apgw_simulate`, `apgw_resume`, `apgw_approval`, `apgw_receipts`, `apgw_whoami`. The model never sees a key.
+Tools: `spendmarshal_pay`, `spendmarshal_simulate`, `spendmarshal_resume`, `spendmarshal_approval`, `spendmarshal_receipts`, `spendmarshal_whoami`. The model never sees a key.
 
-**Any framework** — `apgwTools(client)` returns JSON-Schema tool definitions for OpenAI function calling, Vercel AI `jsonSchema()`, LangChain, Google ADK.
+**Any framework** — `spendmarshalTools(client)` returns JSON-Schema tool definitions for OpenAI function calling, Vercel AI `jsonSchema()`, LangChain, Google ADK.
 
 ## Accepting agent payments (the missing merchant side)
 
 One configuration block sells any Fastify route over x402 and MPP at once:
 
 ```ts
-import { paid } from "@apgw/payee";
+import { paid } from "@spendmarshal/payee";
 app.get("/v1/quote", { preHandler: paid({
   rails: ["x402", "mpp"],
   price: { amount: "10000", token: USDC, chainId: 8453 },   // 0.01 USDC
@@ -163,11 +165,11 @@ Either way every caveat is enforced on-chain and the gateway confirms the settle
 
 ## Operations
 
-`/metrics` (Prometheus: payments by rail and outcome, denial reasons, approvals, receipts, latency), `/openapi.json` (OpenAPI 3.1 generated from the route validators; also exported to [`docs/openapi.json`](docs/openapi.json)), structured logs with secrets redacted (`APGW_LOG_LEVEL`). [ADR-0012](docs/adr/0012-observability-openapi.md).
+`/metrics` (Prometheus: payments by rail and outcome, denial reasons, approvals, receipts, latency), `/openapi.json` (OpenAPI 3.1 generated from the route validators; also exported to [`docs/openapi.json`](docs/openapi.json)), structured logs with secrets redacted (`SPENDMARSHAL_LOG_LEVEL`). [ADR-0012](docs/adr/0012-observability-openapi.md).
 
 ## Storage
 
-`APGW_STORE=json` (zero-dependency file, demos) or `APGW_STORE=sqlite` (WAL file via better-sqlite3, recommended for self-hosting). Same interface, same tests, no server to run. [ADR-0010](docs/adr/0010-store-drivers.md).
+`SPENDMARSHAL_STORE=json` (zero-dependency file, demos) or `SPENDMARSHAL_STORE=sqlite` (WAL file via better-sqlite3, recommended for self-hosting). Same interface, same tests, no server to run. [ADR-0010](docs/adr/0010-store-drivers.md).
 
 ## Policy in one glance
 
@@ -196,9 +198,9 @@ Credential caveats (`spend_cap`, `per_tx_max`, `allowed_payees`, `allowed_rails`
 | `packages/core` | Canonical types: `PaymentIntent`, macaroon-style attenuable `Credential`, policy evaluator (periods, velocity, approvals), signed `Receipt`, `EvidenceBundle` + offline verifier (policy versions, approval signatures), x402 (both payload shapes) / MPP wire formats, on-chain verify/settle helpers, ABIs. |
 | `packages/gateway` | The service: policy below the model, derived session-key signer, x402 (agent-account and standard modes) + MPP pay-side adapters, local x402 facilitator accepting both payload shapes, approvals, policy versions, hash-chained receipt log, evidence export, kill switch, JSON and SQLite store drivers. |
 | `packages/payee` | Accept-side middleware `paid()` for x402, MPP and L402, Web Bot Auth verification, subscription offers and the `SubscriptionBook` billing client; example payee. |
-| `packages/sdk-ts` | `ApgwClient` / `ApgwAdmin`, framework-neutral tool definitions. |
+| `packages/sdk-ts` | `SpendMarshalClient` / `SpendMarshalAdmin`, framework-neutral tool definitions. |
 | `packages/mcp-server` | MCP server over the SDK. |
-| `packages/cli` | `apgw export-evidence`, `apgw verify`, `apgw policy lint`. |
+| `packages/cli` | `spendmarshal export-evidence`, `spendmarshal verify`, `spendmarshal policy lint`. |
 | `packages/devnet` | anvil lifecycle, deployment, EIP-7702 delegation helper, dev keys. |
 | `examples/thin-slice`, `examples/phase1` | The two demos and their end-to-end tests; each ships a real sample evidence bundle. |
 | `docs/` | [ARCHITECTURE](docs/ARCHITECTURE.md), [PHASE1](docs/PHASE1.md), [THREAT_MODEL](docs/THREAT_MODEL.md), [ROADMAP](docs/ROADMAP.md), [ADRs](docs/adr/). |

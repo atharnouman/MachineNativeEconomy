@@ -1,7 +1,7 @@
 import { createHmac, type KeyObject } from "node:crypto";
 import { keccak256, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { PaymentAuthorizationTypes, TokenAuthorizationTypes, agentAccountDomain, ed25519FromSecret, type PaymentAuthorizationStruct, type TokenAuthorizationStruct, type Ed25519Jwk } from "@apgw/core";
+import { PaymentAuthorizationTypes, TokenAuthorizationTypes, agentAccountDomain, ed25519FromSecret, type PaymentAuthorizationStruct, type TokenAuthorizationStruct, type Ed25519Jwk } from "@spendmarshal/core";
 
 /** The gateway's HTTP message signing identity (Web Bot Auth / RFC 9421). */
 export interface AgentSigningKey {

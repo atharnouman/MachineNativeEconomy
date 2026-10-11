@@ -44,7 +44,7 @@ import {
   type SubscribeRequest,
   type ChargeRequest,
   type MppCredential,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
 import type { Signer } from "./signer.js";

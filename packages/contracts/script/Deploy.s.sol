@@ -14,7 +14,7 @@ import {AllowedTargetsEnforcer} from "../src/enforcers/AllowedTargetsEnforcer.so
 ///         forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --private-key $PK
 contract Deploy is Script {
     function run() external {
-        address owner = vm.envOr("APGW_OWNER", msg.sender);
+        address owner = vm.envOr("SPENDMARSHAL_OWNER", msg.sender);
         vm.startBroadcast();
         MockUSDC usdc = new MockUSDC();
         ReceiptRegistry reg = new ReceiptRegistry();

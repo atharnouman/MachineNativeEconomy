@@ -36,6 +36,6 @@ including a sub-agent's, could pause the whole account.
 ## Consequences
 
 Local demos set `outbound: { allowLoopback: true }` and list the loopback gateway in the payee's
-`agentAuth.allowedAgents`. Operators get three new settings (`APGW_OUTBOUND_ALLOW_LOOPBACK`,
-`APGW_OUTBOUND_ALLOW_PRIVATE`, `APGW_OUTBOUND_ALLOWED_HOSTS`) and a demo step proving the gateway refuses a link-local address.
+`agentAuth.allowedAgents`. Operators get three new settings (`SPENDMARSHAL_OUTBOUND_ALLOW_LOOPBACK`,
+`SPENDMARSHAL_OUTBOUND_ALLOW_PRIVATE`, `SPENDMARSHAL_OUTBOUND_ALLOWED_HOSTS`) and a demo step proving the gateway refuses a link-local address.
 Threat model rows 34–38 record the new controls.

@@ -9,7 +9,7 @@ Phase 0 kept all state in one JSON file rewritten on every mutation. That is fin
 `Store` is an interface. Two drivers implement it:
 
 * **JSON** (`state.json`): zero dependencies, kept for demos and single-process development.
-* **SQLite** (`apgw.sqlite`, better-sqlite3, WAL mode): tables for receipts, credentials, ledger entries with lineage and budget join tables, approvals, intents, policy versions, kill switch and anchors; windowed sums are SQL aggregates; amounts are 64-bit integers read back as BigInt so nothing rounds.
+* **SQLite** (`spendmarshal.sqlite`, better-sqlite3, WAL mode): tables for receipts, credentials, ledger entries with lineage and budget join tables, approvals, intents, policy versions, kill switch and anchors; windowed sums are SQL aggregates; amounts are 64-bit integers read back as BigInt so nothing rounds.
 
 Both drivers are synchronous, which keeps the receipt log's ordering guarantee (one append at a time, `seq` and `prev` never race) without a transaction layer. `openStore()` selects the driver from configuration; the same test suite runs against both.
 

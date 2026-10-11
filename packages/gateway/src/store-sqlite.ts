@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@apgw/core";
+import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
 import type { Store, RegisteredCredential, AnchorRecord, LedgerEntry, IntentRecord, PreApprovalRecord } from "./store.js";
 
 const SCHEMA = `

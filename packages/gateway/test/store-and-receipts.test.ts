@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { verifyChain } from "@apgw/core";
+import { verifyChain } from "@spendmarshal/core";
 import { openStore, type Store, type StoreDriver } from "../src/store.js";
 import { LocalSigner } from "../src/signer.js";
 import { ReceiptLog } from "../src/receipts.js";
@@ -23,7 +23,7 @@ const entry = (over: Partial<Parameters<Store["reserve"]>[0]> = {}) => ({
 });
 
 for (const driver of ["json", "sqlite"] as StoreDriver[]) {
-  const fresh = () => openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `apgw-${driver}-`)) });
+  const fresh = () => openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `spendmarshal-${driver}-`)) });
 
   describe(`Store ledger [${driver}]`, () => {
     it("reserves, settles and releases against credential lineage and budgets", async () => {
@@ -75,7 +75,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("persists across instances and round-trips the other records", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `apgw-${driver}-persist-`));
+      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-${driver}-persist-`));
       const a = await openStore({ driver, dataDir: dir });
       a.setKillSwitch("p", true);
       const e = a.reserve(entry({ amount: "7", budgetIds: ["b"] }));

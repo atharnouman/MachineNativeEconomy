@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
-import { parsePolicyYaml, policyHash } from "@apgw/core";
+import { parsePolicyYaml, policyHash } from "@spendmarshal/core";
 import { verifyEvidence, formatReport } from "./verify.js";
 
 export { verifyEvidence, formatReport };
 
-const USAGE = `apgw <command>
+const USAGE = `spendmarshal <command>
 
   export-evidence --gateway URL --admin-token TOKEN --principal ID --out FILE
   verify FILE [--rpc URL]             offline verification of an evidence bundle (+ on-chain anchors with --rpc)

@@ -4,20 +4,20 @@
 
 ```mermaid
 C4Context
-  title apgw in context
+  title SpendMarshal in context
   Person(op, "Owner / operator", "Owns funds, writes policy, approves escalations, holds the kill switch")
   System_Ext(agent, "AI agent", "Claude / GPT / Gemini via MCP, or any framework via SDK")
-  System(apgw, "apgw gateway", "Policy below the model, bounded operator, approvals, receipts")
+  System(spendmarshal, "SpendMarshal gateway", "Policy below the model, bounded operator, approvals, receipts")
   System_Ext(payee, "Payee", "API / MCP server / A2A agent selling a resource")
   System_Ext(fac, "x402 facilitator", "verify / settle (optional; local one included)")
   System_Ext(chain, "EVM chain", "AgentAccount (standalone or EIP-7702 EOA), USDC, ReceiptRegistry")
-  Rel(op, apgw, "policy versions, credentials, approvals, kill switch, evidence export")
+  Rel(op, spendmarshal, "policy versions, credentials, approvals, kill switch, evidence export")
   Rel(op, chain, "owns the account; grants the gateway a root session; unpauses")
-  Rel(agent, apgw, "pay / simulate / resume / delegate (credential bearer)")
-  Rel(apgw, payee, "HTTP 402 dance over x402 or MPP")
+  Rel(agent, spendmarshal, "pay / simulate / resume / delegate (credential bearer)")
+  Rel(spendmarshal, payee, "HTTP 402 dance over x402 or MPP")
   Rel(payee, fac, "x402 verify/settle")
   Rel(payee, chain, "MPP: settles itself")
-  Rel(apgw, chain, "child sessions, simulate, confirm, anchor, pause")
+  Rel(spendmarshal, chain, "child sessions, simulate, confirm, anchor, pause")
 ```
 
 ## Containers
@@ -27,7 +27,7 @@ flowchart LR
   subgraph Agent side
     A[Agent / MCP client] -->|SDK: pay() · resume()| GW
   end
-  subgraph apgw gateway
+  subgraph SpendMarshal gateway
     GW[HTTP API] --> POL[Policy engine<br/>deny rules → caveats (+rate_limit) → lineage caps → budgets w/ periods → velocity → escalate → allow]
     GW --> VER[Policy versions<br/>diff · impact · receipted]
     GW --> APR[Approvals<br/>request · signed resolve · resume · expire]
@@ -132,7 +132,7 @@ sequenceDiagram
   participant Ag as Agent (holds credential + holder key)
   participant GW as Gateway (Ed25519 agent key)
   participant P as Payee
-  Ag->>GW: POST /v1/intents + Authorization: Bearer <credential> + Signature-Input/Signature (tag apgw-holder, Content-Digest)
+  Ag->>GW: POST /v1/intents + Authorization: Bearer <credential> + Signature-Input/Signature (tag spendmarshal-holder, Content-Digest)
   GW->>GW: credential HMAC ok → holder_key caveat → verify signature with that key, check digest, nonce
   GW->>P: GET resource + Signature-Agent: "https://gw" + Signature (tag web-bot-auth)
   P->>GW: GET /.well-known/http-message-signatures-directory (cached; response is signed)

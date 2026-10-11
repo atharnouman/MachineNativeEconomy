@@ -5,7 +5,7 @@ import { runPhase1 } from "../src/run.js";
 
 describe("phase 1", () => {
   it("runs end to end and every step passes", async () => {
-    const dir = join(tmpdir(), `apgw-phase1-${Date.now()}`);
+    const dir = join(tmpdir(), `spendmarshal-phase1-${Date.now()}`);
     const s = await runPhase1({ rpcPort: 18546, gatewayPort: 14412, payeePort: 14413, dataDir: dir, evidenceOut: join(dir, "evidence.json"), log: () => {} });
     const failed = s.steps.filter((x) => !x.ok);
     expect(failed, JSON.stringify(failed, null, 2)).toEqual([]);

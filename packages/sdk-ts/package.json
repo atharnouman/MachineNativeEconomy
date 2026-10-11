@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/sdk",
+  "name": "@spendmarshal/sdk",
   "version": "0.0.1",
   "license": "Apache-2.0",
   "author": "Athar Nouman <atharnouman@gmail.com>",
@@ -19,6 +19,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*"
+    "@spendmarshal/core": "workspace:*"
   }
 }

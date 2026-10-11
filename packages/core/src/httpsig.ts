@@ -25,7 +25,7 @@ export class NonceWindow {
  *   Signature:       sig1=:<base64>:
  *   Signature-Agent: "https://gateway.example"
  *
- * Two uses in apgw:
+ * Two uses in SpendMarshal:
  *   - outbound: the gateway signs every request it makes to a payee on behalf of an agent, and publishes its
  *     keys at /.well-known/http-message-signatures-directory, so a payee can tell a governed agent from a bot
  *   - inbound: a credential can be bound to a holder key (`holder_key` caveat); requests using it must carry a
@@ -267,7 +267,7 @@ export async function verifyMessage(msg: MessageLike, opts: VerifyOptions): Prom
 export const WEB_BOT_AUTH_TAG = "web-bot-auth";
 export const DIRECTORY_PATH = "/.well-known/http-message-signatures-directory";
 export const DIRECTORY_CONTENT_TYPE = "application/http-message-signatures-directory+json";
-export const HOLDER_TAG = "apgw-holder";
+export const HOLDER_TAG = "spendmarshal-holder";
 
 /** Sign an outbound request as a Web Bot Auth agent. `signatureAgent` is the origin that serves the directory. */
 export function signAsAgent(msg: MessageLike, key: { privateKey: KeyObject; keyid: string }, signatureAgent: string, body?: string | Uint8Array): Record<string, string> {

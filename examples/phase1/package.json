@@ -1,5 +1,5 @@
 {
-  "name": "@apgw/example-phase1",
+  "name": "@spendmarshal/example-phase1",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -12,12 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@apgw/core": "workspace:*",
-    "@apgw/devnet": "workspace:*",
-    "@apgw/gateway": "workspace:*",
-    "@apgw/payee": "workspace:*",
-    "@apgw/sdk": "workspace:*",
-    "@apgw/cli": "workspace:*",
+    "@spendmarshal/core": "workspace:*",
+    "@spendmarshal/devnet": "workspace:*",
+    "@spendmarshal/gateway": "workspace:*",
+    "@spendmarshal/payee": "workspace:*",
+    "@spendmarshal/sdk": "workspace:*",
+    "@spendmarshal/cli": "workspace:*",
     "viem": "^2.21.54"
   }
 }

@@ -8,7 +8,7 @@ import {
   type PolicyVersion,
   type Credential,
   type SpendLedgerView,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 import type { Store } from "./store.js";
 import type { ReceiptLog } from "./receipts.js";
 

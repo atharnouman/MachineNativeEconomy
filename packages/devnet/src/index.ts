@@ -14,7 +14,7 @@ import {
   TimeWindowEnforcerBytecode,
   AllowedTargetsEnforcerBytecode,
   chainFor,
-} from "@apgw/core";
+} from "@spendmarshal/core";
 
 export { MockLightning } from "./lightning.js";
 
