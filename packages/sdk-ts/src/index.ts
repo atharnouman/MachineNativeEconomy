@@ -32,6 +32,8 @@ export interface PayRequest {
   rail?: Rail | "auto";
   /** Resume an escalated intent under a granted approval (or use `resume()`). */
   approvalId?: string;
+  /** Sent as the Idempotency-Key header: a retry with the same key never pays twice (24 h). */
+  idempotencyKey?: string;
   /** x402 payload shape: `standard` works with any facilitator via an on-chain pre-approval (ERC-1271). */
   x402Mode?: "agent-account" | "standard";
 }
@@ -155,7 +157,8 @@ export class SpendMarshalClient {
 
   /** Pay for a resource. Resolves for denials and pending approvals too (ok=false) so agents can act on them. */
   pay(req: PayRequest): Promise<PayResponse> {
-    return this.call<PayResponse>("/v1/intents", { method: "POST", body: JSON.stringify(req) }, SpendMarshalClient.PAY_STATUSES);
+    const { idempotencyKey, ...body } = req;
+    return this.call<PayResponse>("/v1/intents", { method: "POST", body: JSON.stringify(body), headers: idempotencyKey ? { "idempotency-key": idempotencyKey } : {} }, SpendMarshalClient.PAY_STATUSES);
   }
 
   simulate(req: PayRequest): Promise<PayResponse> {

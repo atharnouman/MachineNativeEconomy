@@ -8,6 +8,7 @@ import {
   type WalletClient,
   type Chain,
   type Account,
+  nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -41,7 +42,7 @@ export class ChainClient {
   constructor(private readonly cfg: Pick<GatewayConfig, "rpcUrl" | "chainId" | "gatewayPrivateKey">) {
     this.chain = chainFor(cfg.chainId, cfg.rpcUrl);
     this.pub = createPublicClient({ chain: this.chain, transport: http(cfg.rpcUrl), pollingInterval: 500 }); // receipts within a block, not viem's 4 s default
-    this.wallet = createWalletClient({ chain: this.chain, transport: http(cfg.rpcUrl), account: privateKeyToAccount(cfg.gatewayPrivateKey) });
+    this.wallet = createWalletClient({ chain: this.chain, transport: http(cfg.rpcUrl), account: privateKeyToAccount(cfg.gatewayPrivateKey, { nonceManager }) }); // sequential nonces under concurrent sends
   }
 
   async grantSession(account: Address, key: Address, c: SessionCaveatsOnChain): Promise<Hex> {

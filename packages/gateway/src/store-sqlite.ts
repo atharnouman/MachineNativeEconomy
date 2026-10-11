@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
-import type { Store, RegisteredCredential, AnchorRecord, LedgerEntry, IntentRecord, PreApprovalRecord } from "./store.js";
+import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS receipts (
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS preapprovals (digest TEXT PRIMARY KEY, principal_id T
 CREATE INDEX IF NOT EXISTS preapprovals_state ON preapprovals (state, principal_id);
 CREATE TABLE IF NOT EXISTS killswitch (principal_id TEXT PRIMARY KEY, on_flag INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS anchors (seq INTEGER PRIMARY KEY AUTOINCREMENT, json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS idempotency (scope TEXT NOT NULL, key TEXT NOT NULL, created_at TEXT NOT NULL, status INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (scope, key));
 `;
 
 /**
@@ -62,6 +63,21 @@ export class SqliteStore implements Store {
   }
   receiptsFor(principalId: string): Receipt[] {
     return this.rows<{ json: string }>("SELECT json FROM receipts WHERE principal_id = ? ORDER BY seq", principalId).map((x) => JSON.parse(x.json) as Receipt);
+  }
+  lastReceipt(principalId: string): Receipt | undefined {
+    const r = this.row<{ json: string }>("SELECT json FROM receipts WHERE principal_id = ? ORDER BY seq DESC LIMIT 1", principalId);
+    return r ? (JSON.parse(r.json) as Receipt) : undefined;
+  }
+
+  getIdempotent(scope: string, key: string): IdempotentRecord | undefined {
+    const r = this.row<{ json: string; created_at: string }>("SELECT json, created_at FROM idempotency WHERE scope = ? AND key = ?", scope, key);
+    if (!r || Date.now() - Date.parse(r.created_at) > IDEMPOTENCY_TTL_MS) return undefined;
+    return JSON.parse(r.json) as IdempotentRecord;
+  }
+  private idempotencyInserts = 0;
+  putIdempotent(rec: IdempotentRecord) {
+    this.db.prepare("INSERT OR REPLACE INTO idempotency (scope, key, created_at, status, json) VALUES (?, ?, ?, ?, ?)").run(rec.scope, rec.key, rec.createdAt, rec.status, JSON.stringify(rec));
+    if (++this.idempotencyInserts % 200 === 0) this.db.prepare("DELETE FROM idempotency WHERE created_at < ?").run(new Date(Date.now() - IDEMPOTENCY_TTL_MS).toISOString());
   }
 
   // ───────── credentials ─────────

@@ -2612,6 +2612,18 @@
     },
     "/v1/intents": {
       "post": {
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Same credential + same key = same outcome for 24 h (settled, pending approval or denied are replayed with `replayed: true`; transient failures are retried)"
+          }
+        ],
         "summary": "Pay for a resource under policy (x402 or MPP). 202 = approval required",
         "security": [
           {
@@ -2744,6 +2756,18 @@
     },
     "/v1/subscriptions": {
       "post": {
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Same credential + same key = same outcome for 24 h (settled, pending approval or denied are replayed with `replayed: true`; transient failures are retried)"
+          }
+        ],
         "summary": "Open a subscription (MPP): the first charge pays now; the payee may charge later within the terms",
         "security": [
           {

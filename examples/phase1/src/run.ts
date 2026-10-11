@@ -121,6 +121,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
       approvalTtlSeconds: 600,
       lightning,
       fx: { satsPerUsdc: 1600 },
+      payeeTimeoutMs: 3_000, // the demo shows a payee that never answers; an MPP settlement relayed by the payee takes well under a second
       outbound: { allowLoopback: true }, // the demo payee is on this machine; private and link-local ranges stay refused
     });
     const gatewayUrl = await gw.listen();
@@ -338,6 +339,37 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
     await ownerUnpause(net, KEYS.alice, alice.address);
     const unpaused = await net.pub.readContract({ address: alice.address, abi: AgentAccountAbi, functionName: "paused" });
     step("kill switch: session key pauses, owner unpauses", ks.onchain === "paused" && !duringKill.ok && pausedOnChain === true && ksOff.onchain.startsWith("owner-required") && stillPaused === true && unpaused === false, `gateway paused on-chain (${(ks.txHash ?? "").slice(0, 10)}…); gateway unpause → ${ksOff.onchain}; owner unpause → paused=${unpaused}`);
+
+    // ── 12. load shape: one relayer key, five agents paying at once; a retried request pays once; a dead payee times out ──
+    const opsAgent = await admin.issueCredential({
+      principalId: "org-acme",
+      agentId: "ops-agent",
+      caveats: [
+        { type: "spend_cap", value: "500000" },
+        { type: "per_tx_max", value: "20000" },
+        { type: "allowed_payees", value: [payeeHost, payeeTreasury] },
+        { type: "allowed_rails", value: ["x402", "mpp"] },
+        { type: "purposes", value: ["research"] },
+      ],
+    });
+    const burst = await Promise.all([1, 2, 3, 4, 5].map(() => opsAgent.pay({ url: quoteUrl, maxAmount: "0.02", purpose: "research", rail: "x402" })));
+    const burstTx = new Set(burst.map((p) => p.settlement?.txHash));
+    step("five concurrent payments settle through one relayer key", burst.every((p) => p.ok) && burstTx.size === 5, burst.map(summarise).join(" | "));
+    const retryKey = `retry-${Date.now()}`;
+    const firstTry = await opsAgent.pay({ url: quoteUrl, maxAmount: "0.02", purpose: "research", rail: "x402", idempotencyKey: retryKey });
+    const retried = (await opsAgent.pay({ url: quoteUrl, maxAmount: "0.02", purpose: "research", rail: "x402", idempotencyKey: retryKey })) as PayResponse & { replayed?: boolean };
+    step(
+      "a retried request with the same Idempotency-Key pays once",
+      firstTry.ok && retried.ok && retried.replayed === true && retried.settlement?.txHash === firstTry.settlement?.txHash,
+      `first ${summarise(firstTry)}; retry replayed=${retried.replayed}, same settlement=${retried.settlement?.txHash === firstTry.settlement?.txHash}`,
+    );
+    let slow: { ok?: boolean; status?: number; error?: string } = {};
+    try {
+      slow = await opsAgent.pay({ url: `${payeeUrl}/v1/slow`, maxAmount: "0.02", purpose: "research" });
+    } catch (e) {
+      slow = { ok: false, status: (e as SpendMarshalError).status, error: (e as Error).message };
+    }
+    step("a payee that never answers times out, nothing reserved", slow.ok === false && slow.status === 502 && (slow.error ?? "").includes("timeout"), `${slow.status} ${slow.error}`);
 
     // ── 11b. observability: Prometheus metrics and the OpenAPI document ─────────────
     const metricsText = await admin.metrics();

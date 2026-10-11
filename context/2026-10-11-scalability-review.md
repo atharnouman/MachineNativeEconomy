@@ -36,6 +36,10 @@ Question from the user: is this built for real-world use at scale, with no bottl
 - Receipts: a per-principal chain is sequential by design; after fix 1 it sustains hundreds of appends per second per principal. Scale across tenants by sharding on principal id.
 - Storage: 1–2 KB per receipt, so a million receipts is 1–2 GB; anchored ranges keep export and verification bounded.
 
+## Status (11 Oct 2026, same day)
+
+Fixes 1, 2, 3, 4, 5 and 8 are implemented (ADR-0017): `Store.lastReceipt` + cached heads and per-principal queues; `nonceManager` on the gateway and payee relayer accounts; synchronous re-check before `reserve()` in `payInner` and `charge()`; `payeeTimeoutMs` plus deadlines on the payee's outbound calls; `Idempotency-Key` with an in-flight guard and 24 h store; `DenialThrottle`. Covered by `packages/gateway/test/scale.test.ts` and three new Phase 1 demo steps. Items 6, 7, 10 and 13 wait for the Postgres driver; 9, 11 and 12 are roadmap.
+
 ## Plan
 
 - Now, before the testnet run and anything public: fixes 1, 2, 3, 4, 5 and 8. About two to three days.

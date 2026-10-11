@@ -70,6 +70,8 @@ export interface GatewayConfig {
    * for demos and in-cluster payees, and `allowedHosts` to pin the payees a deployment may ever contact.
    */
   outbound?: { allowLoopback?: boolean; allowPrivate?: boolean; allowedHosts?: string[] };
+  /** Abort any request to a payee after this long (probe and paid retry). Default 15000. */
+  payeeTimeoutMs?: number;
   /** Reference-currency conversion for non-USDC rails: how many sats one unit of the reference asset buys. */
   fx?: { satsPerUsdc: number };
 }
@@ -108,6 +110,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     logLevel: env.SPENDMARSHAL_LOG_LEVEL,
     defaultMetrics: env.SPENDMARSHAL_DEFAULT_METRICS === "true",
     fx: env.SPENDMARSHAL_SATS_PER_USDC ? { satsPerUsdc: Number(env.SPENDMARSHAL_SATS_PER_USDC) } : undefined,
+    payeeTimeoutMs: env.SPENDMARSHAL_PAYEE_TIMEOUT_MS ? Number(env.SPENDMARSHAL_PAYEE_TIMEOUT_MS) : undefined,
     outbound: { allowLoopback: env.SPENDMARSHAL_OUTBOUND_ALLOW_LOOPBACK === "true", allowPrivate: env.SPENDMARSHAL_OUTBOUND_ALLOW_PRIVATE === "true", allowedHosts: env.SPENDMARSHAL_OUTBOUND_ALLOWED_HOSTS ? env.SPENDMARSHAL_OUTBOUND_ALLOWED_HOSTS.split(",").map((s) => s.trim()).filter(Boolean) : undefined },
   };
 }

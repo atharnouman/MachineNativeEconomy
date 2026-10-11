@@ -5,7 +5,10 @@ import type { Metrics } from "./metrics.js";
 
 /** Append-only, hash-chained, gateway-signed receipt log. One chain per principal. */
 export class ReceiptLog {
-  private chain = Promise.resolve(); // serialises appends so seq/prev are never raced
+  /** one append queue per principal: chains never race, and principals never wait for each other */
+  private readonly chains = new Map<string, Promise<void>>();
+  /** chain head per principal, seeded from the store once; an append never reads the chain */
+  private readonly heads = new Map<string, { seq: number; hash: string }>();
 
   constructor(
     private readonly store: Store,
@@ -20,14 +23,17 @@ export class ReceiptLog {
     meta: Partial<Pick<Receipt, "agentId" | "credentialId" | "intentId" | "intentHash" | "approvalId" | "subscriptionId" | "rail" | "policyHash">> = {},
   ): Promise<Receipt> {
     const run = async (): Promise<Receipt> => {
-      const prevReceipts = this.store.receiptsFor(principalId);
-      const last = prevReceipts[prevReceipts.length - 1];
+      let head = this.heads.get(principalId);
+      if (!head) {
+        const last = this.store.lastReceipt(principalId);
+        if (last) head = { seq: last.seq, hash: last.hash };
+      }
       const body: ReceiptBody = {
         v: 1,
         id: randomId("rcpt"),
         principalId,
-        seq: last ? last.seq + 1 : 0,
-        prev: last ? (last.hash as ReceiptBody["prev"]) : null,
+        seq: head ? head.seq + 1 : 0,
+        prev: head ? (head.hash as ReceiptBody["prev"]) : null,
         ts: nowIso(),
         kind,
         ...stripUndefined(meta),
@@ -37,11 +43,13 @@ export class ReceiptLog {
       const sig = await this.signer.signReceiptHash(hash);
       const receipt: Receipt = { ...body, hash, sig };
       this.store.appendReceipt(receipt);
+      this.heads.set(principalId, { seq: receipt.seq, hash: receipt.hash });
       this.metrics?.receipts.inc({ kind });
       return receipt;
     };
-    const p = this.chain.then(run, run);
-    this.chain = p.then(() => undefined, () => undefined);
+    const prev = this.chains.get(principalId) ?? Promise.resolve();
+    const p = prev.then(run, run);
+    this.chains.set(principalId, p.then(() => undefined, () => undefined));
     return p;
   }
 }

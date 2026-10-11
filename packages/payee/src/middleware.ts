@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { createPublicClient, createWalletClient, http, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, nonceManager, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   X402_HEADERS,
@@ -115,9 +115,9 @@ export function paid(cfg: PaidConfig) {
     for (const [id, exp] of challenges) if (exp < now) challenges.delete(id);
   };
 
-  const pub = cfg.mpp ? createPublicClient({ chain: chainFor(cfg.price.chainId, cfg.mpp.rpcUrl), transport: http(cfg.mpp.rpcUrl) }) : null;
+  const pub = cfg.mpp ? createPublicClient({ chain: chainFor(cfg.price.chainId, cfg.mpp.rpcUrl), transport: http(cfg.mpp.rpcUrl), pollingInterval: 500 }) : null;
   const wallet = cfg.mpp
-    ? createWalletClient({ chain: chainFor(cfg.price.chainId, cfg.mpp.rpcUrl), transport: http(cfg.mpp.rpcUrl), account: privateKeyToAccount(cfg.mpp.relayerPrivateKey) })
+    ? createWalletClient({ chain: chainFor(cfg.price.chainId, cfg.mpp.rpcUrl), transport: http(cfg.mpp.rpcUrl), pollingInterval: 500, account: privateKeyToAccount(cfg.mpp.relayerPrivateKey, { nonceManager }) })
     : null;
 
   const resourceUrl = (req: FastifyRequest) => `${req.protocol}://${req.headers.host}${req.url}`;
@@ -174,7 +174,7 @@ export function paid(cfg: PaidConfig) {
     let dir = directories.get(signatureAgent);
     if (!dir || Date.now() - dir.fetchedAt > ttl) {
       try {
-        const r = await fetch(`${signatureAgent.replace(/\/$/, "")}${DIRECTORY_PATH}`, { headers: { accept: "application/json" } });
+        const r = await fetch(`${signatureAgent.replace(/\/$/, "")}${DIRECTORY_PATH}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5_000) });
         if (!r.ok) return undefined;
         const body = (await r.json()) as { keys?: Ed25519Jwk[] };
         dir = { keys: body.keys ?? [], fetchedAt: Date.now() };
@@ -271,6 +271,6 @@ export function paid(cfg: PaidConfig) {
 }
 
 async function postJson(url: string, body: unknown): Promise<Record<string, string | boolean | undefined>> {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
   return (await r.json()) as Record<string, string | boolean | undefined>;
 }

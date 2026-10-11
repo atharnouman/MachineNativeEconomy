@@ -63,3 +63,7 @@ UK IPO's own search sat behind a bot check, which I did not bypass; the UK is co
 **Verdict.** PayReeve is blocked: "Reeve" is a live registered mark of the Cardano Foundation for blockchain software and financial services in the same classes, in the US, the EU, the UK and China, and PAYREEVE contains that mark entirely. TollReeve falls with it. **SpendMarshal is clear**: no mark anywhere contains it, the shared element "marshal" is a common word with no live payments mark, no company uses the name (web, Companies House), and every handle is free: npm, PyPI, crates.io, Docker Hub, GitHub, YouTube, X and LinkedIn slugs, and spendmarshal.com, .dev, .app, .net, .ai, .co, .io. PayMarshal is the fallback (.com taken). SpendSheriff is fully free but "sheriff" is a crowded element with a pending AI SHERIFF mark.
 
 Brand conventions: product "SpendMarshal", handles and packages `spendmarshal`, packages `@spendmarshal/*`, CLI `spendmarshal`, environment prefix `SPENDMARSHAL_`.
+
+## Registered (11 Oct 2026)
+
+The user bought spendmarshal.com ($10.46/year) and spendmarshal.dev ($8.20 first year, $12.20 after) at Cloudflare Registrar under the personal account. RDAP at Verisign, Google Registry and Cloudflare confirms: registrar Cloudflare, registered 11 Oct 2026, expiry 11 Oct 2027, registrant DATA REDACTED, Cloudflare nameservers; the dashboard shows auto-renew scheduled for 11 Sep 2027 on both. Organization field left blank (no legal entity yet). Private operational notes live in `local/HANDOVER.md`.

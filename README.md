@@ -36,6 +36,9 @@ Full positioning: [`context/positioning.md`](context/positioning.md). Landscape 
 ✔ payee requires Web Bot Auth: anonymous GET → 401 Accept-Signature: sig1=("@authority" "signature-agent");tag="web-bot-auth"
 ✔ gateway refuses to fetch private addresses: 403 outbound blocked: host 169.254.169.254 is private or link-local
 ✔ subscription visibility follows the credential chain: child sees 0, opener sees 1, admin sees 1; child cancel -> 404
+✔ five concurrent payments settle through one relayer key: x402 0.01 USDC tx 0x3528eaec… | x402 0.01 USDC tx 0x34fb3702… | …
+✔ a retried request with the same Idempotency-Key pays once: retry replayed=true, same settlement=true
+✔ a payee that never answers times out, nothing reserved: 502 payee unreachable: timeout
 ✔ stolen credential is useless without the holder key: 401 holder signature required: unknown key …
 ✔ rate_limit caveat stops the 4th payment in 10m: denied: CAVEAT:rate_limit:cred_…
 ✔ escalation returns 202: report costs 0.04 > 0.03 threshold → approval apr_… pending
@@ -51,7 +54,7 @@ Full positioning: [`context/positioning.md`](context/positioning.md). Landscape 
 ✔ orphaned pre-approval reclaimed after expiry: charge +0.001 at approval; after expiry → 1 reclaimed, session spent back
 ✔ metrics + OpenAPI: /metrics has spendmarshal_payments_total; /openapi.json is OpenAPI 3.1.0 with 29 paths
 VERIFIED: 11/11 checks
-PHASE 1 PASSED: 28/28 steps
+PHASE 1 PASSED: 31/31 steps
 ```
 
 ## Quick start

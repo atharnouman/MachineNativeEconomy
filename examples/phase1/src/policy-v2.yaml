@@ -10,13 +10,14 @@ budgets:
 
 agents:
   research-agent: { budget: research-daily }
+  ops-agent:      { budget: org }
 
 velocity:
   - id: principal-burst
-    description: No principal-wide burst above 20 payments in 10 minutes
+    description: No principal-wide burst above 40 payments in 10 minutes
     scope: principal
     window: 10m
-    max_count: 20
+    max_count: 40
 
 rules:
   - id: deny-blocked-payees

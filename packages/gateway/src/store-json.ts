@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
-import type { Store, RegisteredCredential, AnchorRecord, LedgerEntry, IntentRecord, PreApprovalRecord } from "./store.js";
+import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
 interface State {
   receipts: Receipt[];
+  idempotency?: Record<string, IdempotentRecord>;
   credentials: Record<string, RegisteredCredential>;
   ledger: LedgerEntry[];
   approvals: Record<string, Approval>;
@@ -35,6 +36,28 @@ export class JsonStore implements Store {
   }
   receiptsFor(principalId: string): Receipt[] {
     return this.state.receipts.filter((r) => r.principalId === principalId);
+  }
+  lastReceipt(principalId: string): Receipt | undefined {
+    for (let i = this.state.receipts.length - 1; i >= 0; i--) {
+      const r = this.state.receipts[i]!;
+      if (r.principalId === principalId) return r;
+    }
+    return undefined;
+  }
+
+  getIdempotent(scope: string, key: string): IdempotentRecord | undefined {
+    const rec = this.state.idempotency?.[`${scope}\u0000${key}`];
+    if (!rec || Date.now() - Date.parse(rec.createdAt) > IDEMPOTENCY_TTL_MS) return undefined;
+    return rec;
+  }
+  putIdempotent(rec: IdempotentRecord) {
+    const all = (this.state.idempotency ??= {});
+    all[`${rec.scope}\u0000${rec.key}`] = rec;
+    if (Object.keys(all).length > 5000) {
+      const cutoff = Date.now() - IDEMPOTENCY_TTL_MS;
+      for (const [k, v] of Object.entries(all)) if (Date.parse(v.createdAt) < cutoff) delete all[k];
+    }
+    this.flush();
   }
 
   getCredential(id: string) {

@@ -53,7 +53,7 @@ export class SubscriptionBook {
   async charge(id: string, body: ChargeRequest = {}): Promise<ChargeOutcome> {
     const s = this.subs.get(id);
     if (!s) return { status: 404, ok: false, error: "unknown subscription" };
-    const r = await fetch(s.chargeUrl, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${s.token}` }, body: JSON.stringify(body) });
+    const r = await fetch(s.chargeUrl, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${s.token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
     const json = (await r.json()) as Partial<ChargeOutcome>;
     const out: ChargeOutcome = { status: r.status, ok: r.ok, ...json };
     s.charges.push({ at: new Date().toISOString(), status: r.status, amount: out.amount, txHash: out.txHash, error: out.error });

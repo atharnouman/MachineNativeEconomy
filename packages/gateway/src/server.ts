@@ -28,6 +28,7 @@ import { registerFacilitator } from "./facilitator.js";
 import { Metrics } from "./metrics.js";
 import { buildOpenApi, PayBodySchema } from "./openapi.js";
 import { checkHolder } from "./httpauth.js";
+import { IdempotencyGuard, idempotencyKeyOf } from "./idempotency.js";
 
 export const GATEWAY_VERSION = "0.0.2";
 
@@ -190,10 +191,14 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     return payments.simulate(c, PayBodySchema.parse(req.body));
   });
 
+  const idempotency = new IdempotencyGuard(store);
+
   app.post("/v1/intents", async (req, reply) => {
     const c = await requireCredential(req);
-    const r = await payments.pay(c, PayBodySchema.parse(req.body));
-    return reply.code(r.ok ? 200 : r.status).send(r);
+    const body = PayBodySchema.parse(req.body);
+    const { result, replayed } = await idempotency.run(credentialId(c), idempotencyKeyOf(req), () => payments.pay(c, body));
+    if (replayed) reply.header("idempotent-replayed", "true");
+    return reply.code(result.ok ? 200 : result.status).send(replayed ? { ...result, replayed: true } : result);
   });
 
   app.post("/v1/intents/resume", async (req, reply) => {
@@ -207,8 +212,10 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   app.post("/v1/subscriptions", async (req, reply) => {
     const c = await requireCredential(req);
     const { SubscribeRequestSchema } = await import("@spendmarshal/core");
-    const r = await payments.subscribe(c, SubscribeRequestSchema.parse(req.body));
-    return reply.code(r.ok ? 200 : r.status).send(r);
+    const body = SubscribeRequestSchema.parse(req.body);
+    const { result, replayed } = await idempotency.run(credentialId(c), idempotencyKeyOf(req), () => payments.subscribe(c, body));
+    if (replayed) reply.header("idempotent-replayed", "true");
+    return reply.code(result.ok ? 200 : result.status).send(replayed ? { ...result, replayed: true } : result);
   });
 
   /** Agents see their own subtree; the admin token sees a whole principal (`?principalId=`). */

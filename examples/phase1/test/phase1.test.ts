@@ -14,7 +14,7 @@ describe("phase 1", () => {
     for (const k of ["policy.updated", "approval.requested", "approval.granted", "approval.rejected", "approval.consumed", "payment.settled", "payment.denied", "subscription.created", "subscription.charged", "subscription.refused", "subscription.cancelled", "preapproval.reclaimed", "killswitch", "evidence.anchored"]) expect(kinds).toContain(k);
     expect(s.evidence.policyVersions.map((v) => v.version)).toEqual([1, 2]);
     const settled = s.evidence.receipts.filter((r) => r.kind === "payment.settled");
-    expect(settled.length).toBe(13); // 3 fetcher + 1 report + 1 standard + 2 feed + 2 stream + 1 lightning + 3 quotes
+    expect(settled.length).toBe(19); // 3 fetcher + 1 report + 1 standard + 2 feed + 2 stream + 1 lightning + 3 quotes + 5 concurrent + 1 idempotent
     expect(new Set(settled.map((r) => r.rail))).toEqual(new Set(["x402", "mpp", "l402"]));
   }, 240_000);
 });

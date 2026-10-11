@@ -56,6 +56,17 @@ export interface PreApprovalRecord {
   reclaimTxHash?: string;
 }
 
+/** A stored final outcome of an idempotent request (POST /v1/intents, POST /v1/subscriptions). */
+export interface IdempotentRecord {
+  /** the credential id: a key is only ever replayed to the credential that created it */
+  scope: string;
+  key: string;
+  status: number;
+  body: unknown;
+  createdAt: string;
+}
+export const IDEMPOTENCY_TTL_MS = 24 * 3600 * 1000;
+
 /**
  * The gateway's durable state. Two drivers implement it: a JSON file (zero dependencies, fine for demos and
  * single-process dev) and SQLite (WAL mode, real queries, the default for a self-hosted deployment). Every
@@ -65,6 +76,11 @@ export interface Store {
   // receipts
   appendReceipt(r: Receipt): void;
   receiptsFor(principalId: string): Receipt[];
+  /** The chain head for a principal (indexed; never loads the chain). */
+  lastReceipt(principalId: string): Receipt | undefined;
+  // idempotency: final outcomes kept for IDEMPOTENCY_TTL_MS
+  getIdempotent(scope: string, key: string): IdempotentRecord | undefined;
+  putIdempotent(rec: IdempotentRecord): void;
   // credentials
   getCredential(id: string): RegisteredCredential | undefined;
   putCredential(c: RegisteredCredential): void;

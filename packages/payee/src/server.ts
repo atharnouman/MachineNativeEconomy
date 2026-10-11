@@ -34,6 +34,18 @@ export function buildPayee(opts: {
     rails: opts.pricing.rails,
   }));
 
+  // a payee that never answers: the gateway must time out and reserve nothing (the handler returns once the caller hangs up)
+  app.get("/v1/slow", async (req) => {
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, 30_000);
+      req.raw.on("close", () => {
+        clearTimeout(t);
+        resolve();
+      });
+    });
+    return { slow: true };
+  });
+
   app.get("/v1/quote", { preHandler: paid({ ...base, price: priceOf("10000"), description: "Spot quote" }) }, async (req) => {
     const symbol = String((req.query as { symbol?: string }).symbol ?? "ETH").toUpperCase();
     return { symbol, price: fakePrice(symbol), currency: "USD", asOf: new Date().toISOString() };

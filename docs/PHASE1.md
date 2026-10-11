@@ -27,7 +27,7 @@ Each milestone ships with contracts/core tests, an end-to-end demo step, and doc
 4. A payment above the escalation threshold returns 202, is approved with a CFO-key signature, resumes, settles; a second one is rejected and cannot be resumed; both are receipted and the signatures verify offline. ✔ steps 8–11
 5. A policy update produces a `policy.updated` receipt with a diff and an impact list; later decisions cite the new hash; the verifier accepts the bundle only because versions and activation times line up. ✔ step 13
 6. The gateway pauses the account from its root session key (child session keys cannot pause since the hardening pass); unpausing requires the owner key. ✔ step 14
-7. `pnpm test` is green across contracts (47), core (43), gateway (11, both store drivers) and both examples; the Phase 0 thin slice still passes unchanged (14/14). ✔
+7. `pnpm test` is green across contracts (47), core (44), gateway (20, both store drivers) and both examples; the Phase 0 thin slice still passes unchanged (14/14). ✔
 8. (1.7) The same agent call with `x402Mode: "standard"` settles through a plain `transferWithAuthorization` after an on-chain pre-approval, i.e. the shape every public facilitator accepts. ✔
 9. (1.6) The whole Phase 1 scenario runs on the SQLite driver. ✔
 10. (1.8) The payee refuses an anonymous request with 401 and `Accept-Signature`, serves the gateway's signed requests, and records which gateway key stood behind each settlement; the gateway publishes its key in a signed directory. ✔
@@ -57,4 +57,5 @@ A high-effort code review of the Phase 1 branch produced 17 findings; the fixes 
 - refusal receipts on the charge URL are throttled to one per subscription interval;
 - `pause()` is restricted to the owner and root session keys;
 - replay windows share one bounded `NonceWindow` (core), nonces come from `crypto.randomBytes`, MPP challenges are pruned, used Lightning preimages are bounded;
+- production hygiene ([ADR-0017](adr/0017-production-hygiene.md)): receipt appends read only the cached chain head, relayer sends use a nonce manager, the decision is re-run atomically before every reservation, payee requests time out, `Idempotency-Key` makes retries safe, denial receipts are throttled per credential;
 - `onSettled` carries `unit: "base" | "sat"`; concurrent `register()` calls for one credential share one transaction, and a session the chain already holds for the key is adopted instead of failing; expiry of pre-approvals is judged by chain time; the SQLite intent trim runs every 500 inserts; the SDK no longer prints a warning.

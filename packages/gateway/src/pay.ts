@@ -53,6 +53,7 @@ import type { ReceiptLog } from "./receipts.js";
 import type { PolicyService } from "./policies.js";
 import type { ApprovalService } from "./approvals.js";
 import type { Metrics } from "./metrics.js";
+import { DenialThrottle } from "./denials.js";
 
 export interface PayRequest {
   url: string;
@@ -161,7 +162,7 @@ export class PaymentService {
     if (!check.ok) return Promise.reject(Object.assign(new Error(`outbound blocked: ${check.reason}`), { statusCode: 403 }));
     const headers = this.cfg.signOutbound === false ? init.headers : { ...init.headers, ...signAsAgent({ method: init.method, url, headers: init.headers }, this.signer.agentKey, this.extras.publicUrl, init.body) };
     // never follow redirects: a paid retry carries payment headers that must not travel to a third host
-    return fetch(url, { method: init.method, headers, body: init.body, redirect: "manual" });
+    return fetch(url, { method: init.method, headers, body: init.body, redirect: "manual", signal: AbortSignal.timeout(this.cfg.payeeTimeoutMs ?? 15_000) });
   }
 
   buildIntent(cred: Credential, req: { url: string; maxAmount: string; purpose: string; rail?: Rail | "auto" }): PaymentIntent {
@@ -196,6 +197,16 @@ export class PaymentService {
       approval: approval ? { id: approval.id } : undefined,
       stage,
     });
+  }
+
+  private readonly denialThrottle = new DenialThrottle();
+
+  /** Writes a `payment.denied` receipt unless the per-credential throttle suppresses it (see denials.ts). */
+  private async denied(principalId: string, data: Record<string, unknown>, meta: Parameters<ReceiptLog["append"]>[3]): Promise<Receipt[]> {
+    const admitted = this.denialThrottle.admit(meta?.credentialId ?? "-");
+    if (!admitted) return [];
+    if (admitted.carried > 0) data = { ...data, suppressedInPreviousWindow: admitted.carried };
+    return [await this.receipts.append(principalId, "payment.denied", data, meta)];
   }
 
   /** Simulation: fetch the payee's 402 quote (free), decide on the real quoted price, ask the account contract. Nothing is paid. */
@@ -286,8 +297,8 @@ export class PaymentService {
     const meta = { agentId: intent.agentId, credentialId: intent.credentialId, intentId: intent.id };
     const reg = this.store.getCredential(intent.credentialId);
     if (!reg) {
-      const r = await this.receipts.append(cred.principalId, "payment.denied", { reason: "credential not registered" }, meta);
-      return { ok: false, status: 403, intent, receipts: [r], error: "credential not registered" };
+      const r = await this.denied(cred.principalId, { reason: "credential not registered" }, meta);
+      return { ok: false, status: 403, intent, receipts: r, error: "credential not registered" };
     }
 
     // 0. an approval, if one is presented, must be granted, unexpired, and for this credential
@@ -295,8 +306,8 @@ export class PaymentService {
     if (req.approvalId) {
       approval = await this.approvals.get(req.approvalId);
       if (!approval || approval.credentialId !== intent.credentialId || approval.status !== "approved") {
-        const r = await this.receipts.append(cred.principalId, "payment.denied", { stage: "approval", reason: `approval ${req.approvalId} is ${approval?.status ?? "unknown"}` }, { ...meta, approvalId: req.approvalId });
-        return { ok: false, status: 403, intent, receipts: [r], error: `approval ${req.approvalId} is ${approval?.status ?? "unknown"}` };
+        const r = await this.denied(cred.principalId, { stage: "approval", reason: `approval ${req.approvalId} is ${approval?.status ?? "unknown"}` }, { ...meta, approvalId: req.approvalId });
+        return { ok: false, status: 403, intent, receipts: r, error: `approval ${req.approvalId} is ${approval?.status ?? "unknown"}` };
       }
     }
     const metaA = approval ? { ...meta, approvalId: approval.id } : meta;
@@ -305,14 +316,22 @@ export class PaymentService {
     const pre = this.decide(intent, cred, 0n, intent.rail, approval, "structural");
     receipts.push(await this.receipts.append(cred.principalId, "decision", { stage: "precheck", effect: pre.effect, reasons: pre.reasons, checks: pre.checks, matchedRules: pre.matchedRules, amount: "0", ceiling: intent.maxAmount.value }, { ...metaA, policyHash: pre.policyHash }));
     if (pre.effect === "deny") {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "precheck", effect: pre.effect, reasons: pre.reasons }, { ...metaA, policyHash: pre.policyHash }));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "precheck", effect: pre.effect, reasons: pre.reasons }, { ...metaA, policyHash: pre.policyHash })));
       return { ok: false, status: 403, intent, decision: pre, receipts, error: `denied: ${pre.reasons.join(", ")}` };
     }
 
     // 2. first request, unpaid (signed as an agent so the payee can tell who is asking)
     const bodyText = req.body !== undefined ? JSON.stringify(req.body) : undefined;
     const baseHeaders: Record<string, string> = { accept: "application/json", ...(bodyText !== undefined ? { "content-type": "application/json" } : {}) };
-    const first = await this.payeeFetch(req.url, { method: req.method ?? "GET", headers: baseHeaders, body: bodyText });
+    let first: Response;
+    try {
+      first = await this.payeeFetch(req.url, { method: req.method ?? "GET", headers: baseHeaders, body: bodyText });
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode) throw err; // outbound policy refusal keeps its own status
+      const reason = `payee unreachable: ${fetchErrorText(err)}`;
+      receipts.push(...(await this.denied(cred.principalId, { stage: "probe", reason }, metaA)));
+      return { ok: false, status: 502, intent, decision: pre, receipts, error: reason };
+    }
     if (first.status !== 402) {
       const body = await readBody(first);
       return { ok: first.ok, status: first.status, intent, decision: pre, receipts, body };
@@ -321,7 +340,7 @@ export class PaymentService {
     // 3. parse the quote(s)
     const quote = this.parseQuote(first, intent.rail);
     if ("error" in quote) {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "quote", reason: quote.error }, metaA));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "quote", reason: quote.error }, metaA)));
       return { ok: false, status: 502, intent, decision: pre, receipts, error: quote.error };
     }
     intent.quotedAmount = mkAmount({ asset: this.cfg.asset.symbol, chain: quote.chain, token: quote.token, base: quote.amount, decimals: this.cfg.asset.decimals });
@@ -331,15 +350,15 @@ export class PaymentService {
     const metaQ = { ...metaA, intentHash: ih, rail: quote.rail };
 
     if (quote.amount > BigInt(intent.maxAmount.value)) {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "quote", reason: "quoted price exceeds agent ceiling", quoted: quote.amount, max: intent.maxAmount.value }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "quote", reason: "quoted price exceeds agent ceiling", quoted: quote.amount, max: intent.maxAmount.value }, metaQ)));
       return { ok: false, status: 402, intent, decision: pre, receipts, error: "quoted price exceeds maxAmount" };
     }
     if (approval && (quote.amount.toString() !== approval.amount || (quote.rail !== "l402" && quote.payTo.toLowerCase() !== approval.payee.address?.toLowerCase()) || quote.rail !== approval.rail)) {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "quote", reason: "quote differs from the approved one", quoted: { amount: quote.amount, payTo: quote.payTo, rail: quote.rail }, approved: { amount: approval.amount, payTo: approval.payee.address, rail: approval.rail } }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "quote", reason: "quote differs from the approved one", quoted: { amount: quote.amount, payTo: quote.payTo, rail: quote.rail }, approved: { amount: approval.amount, payTo: approval.payee.address, rail: approval.rail } }, metaQ)));
       return { ok: false, status: 409, intent, decision: pre, receipts, error: "quote differs from the approved one; request a new approval" };
     }
     if (internal.subscription && quote.rail !== "mpp") {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "quote", reason: "subscriptions need the MPP rail" }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "quote", reason: "subscriptions need the MPP rail" }, metaQ)));
       return { ok: false, status: 502, intent, decision: pre, receipts, error: "subscriptions need the MPP rail" };
     }
 
@@ -353,7 +372,7 @@ export class PaymentService {
       return { ok: false, status: 202, rail: quote.rail, intent, decision, onchain, pending: { approvalId: a.id, expiresAt: a.expiresAt, reasons: decision.reasons }, receipts, error: "approval required" };
     }
     if (decision.effect !== "allow") {
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "quote", effect: decision.effect, reasons: decision.reasons, amount: quote.amount, onchain }, { ...metaQ, policyHash: decision.policyHash }));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "quote", effect: decision.effect, reasons: decision.reasons, amount: quote.amount, onchain }, { ...metaQ, policyHash: decision.policyHash })));
       return { ok: false, status: 403, intent, decision, onchain, receipts, error: `denied: ${decision.reasons.join(", ")}` };
     }
     if (!onchain.ok) {
@@ -361,7 +380,14 @@ export class PaymentService {
       return { ok: false, status: 403, intent, decision, onchain, receipts, error: `on-chain would reject: ${onchain.reason}` };
     }
 
-    // 5. reserve
+    // 5. reserve. The ledger-dependent checks run again synchronously, with no await between them and the
+    //    reservation, so two concurrent intents cannot both pass an off-chain budget or velocity limit
+    //    (on-chain caps are the hard backstop either way).
+    const recheck = this.decide(intent, cred, quote.amount, quote.rail, approval);
+    if (recheck.effect !== "allow") {
+      receipts.push(...(await this.denied(cred.principalId, { stage: "reserve", effect: recheck.effect, reasons: recheck.reasons, amount: quote.amount }, { ...metaQ, policyHash: recheck.policyHash })));
+      return { ok: false, status: 403, intent, decision: recheck, onchain, receipts, error: `denied: ${recheck.reasons.join(", ")}` };
+    }
     const entry = this.store.reserve({
       id: randomId("led"),
       ts: nowIso(),
@@ -419,7 +445,7 @@ export class PaymentService {
       second = await this.payeeFetch(req.url, { method: req.method ?? "GET", headers, body: bodyText });
     } catch (err) {
       this.store.release(entry.id);
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "settle", reason: `payee unreachable: ${String(err)}`, ...orphan }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `payee unreachable: ${String(err)}`, ...orphan }, metaQ)));
       return { ok: false, status: 502, intent, decision, receipts, error: "payee unreachable" };
     }
 
@@ -429,7 +455,7 @@ export class PaymentService {
     const body = await readBody(second);
     if (!second.ok || !txHash) {
       this.store.release(entry.id);
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "settle", reason: `payee rejected payment (status ${second.status})`, body, ...orphan }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `payee rejected payment (status ${second.status})`, body, ...orphan }, metaQ)));
       return { ok: false, status: second.status, intent, decision, receipts, error: "payee rejected payment", body };
     }
     const confirm =
@@ -438,7 +464,7 @@ export class PaymentService {
         : await this.chain.confirmPayment(txHash, account, ih, quote.amount, quote.payTo);
     if (!confirm.ok) {
       this.store.release(entry.id);
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "confirm", reason: confirm.reason, txHash, ...orphan }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "confirm", reason: confirm.reason, txHash, ...orphan }, metaQ)));
       return { ok: false, status: 502, intent, decision, receipts, error: `settlement not confirmed: ${confirm.reason}` };
     }
     const settledAt = nowIso();
@@ -480,13 +506,13 @@ export class PaymentService {
       paid = await this.cfg.lightning!.payInvoice(ln.invoice);
     } catch (err) {
       this.store.release(entryId);
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "settle", reason: `lightning payment failed: ${(err as Error).message}` }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `lightning payment failed: ${(err as Error).message}` }, metaQ)));
       return { ok: false, status: 502, intent, decision, onchain, receipts, error: `lightning payment failed: ${(err as Error).message}` };
     }
     if (!preimageMatches(paid.preimage, ln.paymentHash)) {
       // money may have moved for a hash we did not ask for: keep the charge, flag it loudly
       this.store.settle(entryId, `0x${paid.paymentHash}` as Hex, nowIso());
-      receipts.push(await this.receipts.append(cred.principalId, "payment.denied", { stage: "confirm", reason: "preimage does not match the invoice payment hash", preimage: paid.preimage, paymentHash: paid.paymentHash, expected: ln.paymentHash }, metaQ));
+      receipts.push(...(await this.denied(cred.principalId, { stage: "confirm", reason: "preimage does not match the invoice payment hash", preimage: paid.preimage, paymentHash: paid.paymentHash, expected: ln.paymentHash }, metaQ)));
       return { ok: false, status: 502, intent, decision, onchain, receipts, error: "preimage does not match the invoice" };
     }
     const headers = { ...baseHeaders, authorization: encodeL402AuthorizationHeader(ln.macaroon, paid.preimage) };
@@ -520,7 +546,13 @@ export class PaymentService {
     const dec = this.cfg.asset.decimals;
     const maxPerCharge = toBase(req.maxAmountPerCharge, dec);
     // learn the payee's offer from its 402 (signed, unpaid)
-    const probe = await this.payeeFetch(req.url, { method: "GET", headers: { accept: "application/json" } });
+    let probe: Response;
+    try {
+      probe = await this.payeeFetch(req.url, { method: "GET", headers: { accept: "application/json" } });
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode) throw err;
+      return { ok: false, status: 502, error: `payee unreachable: ${fetchErrorText(err)}` };
+    }
     if (probe.status !== 402) return { ok: false, status: 502, error: `payee did not return 402 (got ${probe.status})` };
     const q = this.parseQuote(probe, "mpp");
     if ("error" in q) return { ok: false, status: 502, error: q.error };
@@ -673,12 +705,17 @@ export class PaymentService {
     this.store.putIntent({ intent, amount: amount.toString(), effect: decision.effect, ts: nowIso() });
     await this.receipts.append(sub.principalId, "decision", { stage: "charge", effect: decision.effect, reasons: decision.reasons, checks: decision.checks, matchedRules: decision.matchedRules, amount, onchain, reference: body.reference ?? null, units: body.units ?? null }, { ...meta, policyHash: decision.policyHash });
     if (decision.effect !== "allow") {
-      await this.receipts.append(sub.principalId, "payment.denied", { stage: "charge", effect: decision.effect, reasons: decision.reasons, amount }, { ...meta, policyHash: decision.policyHash });
+      await this.denied(sub.principalId, { stage: "charge", effect: decision.effect, reasons: decision.reasons, amount }, { ...meta, policyHash: decision.policyHash });
       return refuse(403, `denied by policy: ${decision.reasons.join(", ")}`, { reasons: decision.reasons, amount: amount.toString() });
     }
     if (!onchain.ok) {
       await this.receipts.append(sub.principalId, "onchain.denied", { stage: "charge", reason: onchain.reason, amount }, meta);
       return refuse(403, `on-chain would reject: ${onchain.reason}`, { amount: amount.toString() });
+    }
+    const recheck = this.decide(intent, cred, amount, "mpp"); // synchronous, right before the reservation
+    if (recheck.effect !== "allow") {
+      await this.denied(sub.principalId, { stage: "reserve", effect: recheck.effect, reasons: recheck.reasons, amount }, { ...meta, policyHash: recheck.policyHash });
+      return refuse(403, `denied by policy: ${recheck.reasons.join(", ")}`, { reasons: recheck.reasons, amount: amount.toString() });
     }
     const entry = this.store.reserve({
       id: randomId("led"),
@@ -695,7 +732,7 @@ export class PaymentService {
     const settled = await this.chain.payWithAuthorization(account, auth, sig);
     if (!settled.ok) {
       this.store.release(entry.id);
-      await this.receipts.append(sub.principalId, "payment.denied", { stage: "settle", reason: settled.reason, amount }, meta);
+      await this.denied(sub.principalId, { stage: "settle", reason: settled.reason, amount }, meta);
       return refuse(502, `settlement failed: ${settled.reason}`, { amount: amount.toString() });
     }
     this.store.settle(entry.id, settled.txHash, nowIso());
@@ -800,4 +837,9 @@ async function readBody(res: Response): Promise<unknown> {
   } catch {
     return t;
   }
+}
+
+function fetchErrorText(err: unknown): string {
+  if (err instanceof Error) return err.name === "TimeoutError" || err.name === "AbortError" ? "timeout" : err.message.split("\n")[0]!;
+  return String(err);
 }
