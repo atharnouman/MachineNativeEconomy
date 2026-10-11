@@ -149,14 +149,14 @@ A metered stream is a subscription with a unit price and a per-cycle cap. [ADR-0
 
 Lightning works through the same `pay()`: an L402 challenge is converted at a configured sats-per-USDC rate, policy runs on that amount, the invoice is paid through your Lightning backend, and the preimage is verified against the invoice hash and kept as proof. [ADR-0014](docs/adr/0014-l402-lightning.md).
 
-## Works with any x402 facilitator
+## Works with standard x402 facilitators
 
 Two payload modes, one policy engine (`x402Mode` per gateway, overridable per payment):
 
 | Mode | How it settles | Needs |
 |---|---|---|
 | `agent-account` (default) | one transaction: `AgentAccount.payWithAuthorization` | a facilitator that knows the account (the bundled one) |
-| `standard` | the account pre-approves the EIP-3009 digest under its caveats, then the facilitator calls plain `transferWithAuthorization`; the token asks the account via ERC-1271 | nothing: Coinbase CDP, Stellar/OZ, Cloudflare, or any other public facilitator |
+| `standard` | the account pre-approves the EIP-3009 digest under its caveats, then the facilitator calls plain `transferWithAuthorization`; the token asks the account via ERC-1271 | a facilitator that checks contract payers through ERC-1271; proven live with the public x402.org facilitator on Base Sepolia ([transcript](docs/testnet-transcript.md)) |
 
 Either way every caveat is enforced on-chain and the gateway confirms the settlement itself. Details in [ADR-0009](docs/adr/0009-standard-x402-interop.md).
 
@@ -221,4 +221,4 @@ Credential caveats (`spend_cap`, `per_tx_max`, `allowed_payees`, `allowed_rails`
 
 ## Status
 
-All Phase 1 milestones (1.1–1.11) complete on a local chain (see [PHASE1.md](docs/PHASE1.md)). Not audited. Do not use with real funds.
+All Phase 1 milestones (1.1–1.11) complete on a local chain (see [PHASE1.md](docs/PHASE1.md)). Live on Base Sepolia since 11 October 2026: an EIP-7702 delegated account paying through the public x402.org facilitator with Circle's testnet USDC, with escalation, budget denial and offline-verified evidence, 12 of 12 steps ([transcript](docs/testnet-transcript.md), [run notes](docs/TESTNET.md)). Not audited. Do not use with real funds.

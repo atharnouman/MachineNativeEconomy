@@ -318,7 +318,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       approvers: cfg.approvers ?? {},
       credentials: store.credentialsFor(principalId).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
       receipts: store.receiptsFor(principalId),
-      anchors: store.anchorsList(),
+      anchors: store.anchorsList(principalId).map(({ principalId: _owner, ...a }) => a),
     };
   };
 
@@ -327,17 +327,23 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     return exportEvidence((req.params as { principalId: string }).principalId);
   });
 
-  const anchor = async (principalId: string) => {
-    const rs = store.receiptsFor(principalId);
-    const head = rs[rs.length - 1]?.hash as Hex | undefined;
-    if (!head) throw new Error("nothing to anchor");
-    const anchors = store.anchorsList();
-    const prev = (anchors[anchors.length - 1]?.head ?? `0x${"0".repeat(64)}`) as Hex;
-    const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, head, prev, BigInt(rs.length));
-    const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry };
-    store.addAnchor(rec);
-    await receipts.append(principalId, "evidence.anchored", rec);
-    return rec;
+  // The registry chains anchors per sending key, so the previous head comes from the registry (a rotated relayer key or
+  // a fresh store would otherwise send a stale one), and anchors go one at a time so two never claim the same head.
+  let anchoring: Promise<unknown> = Promise.resolve();
+  const anchor = (principalId: string) => {
+    const run = anchoring.then(async () => {
+      const rs = store.receiptsFor(principalId);
+      const head = rs[rs.length - 1]?.hash as Hex | undefined;
+      if (!head) throw new Error("nothing to anchor");
+      const prev = await chain.latestAnchorHead(cfg.contracts.receiptRegistry);
+      const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, head, prev, BigInt(rs.length));
+      const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry };
+      store.addAnchor({ principalId, ...rec });
+      await receipts.append(principalId, "evidence.anchored", rec);
+      return rec;
+    });
+    anchoring = run.catch(() => undefined);
+    return run;
   };
 
   app.post("/v1/evidence/anchor", async (req) => {

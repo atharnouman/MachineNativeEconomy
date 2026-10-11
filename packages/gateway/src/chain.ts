@@ -18,6 +18,7 @@ import {
   chainFor,
   decodeRevert,
   describeRevert,
+  waitForInclusion,
   type PaymentAuthorizationStruct,
   type TokenAuthorizationStruct,
 } from "@spendmarshal/core";
@@ -52,7 +53,7 @@ export class ChainClient {
       functionName: "grantSession",
       args: [key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
     });
-    await this.pub.waitForTransactionReceipt({ hash });
+    await waitForInclusion(this.pub, hash);
     return hash;
   }
 
@@ -63,14 +64,14 @@ export class ChainClient {
       functionName: "grantChildSession",
       args: [parentKey, key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
     });
-    const r = await this.pub.waitForTransactionReceipt({ hash });
+    const r = await waitForInclusion(this.pub, hash);
     if (r.status !== "success") throw new Error("grantChildSession reverted");
     return hash;
   }
 
   async setPaused(account: Address, paused: boolean): Promise<Hex> {
     const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: paused ? "pause" : "unpause", args: [] });
-    await this.pub.waitForTransactionReceipt({ hash });
+    await waitForInclusion(this.pub, hash);
     return hash;
   }
 
@@ -95,7 +96,7 @@ export class ChainClient {
   async payWithAuthorization(account: Address, auth: PaymentAuthorizationStruct, sig: Hex): Promise<{ ok: true; txHash: Hex; blockNumber: bigint } | { ok: false; reason: string }> {
     try {
       const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "payWithAuthorization", args: [auth, sig] });
-      const r = await this.pub.waitForTransactionReceipt({ hash });
+      const r = await waitForInclusion(this.pub, hash);
       return r.status === "success" ? { ok: true, txHash: hash, blockNumber: r.blockNumber } : { ok: false, reason: "reverted" };
     } catch (err) {
       return { ok: false, reason: describeRevert(err) };
@@ -109,7 +110,7 @@ export class ChainClient {
   async approveAuthorization(account: Address, auth: TokenAuthorizationStruct, sig: Hex): Promise<{ ok: true; txHash: Hex; blockNumber: bigint; digest: Hex } | { ok: false; reason: string }> {
     try {
       const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "approveAuthorization", args: [auth, sig] });
-      const r = await this.pub.waitForTransactionReceipt({ hash });
+      const r = await waitForInclusion(this.pub, hash);
       if (r.status !== "success") return { ok: false, reason: "reverted" };
       const { parseEventLogs } = await import("viem");
       const ev = parseEventLogs({ abi: AgentAccountAbi, logs: r.logs, eventName: "AuthorizationApproved" })[0];
@@ -123,7 +124,7 @@ export class ChainClient {
   async reclaimApproval(account: Address, digest: Hex): Promise<{ ok: true; txHash: Hex } | { ok: false; reason: string }> {
     try {
       const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "reclaimApproval", args: [digest] });
-      const r = await this.pub.waitForTransactionReceipt({ hash });
+      const r = await waitForInclusion(this.pub, hash);
       return r.status === "success" ? { ok: true, txHash: hash } : { ok: false, reason: "reverted" };
     } catch (err) {
       return { ok: false, reason: describeRevert(err) };
@@ -132,7 +133,7 @@ export class ChainClient {
 
   /** Confirms a standard EIP-3009 settlement: the token emitted AuthorizationUsed(account, nonce) and Transfer(account → payTo, amount). */
   async confirmStandardPayment(txHash: Hex, token: Address, account: Address, payTo: Address, amount: bigint, nonce: Hex): Promise<{ ok: boolean; blockNumber?: bigint; reason?: string }> {
-    const r = await this.pub.waitForTransactionReceipt({ hash: txHash });
+    const r = await waitForInclusion(this.pub, txHash);
     if (r.status !== "success") return { ok: false, reason: "tx reverted" };
     const { parseEventLogs } = await import("viem");
     const tokenLogs = r.logs.filter((l) => l.address.toLowerCase() === token.toLowerCase());
@@ -143,7 +144,7 @@ export class ChainClient {
 
   /** Confirms a settlement the payee or facilitator claims: tx succeeded and emitted PaymentExecuted for our intent. */
   async confirmPayment(txHash: Hex, account: Address, intentHash: Hex, amount: bigint, to: Address): Promise<{ ok: boolean; blockNumber?: bigint; reason?: string }> {
-    const r = await this.pub.waitForTransactionReceipt({ hash: txHash });
+    const r = await waitForInclusion(this.pub, txHash);
     if (r.status !== "success") return { ok: false, reason: "tx reverted" };
     const { parseEventLogs } = await import("viem");
     const logs = parseEventLogs({ abi: AgentAccountAbi, logs: r.logs, eventName: "PaymentExecuted" });
@@ -153,9 +154,15 @@ export class ChainClient {
     return hit ? { ok: true, blockNumber: r.blockNumber } : { ok: false, reason: "no matching PaymentExecuted event" };
   }
 
+  /** The head this relayer last anchored in the registry (zero before its first anchor): the next anchor's prevHead. */
+  async latestAnchorHead(registry: Address): Promise<Hex> {
+    const [head] = await this.pub.readContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "latest", args: [this.wallet.account!.address] });
+    return head;
+  }
+
   async anchor(registry: Address, head: Hex, prevHead: Hex, count: bigint): Promise<{ txHash: Hex; blockNumber: bigint }> {
     const hash = await this.wallet.writeContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "anchor", args: [head, prevHead, count] });
-    const r = await this.pub.waitForTransactionReceipt({ hash });
+    const r = await waitForInclusion(this.pub, hash);
     if (r.status !== "success") throw new Error("anchor reverted");
     return { txHash: hash, blockNumber: r.blockNumber };
   }

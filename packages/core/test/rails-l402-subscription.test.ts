@@ -29,7 +29,8 @@ describe("L402 wire format and macaroons", () => {
     const h = encodeL402AuthorizationHeader("mac-token", preimage);
     expect(decodeL402AuthorizationHeader(h)).toEqual({ macaroon: "mac-token", preimage });
     expect(preimageMatches(preimage, paymentHash)).toBe(true);
-    expect(preimageMatches(preimage.replace(/.$/, "0"), paymentHash)).toBe(false);
+    const tampered = preimage.slice(0, -1) + (preimage.endsWith("0") ? "1" : "0"); // always a different last digit
+    expect(preimageMatches(tampered, paymentHash)).toBe(false);
     expect(decodeL402AuthorizationHeader("L402 mac:short")).toBeNull();
   });
 

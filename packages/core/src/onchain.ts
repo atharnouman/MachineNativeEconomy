@@ -23,6 +23,30 @@ import {
 import { PaymentAuthorizationTypes, agentAccountDomain, fromWireAuthorization, TRANSFER_WITH_AUTHORIZATION_TYPEHASH } from "./typedData.js";
 import type { AuthorizationPayload, X402StandardPayload } from "./rails.js";
 
+/**
+ * Waits for a transaction's receipt and then for its block to be the chain's latest. Chains with preconfirmations
+ * (Base Flashblocks) hand out receipts while the block is still being built, and a read at "latest" made right then
+ * does not see the change: a facilitator checking a fresh pre-approval through ERC-1271 rejects it. On a local chain
+ * the receipt's block is already the latest, so this returns at once. After `timeoutMs` it returns the receipt anyway.
+ */
+export async function waitForInclusion(client: PublicClient, hash: Hex, timeoutMs = 30_000) {
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  const deadline = Date.now() + timeoutMs;
+  while ((await client.getBlockNumber({ cacheTime: 0 })) < receipt.blockNumber && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return receipt;
+}
+
+/**
+ * The signature a standard x402 payload carries when the account pre-approved the EIP-3009 digest on-chain. The account
+ * answers ERC-1271 from the approved digest and ignores these bytes, but facilitators split a 65-byte signature into
+ * (v, r, s) to call USDC's split-signature `transferWithAuthorization`, and secp256k1 libraries refuse r = 0 or s = 0
+ * before anything reaches the chain. So the bytes are well formed and meaningless: r is the x-coordinate of the curve's
+ * generator, s = 1, v = 27.
+ */
+export const PREAPPROVED_SIGNATURE = `0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798${"00".repeat(31)}011b` as Hex;
+
 /** All ABIs whose custom errors can surface from AgentAccount calls. */
 export const RevertAbi = [
   ...AgentAccountAbi,
@@ -159,7 +183,7 @@ export async function settleAgentAccountPayload(
       functionName: "payWithAuthorization",
       args: [auth, payload.signature as Hex],
     });
-    const rcpt = await client.waitForTransactionReceipt({ hash });
+    const rcpt = await waitForInclusion(client, hash);
     if (rcpt.status !== "success") return { ok: false, reason: "transaction reverted" };
     return { ok: true, txHash: hash, blockNumber: rcpt.blockNumber };
   } catch (err) {
@@ -230,7 +254,7 @@ export async function settleStandardPayload(
       functionName: "transferWithAuthorization",
       args: [a.from as Address, a.to as Address, BigInt(a.value), BigInt(a.validAfter), BigInt(a.validBefore), a.nonce as Hex, payload.signature as Hex],
     });
-    const rcpt = await client.waitForTransactionReceipt({ hash });
+    const rcpt = await waitForInclusion(client, hash);
     if (rcpt.status !== "success") return { ok: false, reason: "transaction reverted" };
     return { ok: true, txHash: hash, blockNumber: rcpt.blockNumber };
   } catch (err) {

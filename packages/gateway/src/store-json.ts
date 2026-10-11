@@ -91,8 +91,8 @@ export class JsonStore implements Store {
     e.state = "released";
     this.flush();
   }
-  ledgerView(): SpendLedgerView {
-    const live = (since?: Date) => this.state.ledger.filter((e) => e.state !== "released" && (!since || new Date(e.ts) >= since));
+  ledgerView(principalId: string): SpendLedgerView {
+    const live = (since?: Date) => this.state.ledger.filter((e) => e.principalId === principalId && e.state !== "released" && (!since || new Date(e.ts) >= since));
     const sum = (es: LedgerEntry[]) => es.reduce((a, e) => a + BigInt(e.amount), 0n);
     return {
       spentByCredential: (id, since) => sum(live(since).filter((e) => e.credentialIds.includes(id))),
@@ -106,11 +106,11 @@ export class JsonStore implements Store {
   ledgerEntries(principalId: string) {
     return this.state.ledger.filter((e) => e.principalId === principalId);
   }
-  spent() {
+  spent(principalId: string) {
     const byCredential: Record<string, bigint> = {};
     const byBudget: Record<string, bigint> = {};
     for (const e of this.state.ledger) {
-      if (e.state !== "settled") continue;
+      if (e.state !== "settled" || e.principalId !== principalId) continue;
       for (const c of e.credentialIds) byCredential[c] = (byCredential[c] ?? 0n) + BigInt(e.amount);
       for (const b of e.budgetIds) byBudget[b] = (byBudget[b] ?? 0n) + BigInt(e.amount);
     }
@@ -179,8 +179,8 @@ export class JsonStore implements Store {
     this.flush();
   }
 
-  anchorsList() {
-    return [...this.state.anchors];
+  anchorsList(principalId?: string) {
+    return principalId === undefined ? [...this.state.anchors] : this.state.anchors.filter((a) => a.principalId === principalId);
   }
   addAnchor(a: AnchorRecord) {
     this.state.anchors.push(a);

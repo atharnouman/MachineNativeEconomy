@@ -6,6 +6,7 @@ import { createPublicClient, createWalletClient, http, encodeFunctionData, type 
 import { privateKeyToAccount } from "viem/accounts";
 import {
   AgentAccountAbi,
+  waitForInclusion,
   AgentAccountBytecode,
   MockUSDCAbi,
   MockUSDCBytecode,
@@ -99,7 +100,7 @@ export async function deployCore(net: Devnet, deployerKey: Hex, opts: { usdc?: A
   const w = walletFor(net, deployerKey);
   const deploy = async (name: string, bytecode: Hex, abi: readonly unknown[] = [], args: unknown[] = []): Promise<Address> => {
     const hash = await w.deployContract({ abi: abi as never, bytecode, args: args as never });
-    const r = await net.pub.waitForTransactionReceipt({ hash });
+    const r = await waitForInclusion(net.pub, hash);
     if (!r.contractAddress) throw new Error(`deploy ${name} failed`);
     return r.contractAddress;
   };
@@ -116,12 +117,10 @@ export async function deployCore(net: Devnet, deployerKey: Hex, opts: { usdc?: A
 export async function deployStandaloneAccount(net: Devnet, ownerKey: Hex, core: CoreContracts): Promise<Address> {
   const w = walletFor(net, ownerKey);
   const hash = await w.deployContract({ abi: AgentAccountAbi, bytecode: AgentAccountBytecode, args: [w.account.address] });
-  const r = await net.pub.waitForTransactionReceipt({ hash });
+  const r = await waitForInclusion(net.pub, hash);
   if (!r.contractAddress) throw new Error("deploy AgentAccount failed");
   const account = r.contractAddress;
-  await net.pub.waitForTransactionReceipt({
-    hash: await w.writeContract({ address: account, abi: AgentAccountAbi, functionName: "setEnforcers", args: [[core.enforcers.spendLimit, core.enforcers.timeWindow, core.enforcers.allowedTargets]] }),
-  });
+  await waitForInclusion(net.pub, await w.writeContract({ address: account, abi: AgentAccountAbi, functionName: "setEnforcers", args: [[core.enforcers.spendLimit, core.enforcers.timeWindow, core.enforcers.allowedTargets]] }));
   return account;
 }
 
@@ -140,7 +139,7 @@ export async function delegateEoaToAccount(net: Devnet, eoaKey: Hex, core: CoreC
     authorizationList: [authorization],
     data: encodeFunctionData({ abi: AgentAccountAbi, functionName: "initialize", args: [owner ?? eoa] }),
   });
-  const r1 = await net.pub.waitForTransactionReceipt({ hash: delegationTx });
+  const r1 = await waitForInclusion(net.pub, delegationTx);
   if (r1.status !== "success") throw new Error("delegation transaction reverted");
   // a public, load-balanced RPC can serve a lagging node right after the receipt: poll briefly before concluding
   let code = await net.pub.getCode({ address: eoa });
@@ -155,14 +154,14 @@ export async function delegateEoaToAccount(net: Devnet, eoaKey: Hex, core: CoreC
     functionName: "setEnforcers",
     args: [[core.enforcers.spendLimit, core.enforcers.timeWindow, core.enforcers.allowedTargets]],
   });
-  await net.pub.waitForTransactionReceipt({ hash: enforcersTx });
+  await waitForInclusion(net.pub, enforcersTx);
   return { delegationTx, enforcersTx, account: eoa };
 }
 
 export async function mintUsdc(net: Devnet, minterKey: Hex, usdc: Address, to: Address, amount: bigint): Promise<Hex> {
   const w = walletFor(net, minterKey);
   const hash = await w.writeContract({ address: usdc, abi: MockUSDCAbi, functionName: "mint", args: [to, amount] });
-  await net.pub.waitForTransactionReceipt({ hash });
+  await waitForInclusion(net.pub, hash);
   return hash;
 }
 
@@ -190,7 +189,7 @@ export async function grantRootSession(net: Devnet, ownerKey: Hex, account: Addr
     functionName: "grantSession",
     args: [g.key, g.spendCap, g.perTxMax, g.validAfter ?? 0n, g.validUntil, g.anyTarget ?? false, g.targets ?? [], g.tokens],
   });
-  const r = await net.pub.waitForTransactionReceipt({ hash });
+  const r = await waitForInclusion(net.pub, hash);
   if (r.status !== "success") throw new Error("grantSession reverted");
   return hash;
 }
@@ -198,7 +197,7 @@ export async function grantRootSession(net: Devnet, ownerKey: Hex, account: Addr
 export async function ownerUnpause(net: Devnet, ownerKey: Hex, account: Address): Promise<Hex> {
   const w = walletFor(net, ownerKey);
   const hash = await w.writeContract({ address: account, abi: AgentAccountAbi, functionName: "unpause", args: [] });
-  await net.pub.waitForTransactionReceipt({ hash });
+  await waitForInclusion(net.pub, hash);
   return hash;
 }
 

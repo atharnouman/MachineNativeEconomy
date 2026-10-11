@@ -1,0 +1,1323 @@
+{
+  "v": 1,
+  "principalId": "org-acme-202610111235",
+  "exportedAt": "2026-10-11T12:35:38.193Z",
+  "gateway": {
+    "address": "0x95AcBb0081d8b065036c77F8c3E8De10615907c7",
+    "chain": "eip155:84532"
+  },
+  "contracts": {
+    "agentAccount": "0x59418b96ef39AF2584E51a0e7a7FADFd51FdFA83",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "receiptRegistry": "0xf1352bd8428c6d4fd32d0353451b356944826985",
+    "enforcer.spendLimit": "0xb324bc76bae2aefc40be7f3d2eb963322f026f5c",
+    "enforcer.timeWindow": "0x7dbb3e56f8fd2469fbb9cdedabde9aeecd7ce3ad",
+    "enforcer.allowedTargets": "0x2e1e9d0c94033cab450ff522faf062fbb96bd090"
+  },
+  "policy": {
+    "hash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+    "document": {
+      "version": 1,
+      "principalId": "org-acme-202610111235",
+      "currency": {
+        "asset": "USDC",
+        "decimals": 6
+      },
+      "budgets": {
+        "org": {
+          "cap": "0.06",
+          "period": "lifetime"
+        }
+      },
+      "agents": {
+        "research-agent": {
+          "budget": "org"
+        }
+      },
+      "velocity": [],
+      "rules": [
+        {
+          "id": "escalate-above-3c",
+          "description": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)",
+          "effect": "escalate",
+          "match": {
+            "amount_gt": "0.03"
+          }
+        },
+        {
+          "id": "allow-research",
+          "description": "Research purchases over x402",
+          "effect": "allow",
+          "match": {
+            "rails": [
+              "x402"
+            ],
+            "purposes": [
+              "research"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "policyVersions": [
+    {
+      "version": 1,
+      "hash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "prevHash": null,
+      "activatedAt": "2026-10-11T12:35:12.737Z",
+      "activatedBy": "config",
+      "document": {
+        "version": 1,
+        "principalId": "org-acme-202610111235",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "0.06",
+            "period": "lifetime"
+          }
+        },
+        "agents": {
+          "research-agent": {
+            "budget": "org"
+          }
+        },
+        "velocity": [],
+        "rules": [
+          {
+            "id": "escalate-above-3c",
+            "description": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-research",
+            "description": "Research purchases over x402",
+            "effect": "allow",
+            "match": {
+              "rails": [
+                "x402"
+              ],
+              "purposes": [
+                "research"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "approvers": {
+    "cfo": "0x56BA4CDed124C8AF32BB8E5E675Bb4892B61E771"
+  },
+  "credentials": [
+    {
+      "v": 1,
+      "rootId": "cred_1bcc086c8f638ff4deeddb67",
+      "principalId": "org-acme-202610111235",
+      "caveats": [
+        {
+          "type": "delegate",
+          "agentId": "research-agent",
+          "nonce": "n_f8f7520ad4124a59b9d0ffb0"
+        },
+        {
+          "type": "spend_cap",
+          "value": "100000"
+        },
+        {
+          "type": "per_tx_max",
+          "value": "50000"
+        },
+        {
+          "type": "allowed_payees",
+          "value": [
+            "127.0.0.1:14603",
+            "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9"
+          ]
+        },
+        {
+          "type": "allowed_rails",
+          "value": [
+            "x402"
+          ]
+        },
+        {
+          "type": "purposes",
+          "value": [
+            "research"
+          ]
+        },
+        {
+          "type": "expires_at",
+          "value": "2026-10-12T12:35:13.091Z"
+        }
+      ],
+      "id": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "agentId": "research-agent",
+      "parentId": null
+    }
+  ],
+  "receipts": [
+    {
+      "v": 1,
+      "id": "rcpt_01323555ad695a5111219444",
+      "principalId": "org-acme-202610111235",
+      "seq": 0,
+      "prev": null,
+      "ts": "2026-10-11T12:35:12.761Z",
+      "kind": "policy.updated",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "version": 1,
+        "prevHash": null,
+        "hash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+        "activatedBy": "config",
+        "diff": null,
+        "impact": []
+      },
+      "hash": "0xd5b62964699d5e52f7a0464ca5f71023f108a52887482ebe2814f563b93a7c5b",
+      "sig": "0x25554024f6df54b5ee7fbc81303613e89a9bd8e7804f9a1f2cf2d6f284c676a75a5e9131db44a6d0351cecc230b39288857ce927fbb8b4e5e005b9f979ae71561c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_55773ed80358239a5de59e5f",
+      "principalId": "org-acme-202610111235",
+      "seq": 1,
+      "prev": "0xd5b62964699d5e52f7a0464ca5f71023f108a52887482ebe2814f563b93a7c5b",
+      "ts": "2026-10-11T12:35:13.111Z",
+      "kind": "credential.issued",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "data": {
+        "credential": {
+          "v": 1,
+          "rootId": "cred_1bcc086c8f638ff4deeddb67",
+          "principalId": "org-acme-202610111235",
+          "caveats": [
+            {
+              "type": "delegate",
+              "agentId": "research-agent",
+              "nonce": "n_f8f7520ad4124a59b9d0ffb0"
+            },
+            {
+              "type": "spend_cap",
+              "value": "100000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "50000"
+            },
+            {
+              "type": "allowed_payees",
+              "value": [
+                "127.0.0.1:14603",
+                "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9"
+              ]
+            },
+            {
+              "type": "allowed_rails",
+              "value": [
+                "x402"
+              ]
+            },
+            {
+              "type": "purposes",
+              "value": [
+                "research"
+              ]
+            },
+            {
+              "type": "expires_at",
+              "value": "2026-10-12T12:35:13.091Z"
+            }
+          ],
+          "id": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+          "agentId": "research-agent",
+          "parentId": null
+        }
+      },
+      "hash": "0xa038aa4c3385441c80cf5b5285b33c70fb4bf1e8f165250725139ceb2f1e1e47",
+      "sig": "0xc51e7eb54d410dadffb8bb610cc2f853bd11e97d62a7e698ca982574a3c28d155a314beef5674615eab3264c2ae590e8c75e251ac42a8940b3ff8c5722e46fa81b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_d722efafb1f607f27affc44d",
+      "principalId": "org-acme-202610111235",
+      "seq": 2,
+      "prev": "0xa038aa4c3385441c80cf5b5285b33c70fb4bf1e8f165250725139ceb2f1e1e47",
+      "ts": "2026-10-11T12:35:16.556Z",
+      "kind": "credential.registered",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "data": {
+        "credential": {
+          "v": 1,
+          "rootId": "cred_1bcc086c8f638ff4deeddb67",
+          "principalId": "org-acme-202610111235",
+          "caveats": [
+            {
+              "type": "delegate",
+              "agentId": "research-agent",
+              "nonce": "n_f8f7520ad4124a59b9d0ffb0"
+            },
+            {
+              "type": "spend_cap",
+              "value": "100000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "50000"
+            },
+            {
+              "type": "allowed_payees",
+              "value": [
+                "127.0.0.1:14603",
+                "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9"
+              ]
+            },
+            {
+              "type": "allowed_rails",
+              "value": [
+                "x402"
+              ]
+            },
+            {
+              "type": "purposes",
+              "value": [
+                "research"
+              ]
+            },
+            {
+              "type": "expires_at",
+              "value": "2026-10-12T12:35:13.091Z"
+            }
+          ],
+          "id": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+          "agentId": "research-agent",
+          "parentId": null
+        },
+        "sessionKey": "0xf162742e6E8e27B2e92971e6B5535cD81DCc06b6",
+        "parentSessionKey": "0x95AcBb0081d8b065036c77F8c3E8De10615907c7",
+        "onchain": {
+          "account": "0x59418b96ef39AF2584E51a0e7a7FADFd51FdFA83",
+          "txHash": "0x82820ac81b1232f2df8c1fcadef40ffbb985fd43ce04d9e1f84cb31fd01bb49e",
+          "adopted": false,
+          "spendCap": "100000",
+          "perTxMax": "50000",
+          "validUntil": "1791808505",
+          "anyTarget": false,
+          "targets": [
+            "0x73a20a72b956258cc1ccac90a053c8a3b0a6e7e9"
+          ]
+        }
+      },
+      "hash": "0xe344e9fdc46c897d20ff20489b9114ddf16f787725b22fc644355e2e86599da7",
+      "sig": "0x9db0e4722ef11d68f420c58aeb982761940cd0dbb8753f5b74fe776fd4895b512763b108b1c6322a66404a6372fd03e148da7bb3b14a6869d53cd50c2babea421b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_cd50e2c6c2ba85d0b0e42a94",
+      "principalId": "org-acme-202610111235",
+      "seq": 3,
+      "prev": "0xe344e9fdc46c897d20ff20489b9114ddf16f787725b22fc644355e2e86599da7",
+      "ts": "2026-10-11T12:35:16.807Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_dc990d2bcbfded3f2a964836",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:16.805Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:16.805Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 0 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 0 + 0 vs cap 60000"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "allow-research"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x9a56e45b14efc0655786768133883bd2017395c857199286bc5d0c47b6d0cb1f",
+      "sig": "0x066d9da1b36eb7b315e5baac6ab3b76c638ca75e3dc92b2669a07bce5443a00c7e572a2ecd958a380c29230d95db2b7ae3a8de247b8732ad6bb2fb320c0d924c1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_5a4639f052cbe38eaca161e9",
+      "principalId": "org-acme-202610111235",
+      "seq": 4,
+      "prev": "0x9a56e45b14efc0655786768133883bd2017395c857199286bc5d0c47b6d0cb1f",
+      "ts": "2026-10-11T12:35:17.211Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_dc990d2bcbfded3f2a964836",
+      "intentHash": "0xd42b9c469cb37df6f4269c88bbb09c35141d60d86fbba54442a0c20126c7af02",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:16.826Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:16.826Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603/0x73a20a72b956258cc1ccac90a053c8a3b0a6e7e9"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 0 + 10000 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 0 + 10000 vs cap 60000"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "allow-research"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532"
+        }
+      },
+      "hash": "0x5355a9d251e1ae8e179491ffa4ef97a8e00fdda4916bf2cfd48ef9d1246ba26b",
+      "sig": "0x695d401ac04eba0c6e45580ca189c2c6358b7984f703ed450d1185d3e6a4fb857b131251a86dc590670f7cf3ca15e3994d014480c64a608dd6ec11f341bf81ac1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_8ad0b9c32783985a6cfc9442",
+      "principalId": "org-acme-202610111235",
+      "seq": 5,
+      "prev": "0x5355a9d251e1ae8e179491ffa4ef97a8e00fdda4916bf2cfd48ef9d1246ba26b",
+      "ts": "2026-10-11T12:35:24.161Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_dc990d2bcbfded3f2a964836",
+      "intentHash": "0xd42b9c469cb37df6f4269c88bbb09c35141d60d86fbba54442a0c20126c7af02",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "txHash": "0x6025e96d448236bbead9ec0465fd0e644f0d557727c6c281d809feac614b4f12",
+        "blockNumber": "47976918",
+        "amount": "10000",
+        "payee": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+        "approvalTxHash": "0xe834504157aaa118e8dfa8da8d1e5337259fe85e81d64376abcc060e7366877e",
+        "payloadKind": "standard",
+        "account": "0x59418b96ef39AF2584E51a0e7a7FADFd51FdFA83",
+        "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "chain": "eip155:84532",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x1f88bbc368b8cc09218a68c8a665803fc1f0415043cafdd6ff0b1c21ef9f9c60",
+        "budgets": [
+          "org"
+        ],
+        "lineage": [
+          "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb"
+        ],
+        "ledgerEntryId": "led_578a938e01a27701179697d2",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x9e0dbdb5d2cc85b534c7130c8b8914d4e75b0fbc6242fd7e6f96f291f7a5fec3",
+      "sig": "0x4545ab1a3000010899f783ad29c309ac0deab04d0b7ebe918685a531f97bbe313d3f62dcc6471e3fb68c54c78924c4f51804e8b607f7164d4667f8a6cb004cfb1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_89b21bbe83519bfe8db26a44",
+      "principalId": "org-acme-202610111235",
+      "seq": 6,
+      "prev": "0x9e0dbdb5d2cc85b534c7130c8b8914d4e75b0fbc6242fd7e6f96f291f7a5fec3",
+      "ts": "2026-10-11T12:35:24.450Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_9f5a978ad51979c7ce732233",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.449Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.449Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 10000 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 0 vs cap 60000"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "allow-research"
+        ],
+        "amount": "0",
+        "ceiling": "50000"
+      },
+      "hash": "0x0731e97768d815b60708ceeca35e01dbdc48316f32dc234ae575a4be110322ca",
+      "sig": "0x5ea263ff4414607ec98286848ebda1bb6817177a84477bdfde6affffcfb3157024f02404a1bf3f906199c25e464520103b1b7c9aa81606be8f5fc71a5a256ef91c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_8e1639db6ddae6212861e53f",
+      "principalId": "org-acme-202610111235",
+      "seq": 7,
+      "prev": "0x0731e97768d815b60708ceeca35e01dbdc48316f32dc234ae575a4be110322ca",
+      "ts": "2026-10-11T12:35:24.747Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_9f5a978ad51979c7ce732233",
+      "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "quote",
+        "effect": "escalate",
+        "reasons": [
+          "RULE_ESCALATE:escalate-above-3c"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.461Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.461Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603/0x73a20a72b956258cc1ccac90a053c8a3b0a6e7e9"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 10000 + 40000 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 40000 vs cap 60000"
+          },
+          {
+            "check": "rule:escalate-above-3c",
+            "ok": false,
+            "detail": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)"
+          }
+        ],
+        "matchedRules": [
+          "escalate-above-3c"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532"
+        }
+      },
+      "hash": "0x5c8a810f8caa9106bffb1781f8e1eef2b78e79b6413ae1e90cc4d872b2a6c107",
+      "sig": "0x96fa65a38fca3563f5aae522a5085d1dfe44e249b9678040c295726bfff2d3754a28f4b2a15c63a37b831059fd44f8ad74a5af9507db7f59bba0a5ac3ae6821b1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_b590ab57493634e3e341e1d1",
+      "principalId": "org-acme-202610111235",
+      "seq": 8,
+      "prev": "0x5c8a810f8caa9106bffb1781f8e1eef2b78e79b6413ae1e90cc4d872b2a6c107",
+      "ts": "2026-10-11T12:35:24.752Z",
+      "kind": "approval.requested",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_9f5a978ad51979c7ce732233",
+      "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_2e72886193e0674157bc2a77",
+          "principalId": "org-acme-202610111235",
+          "intentId": "int_9f5a978ad51979c7ce732233",
+          "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+          "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532",
+          "payee": {
+            "host": "127.0.0.1:14603",
+            "address": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+            "url": "http://127.0.0.1:14603/v1/report"
+          },
+          "resource": "/v1/report",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "pending",
+          "requestedAt": "2026-10-11T12:35:24.751Z",
+          "expiresAt": "2026-10-11T12:50:24.751Z"
+        },
+        "decision": {
+          "effect": "escalate",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "matchedRules": [
+            "escalate-above-3c"
+          ]
+        }
+      },
+      "hash": "0x7cd57607058d54a917a77615667c7e907fe60b3af330df7722101ea4b3f25052",
+      "sig": "0xec8e3fc8b213dfef656ca29689192760659ffb4d496f8abbcbc0187fc415458c0fd0fb0e8e367a1a50ef4fb212c4f9df34830f08f2343cb1e01cf39398a8edf41b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_d055bd7828e5908fb4980cd6",
+      "principalId": "org-acme-202610111235",
+      "seq": 9,
+      "prev": "0x7cd57607058d54a917a77615667c7e907fe60b3af330df7722101ea4b3f25052",
+      "ts": "2026-10-11T12:35:24.779Z",
+      "kind": "approval.granted",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_9f5a978ad51979c7ce732233",
+      "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "rail": "x402",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_2e72886193e0674157bc2a77",
+          "principalId": "org-acme-202610111235",
+          "intentId": "int_9f5a978ad51979c7ce732233",
+          "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+          "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532",
+          "payee": {
+            "host": "127.0.0.1:14603",
+            "address": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+            "url": "http://127.0.0.1:14603/v1/report"
+          },
+          "resource": "/v1/report",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "approved",
+          "requestedAt": "2026-10-11T12:35:24.751Z",
+          "expiresAt": "2026-10-11T12:50:24.751Z",
+          "resolvedAt": "2026-10-11T12:35:24.778Z",
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x56BA4CDed124C8AF32BB8E5E675Bb4892B61E771",
+            "signature": "0x81678a8b7b1c0828ec146a9bdddb16f3ec007a1c35227cbfb643c04e017925da0cb772f6215c55453920e2194a9f89fd90ca19e163e2dd1f9dd9994950c608731c"
+          },
+          "note": "testnet run"
+        },
+        "approver": {
+          "id": "cfo",
+          "method": "signature",
+          "address": "0x56BA4CDed124C8AF32BB8E5E675Bb4892B61E771",
+          "signature": "0x81678a8b7b1c0828ec146a9bdddb16f3ec007a1c35227cbfb643c04e017925da0cb772f6215c55453920e2194a9f89fd90ca19e163e2dd1f9dd9994950c608731c"
+        },
+        "note": "testnet run"
+      },
+      "hash": "0xbf813845889e94e92fbb49fd8576b166b655a91ad88ed0618817e1cc3ff6d954",
+      "sig": "0xf3577be98737bbc65694f5a13615917abef3abe210ff8f40f87647d5555bf1495182ffa26b45f7bcf71c798fdebca113ebd9763f2209b19c075073d734639d1f1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_df5b29e8555dd4760b3002f3",
+      "principalId": "org-acme-202610111235",
+      "seq": 10,
+      "prev": "0xbf813845889e94e92fbb49fd8576b166b655a91ad88ed0618817e1cc3ff6d954",
+      "ts": "2026-10-11T12:35:24.788Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_4595e84626c5f7dd2e500494",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.787Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.787Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 10000 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 0 vs cap 60000"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "allow-research"
+        ],
+        "amount": "0",
+        "ceiling": "40000"
+      },
+      "hash": "0x1ee77abb06306a5c8ddb7f9e706ecf791def1ba3b82221350131e2f836356258",
+      "sig": "0xf0ad86d0d676214687b4041ec35dbeab59c06459c3048c2ab46251b9bc9e3c1e2aa589674f5f8f1063cf641b68a809fad1342f69727ff1b34401c2d8ec187fe01c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_45977a3ae439237cdbcd341e",
+      "principalId": "org-acme-202610111235",
+      "seq": 11,
+      "prev": "0x1ee77abb06306a5c8ddb7f9e706ecf791def1ba3b82221350131e2f836356258",
+      "ts": "2026-10-11T12:35:25.024Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_4595e84626c5f7dd2e500494",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "intentHash": "0xa08c4f63be081bdc89f5d5ea64f021c6c934f7c8fb1562db658ef717e825862c",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.793Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:24.793Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603/0x73a20a72b956258cc1ccac90a053c8a3b0a6e7e9"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 10000 + 40000 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 40000 vs cap 60000"
+          },
+          {
+            "check": "rule:escalate-above-3c",
+            "ok": true,
+            "detail": "escalation satisfied by approval apr_2e72886193e0674157bc2a77"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "escalate-above-3c",
+          "allow-research"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532"
+        }
+      },
+      "hash": "0xc1edbf3e6c47a681aedfa4206207523039f1f67008937d84120f85cd66feb10b",
+      "sig": "0x2f4f9eb12d65408c38cb0cca4d77102100fabe837245757aff6f9fa2d4c75ba01fc35b7d852c8c698f5667453aad8ac82dfa400a415a132da32c2f06d94892bf1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_7e5670e888e09e00431ba942",
+      "principalId": "org-acme-202610111235",
+      "seq": 12,
+      "prev": "0xc1edbf3e6c47a681aedfa4206207523039f1f67008937d84120f85cd66feb10b",
+      "ts": "2026-10-11T12:35:32.379Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_4595e84626c5f7dd2e500494",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "intentHash": "0xa08c4f63be081bdc89f5d5ea64f021c6c934f7c8fb1562db658ef717e825862c",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "txHash": "0x9dd484c6d42865946a4202c53de3c74b1f69593e5bf905d8d4823636af493fe2",
+        "blockNumber": "47976922",
+        "amount": "40000",
+        "payee": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+        "approvalTxHash": "0x4c93f768a884dc08b89e1b3e7aa1ef6a58a062adfa658dca06f4615ba26d1917",
+        "payloadKind": "standard",
+        "account": "0x59418b96ef39AF2584E51a0e7a7FADFd51FdFA83",
+        "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "chain": "eip155:84532",
+        "resource": "/v1/report",
+        "nonce": "0xa608ddb44e8091775031503f4a592cb88d3ed17416cb16155a816c4a49eb9cf2",
+        "budgets": [
+          "org"
+        ],
+        "lineage": [
+          "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb"
+        ],
+        "ledgerEntryId": "led_16b95233d80cbe1cb66d8a36",
+        "approvalId": "apr_2e72886193e0674157bc2a77",
+        "subscriptionId": null
+      },
+      "hash": "0xc5685a3929c734ce4db8d1fedda9f0c17823e8e551346db62c88789140d7771f",
+      "sig": "0xbc92f5c285633966a42b39cec632b7384a974ac9d3a696618760eff559c2f0577a435e22d6db6b964c1d44c256c8fa93625d3e2e01f96cb799ebbc48a309f38a1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_138dc8ea2fec631c2cae0cdd",
+      "principalId": "org-acme-202610111235",
+      "seq": 13,
+      "prev": "0xc5685a3929c734ce4db8d1fedda9f0c17823e8e551346db62c88789140d7771f",
+      "ts": "2026-10-11T12:35:32.382Z",
+      "kind": "approval.consumed",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_4595e84626c5f7dd2e500494",
+      "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+      "approvalId": "apr_2e72886193e0674157bc2a77",
+      "rail": "x402",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_2e72886193e0674157bc2a77",
+          "principalId": "org-acme-202610111235",
+          "intentId": "int_9f5a978ad51979c7ce732233",
+          "intentHash": "0x29b5079bcb9a7650518532d9c933250009ba9f22f4c97e0080ef145672df3d5c",
+          "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532",
+          "payee": {
+            "host": "127.0.0.1:14603",
+            "address": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+            "url": "http://127.0.0.1:14603/v1/report"
+          },
+          "resource": "/v1/report",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "consumed",
+          "requestedAt": "2026-10-11T12:35:24.751Z",
+          "expiresAt": "2026-10-11T12:50:24.751Z",
+          "resolvedAt": "2026-10-11T12:35:24.778Z",
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x56BA4CDed124C8AF32BB8E5E675Bb4892B61E771",
+            "signature": "0x81678a8b7b1c0828ec146a9bdddb16f3ec007a1c35227cbfb643c04e017925da0cb772f6215c55453920e2194a9f89fd90ca19e163e2dd1f9dd9994950c608731c"
+          },
+          "note": "testnet run",
+          "consumedAt": "2026-10-11T12:35:32.382Z",
+          "consumedByIntentId": "int_4595e84626c5f7dd2e500494"
+        },
+        "txHash": "0x9dd484c6d42865946a4202c53de3c74b1f69593e5bf905d8d4823636af493fe2"
+      },
+      "hash": "0x9f409885bbc6eaf12bdee805914cf3db73c6d916a0a214e17f380aef80ee0767",
+      "sig": "0xaffe4f2832e51d9b4307574e4ab1ba60164af8ac8c47f31e5ad9b399399d4216159534b681814874bc9f1938fd351647813a3063aded304c6ce499084ce2cf691b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_98179922d190f19dc68aed69",
+      "principalId": "org-acme-202610111235",
+      "seq": 14,
+      "prev": "0x9f409885bbc6eaf12bdee805914cf3db73c6d916a0a214e17f380aef80ee0767",
+      "ts": "2026-10-11T12:35:32.687Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_a7c5fba01606269fa2251f3b",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:32.686Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:32.686Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 50000 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 50000 + 0 vs cap 60000"
+          },
+          {
+            "check": "rule:allow-research",
+            "ok": true,
+            "detail": "Research purchases over x402"
+          }
+        ],
+        "matchedRules": [
+          "allow-research"
+        ],
+        "amount": "0",
+        "ceiling": "50000"
+      },
+      "hash": "0xd559e838d677f41c22a33f1852beb32300454f1e46fbb165c1360940fa4ac0e6",
+      "sig": "0x1ff4bec39e25d1cb46a2b247e9df0cbc13d749ed0dc6dcd32125c411b584683704f188529a16e6fa96f6b72dbc14ae6f09fcbfc98b76b4f676c3458c973df8ac1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_efd69f94be0df838550dd4a1",
+      "principalId": "org-acme-202610111235",
+      "seq": 15,
+      "prev": "0xd559e838d677f41c22a33f1852beb32300454f1e46fbb165c1360940fa4ac0e6",
+      "ts": "2026-10-11T12:35:32.952Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_a7c5fba01606269fa2251f3b",
+      "intentHash": "0x891f6e0849bb1bd237e97f22e799575836de67fc0bef46a8da053b49c2c7ea91",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "quote",
+        "effect": "deny",
+        "reasons": [
+          "BUDGET:org"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 50000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:32.693Z vs 2026-10-12T12:35:13.091Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-11T12:35:32.693Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:14603/0x73a20a72b956258cc1ccac90a053c8a3b0a6e7e9"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:84532"
+          },
+          {
+            "check": "lineage_cap:cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+            "ok": true,
+            "detail": "spent 50000 + 40000 vs cap 100000"
+          },
+          {
+            "check": "budget:org",
+            "ok": false,
+            "detail": "lifetime: spent 50000 + 40000 vs cap 60000"
+          }
+        ],
+        "matchedRules": [],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x73A20a72b956258cC1ccAC90A053C8a3B0A6E7e9",
+          "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "chain": "eip155:84532"
+        }
+      },
+      "hash": "0x546c51c7830119abd30a38b2771fbb655442e8ab5bed11554febc053931bb710",
+      "sig": "0x6877daff090c69b6cd9ca82a52f0a984f7a593db96f04e07c1592a526f26a8fc5ed12b71f9a91503268feb98aa64324e14b84e55a8078effe41d6f54738c80e01b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_182636c14b95779f5db38656",
+      "principalId": "org-acme-202610111235",
+      "seq": 16,
+      "prev": "0x546c51c7830119abd30a38b2771fbb655442e8ab5bed11554febc053931bb710",
+      "ts": "2026-10-11T12:35:32.954Z",
+      "kind": "payment.denied",
+      "agentId": "research-agent",
+      "credentialId": "cred_1bcc086c8f638ff4deeddb67:e748e6d39d4d7ceb",
+      "intentId": "int_a7c5fba01606269fa2251f3b",
+      "intentHash": "0x891f6e0849bb1bd237e97f22e799575836de67fc0bef46a8da053b49c2c7ea91",
+      "rail": "x402",
+      "policyHash": "0xe94dfcd653f08adbcf67e692e9b92fc15c2f3ae04dddd1fbf893a89001ac124e",
+      "data": {
+        "stage": "quote",
+        "effect": "deny",
+        "reasons": [
+          "BUDGET:org"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        }
+      },
+      "hash": "0x9759bb0f8de4b54d1a9ed2756c921dd47474580d6654713d293a967fdcabea1e",
+      "sig": "0xa2c15594260432dbd87e05d91509b16f522b12d257b4f2af0e4ece3596c3c1e032b3ba353936cecc1c47c03df9ba3fec65e5c14719d38d67d8b129f89a1ccb251b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_f82c9b836d94763e064d0da2",
+      "principalId": "org-acme-202610111235",
+      "seq": 17,
+      "prev": "0x9759bb0f8de4b54d1a9ed2756c921dd47474580d6654713d293a967fdcabea1e",
+      "ts": "2026-10-11T12:35:38.183Z",
+      "kind": "evidence.anchored",
+      "data": {
+        "head": "0x9759bb0f8de4b54d1a9ed2756c921dd47474580d6654713d293a967fdcabea1e",
+        "count": 17,
+        "txHash": "0x61504970312dffc403f8be9b117b29f34f174c9d880e9739199f360e8c21c154",
+        "blockNumber": "47976925",
+        "registry": "0xf1352bd8428c6d4fd32d0353451b356944826985"
+      },
+      "hash": "0x70460a8c9418012028096c73e0280314e2f962ab43d97f13b45b0c2b8b5462e9",
+      "sig": "0x29c162e1afbeca0caef649d6ad61ea6628fdf53d5db850ea888d485618a8f819226a4dc9e4f3b2ad6a2c6a201e528e1c04390bc837b894d4d8c75d05694d6b321b"
+    }
+  ],
+  "anchors": [
+    {
+      "head": "0x9759bb0f8de4b54d1a9ed2756c921dd47474580d6654713d293a967fdcabea1e",
+      "count": 17,
+      "txHash": "0x61504970312dffc403f8be9b117b29f34f174c9d880e9739199f360e8c21c154",
+      "blockNumber": "47976925",
+      "registry": "0xf1352bd8428c6d4fd32d0353451b356944826985"
+    }
+  ]
+}

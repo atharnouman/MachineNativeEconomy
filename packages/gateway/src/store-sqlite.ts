@@ -119,15 +119,16 @@ export class SqliteStore implements Store {
     const r = this.db.prepare("UPDATE ledger SET state = 'released' WHERE id = ?").run(id);
     if (r.changes === 0) throw new Error(`ledger entry ${id} not found`);
   }
-  ledgerView(): SpendLedgerView {
+  ledgerView(principalId: string): SpendLedgerView {
     const sinceIso = (d?: Date) => (d ? d.toISOString() : null);
     const sum = (r: { s: bigint | null } | undefined) => BigInt(r?.s ?? 0n);
     return {
       spentByCredential: (id, since) =>
         sum(
           this.row<{ s: bigint | null }>(
-            "SELECT SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE c.credential_id = ? AND l.state != 'released' AND (? IS NULL OR l.ts >= ?)",
+            "SELECT SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE c.credential_id = ? AND l.principal_id = ? AND l.state != 'released' AND (? IS NULL OR l.ts >= ?)",
             id,
+            principalId,
             sinceIso(since),
             sinceIso(since),
           ),
@@ -135,21 +136,22 @@ export class SqliteStore implements Store {
       spentByBudget: (id, since) =>
         sum(
           this.row<{ s: bigint | null }>(
-            "SELECT SUM(l.amount) AS s FROM ledger l JOIN ledger_budgets b ON b.entry_id = l.id WHERE b.budget_id = ? AND l.state != 'released' AND (? IS NULL OR l.ts >= ?)",
+            "SELECT SUM(l.amount) AS s FROM ledger l JOIN ledger_budgets b ON b.entry_id = l.id WHERE b.budget_id = ? AND l.principal_id = ? AND l.state != 'released' AND (? IS NULL OR l.ts >= ?)",
             id,
+            principalId,
             sinceIso(since),
             sinceIso(since),
           ),
         ),
       activity: (scope, id, since) => {
         const s = sinceIso(since);
-        const q =
+        const [q, params]: [string, unknown[]] =
           scope === "credential"
-            ? "SELECT COUNT(*) AS n, SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE c.credential_id = ? AND l.state != 'released' AND l.ts >= ?"
+            ? ["SELECT COUNT(*) AS n, SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE c.credential_id = ? AND l.principal_id = ? AND l.state != 'released' AND l.ts >= ?", [id, principalId, s]]
             : scope === "agent"
-              ? "SELECT COUNT(*) AS n, SUM(amount) AS s FROM ledger WHERE root_agent_id = ? AND state != 'released' AND ts >= ?"
-              : "SELECT COUNT(*) AS n, SUM(amount) AS s FROM ledger WHERE principal_id = ? AND state != 'released' AND ts >= ?";
-        const r = this.row<{ n: bigint; s: bigint | null }>(q, id, s);
+              ? ["SELECT COUNT(*) AS n, SUM(amount) AS s FROM ledger WHERE root_agent_id = ? AND principal_id = ? AND state != 'released' AND ts >= ?", [id, principalId, s]]
+              : ["SELECT COUNT(*) AS n, SUM(amount) AS s FROM ledger WHERE principal_id = ? AND state != 'released' AND ts >= ?", [id, s]];
+        const r = this.row<{ n: bigint; s: bigint | null }>(q, ...params);
         return { count: Number(r?.n ?? 0n), amount: BigInt(r?.s ?? 0n) };
       },
     };
@@ -174,12 +176,12 @@ export class SqliteStore implements Store {
       budgetIds: this.rows<{ budget_id: string }>("SELECT budget_id FROM ledger_budgets WHERE entry_id = ? ORDER BY position", r.id).map((x) => x.budget_id),
     }));
   }
-  spent() {
+  spent(principalId: string) {
     const byCredential = Object.fromEntries(
-      this.rows<{ k: string; s: bigint }>("SELECT c.credential_id AS k, SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE l.state = 'settled' GROUP BY c.credential_id").map((x) => [x.k, x.s.toString()]),
+      this.rows<{ k: string; s: bigint }>("SELECT c.credential_id AS k, SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE l.principal_id = ? AND l.state = 'settled' GROUP BY c.credential_id", principalId).map((x) => [x.k, x.s.toString()]),
     );
     const byBudget = Object.fromEntries(
-      this.rows<{ k: string; s: bigint }>("SELECT b.budget_id AS k, SUM(l.amount) AS s FROM ledger l JOIN ledger_budgets b ON b.entry_id = l.id WHERE l.state = 'settled' GROUP BY b.budget_id").map((x) => [x.k, x.s.toString()]),
+      this.rows<{ k: string; s: bigint }>("SELECT b.budget_id AS k, SUM(l.amount) AS s FROM ledger l JOIN ledger_budgets b ON b.entry_id = l.id WHERE l.principal_id = ? AND l.state = 'settled' GROUP BY b.budget_id", principalId).map((x) => [x.k, x.s.toString()]),
     );
     return { byCredential, byBudget };
   }
@@ -262,8 +264,9 @@ export class SqliteStore implements Store {
   }
 
   // ───────── anchors ─────────
-  anchorsList() {
-    return this.rows<{ json: string }>("SELECT json FROM anchors ORDER BY seq").map((x) => JSON.parse(x.json) as AnchorRecord);
+  anchorsList(principalId?: string) {
+    const all = this.rows<{ json: string }>("SELECT json FROM anchors ORDER BY seq").map((x) => JSON.parse(x.json) as AnchorRecord);
+    return principalId === undefined ? all : all.filter((a) => a.principalId === principalId);
   }
   addAnchor(a: AnchorRecord) {
     this.db.prepare("INSERT INTO anchors (json) VALUES (?)").run(JSON.stringify(a));

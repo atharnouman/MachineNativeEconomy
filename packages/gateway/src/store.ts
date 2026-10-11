@@ -10,6 +10,8 @@ export interface RegisteredCredential extends CredentialPublic {
 }
 
 export interface AnchorRecord {
+  /** whose receipt chain was anchored (absent on records written before anchors were scoped) */
+  principalId?: string;
   head: string;
   count: number;
   txHash: string;
@@ -89,10 +91,14 @@ export interface Store {
   reserve(e: Omit<LedgerEntry, "state">): LedgerEntry;
   settle(id: string, txHash: string, settledAt: string): void;
   release(id: string): void;
-  /** Live view: reserved + settled entries count against caps, budgets, rate limits and velocity. */
-  ledgerView(): SpendLedgerView;
+  /**
+   * Live view for one principal: reserved + settled entries count against caps, budgets, rate limits and velocity.
+   * Budget names and agent ids are only unique within a principal, so every sum is scoped to it.
+   */
+  ledgerView(principalId: string): SpendLedgerView;
   ledgerEntries(principalId: string): LedgerEntry[];
-  spent(): { byCredential: Record<string, string>; byBudget: Record<string, string> };
+  /** Settled totals of one principal, by credential and by budget. */
+  spent(principalId: string): { byCredential: Record<string, string>; byBudget: Record<string, string> };
   // approvals
   putApproval(a: Approval): void;
   getApproval(id: string): Approval | undefined;
@@ -116,7 +122,8 @@ export interface Store {
   killSwitch(principalId: string): boolean;
   setKillSwitch(principalId: string, on: boolean): void;
   // anchors
-  anchorsList(): AnchorRecord[];
+  /** Anchors in order; with a principal, only that principal's (a bundle must never carry another tenant's). */
+  anchorsList(principalId?: string): AnchorRecord[];
   addAnchor(a: AnchorRecord): void;
   close(): void;
 }

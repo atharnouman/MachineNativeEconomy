@@ -44,6 +44,7 @@ import {
   type SubscribeRequest,
   type ChargeRequest,
   type MppCredential,
+  PREAPPROVED_SIGNATURE,
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
@@ -192,7 +193,7 @@ export class PaymentService {
       credential: cred,
       amountBase,
       rail,
-      ledger: this.store.ledgerView(),
+      ledger: this.store.ledgerView(cred.principalId),
       killSwitch: this.store.killSwitch(cred.principalId),
       approval: approval ? { id: approval.id } : undefined,
       stage,
@@ -423,7 +424,7 @@ export class PaymentService {
       approvalTxHash = appr.txHash;
       this.store.putPreApproval({ digest: appr.digest, principalId: cred.principalId, account, credentialId: intent.credentialId, intentId: intent.id, value: quote.amount.toString(), validBefore: auth.validBefore.toString(), approvalTxHash: appr.txHash, createdAt: nowIso(), state: "pending" });
       payload = {
-        signature: `0x${"00".repeat(65)}`, // ignored by the account; ERC-1271 answers from the approved digest
+        signature: PREAPPROVED_SIGNATURE, // ignored by the account; ERC-1271 answers from the approved digest
         authorization: { from: account, to: auth.to, value: auth.amount.toString(), validAfter: auth.validAfter.toString(), validBefore: auth.validBefore.toString(), nonce: auth.nonce },
       };
     } else {

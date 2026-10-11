@@ -17,3 +17,6 @@ CLAUDE.local.md
 local/
 outreach/
 memory/
+
+# Never commit root-level files named like keys or hashes: a mistyped key-generation command once created two.
+/0x*

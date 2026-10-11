@@ -224,9 +224,16 @@ export function paid(cfg: PaidConfig) {
       // x402 convention: the facilitator URL is the base, endpoints are /verify, /settle, /supported
       const facilitator = cfg.facilitatorUrl.replace(/\/$/, "");
       const verify = await postJson(`${facilitator}/verify`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
-      if (!verify.isValid) return challenge402(req, reply, `invalid payment: ${verify.invalidReason ?? verify.error ?? "facilitator refused"}`);
-      const settle = await postJson(`${facilitator}/settle`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
-      if (!settle.success) return challenge402(req, reply, `settlement failed: ${settle.errorReason ?? settle.error ?? "facilitator refused"}`);
+      if (!verify.isValid) return challenge402(req, reply, `invalid payment: ${verify.invalidReason ?? verify.error ?? "facilitator refused"}${detail(verify.invalidMessage)}`);
+      let settle = await postJson(`${facilitator}/settle`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
+      // A busy facilitator sometimes fails to get its transaction out ("transaction_failed", a 5xx, a dropped connection).
+      // One retry is safe: the EIP-3009 nonce lets the transfer happen at most once, and a retry after a transfer that did
+      // land is refused as already used.
+      if (!settle.success && /transaction_failed|^facilitator (5\d\d|unreachable)/.test(String(settle.errorReason ?? settle.error ?? ""))) {
+        await new Promise((r) => setTimeout(r, 2_000));
+        settle = await postJson(`${facilitator}/settle`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
+      }
+      if (!settle.success) return challenge402(req, reply, `settlement failed: ${settle.errorReason ?? settle.error ?? "facilitator refused"}${detail(settle.errorMessage)}`);
       reply.header(X402_HEADERS.response, encodeX402({ success: true, transaction: settle.transaction, network, payer: settle.payer }));
       cfg.onSettled?.({ rail: "x402", txHash: settle.transaction as Hex, payer: settle.payer as Address, amount: cfg.price.amount, unit: "base", resource: req.url, agent });
       return; // fall through to the route handler
@@ -271,6 +278,9 @@ export function paid(cfg: PaidConfig) {
     return challenge402(req, reply);
   };
 }
+
+/** The facilitator's human-readable message (`invalidMessage` / `errorMessage`), when it sends one: it names the actual fault. */
+const detail = (m: unknown): string => (typeof m === "string" && m ? ` (${m.slice(0, 300)})` : "");
 
 /** A facilitator call. Any HTTP error or non-JSON body becomes `{ error }` so the caller answers 402 with the reason, never 500. */
 async function postJson(url: string, body: unknown): Promise<Record<string, string | boolean | undefined>> {
