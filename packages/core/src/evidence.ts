@@ -1,12 +1,15 @@
 import { z } from "zod";
+import type { Address, Hex } from "viem";
 import { PolicySchema, policyHash } from "./policy.js";
-import { ReceiptSchema, verifyChain } from "./receipt.js";
+import { ReceiptSchema, verifyChain, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
+import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
 
 /**
  * An evidence bundle is everything an auditor needs to re-verify a principal's payment history offline:
- * the policy (and its hash), the public view of every credential, the signed receipt chain, and the on-chain
- * anchors. It deliberately omits credential signatures (bearer secrets) and session private keys.
+ * every policy version (with hashes and activation times), the public view of every credential, the registered
+ * approver keys, the signed receipt chain, and the on-chain anchors. It deliberately omits credential
+ * signatures (bearer secrets) and session private keys.
  */
 
 export const CredentialPublicSchema = z.object({
@@ -19,13 +22,25 @@ export const CredentialPublicSchema = z.object({
   caveats: z.array(CaveatSchema),
 });
 
+export const PolicyVersionSchema = z.object({
+  version: z.number().int().positive(),
+  hash: z.string().regex(/^0x[0-9a-f]{64}$/),
+  prevHash: z.string().regex(/^0x[0-9a-f]{64}$/).nullable(),
+  activatedAt: z.string().datetime(),
+  activatedBy: z.string().optional(),
+  document: PolicySchema,
+});
+export type PolicyVersion = z.infer<typeof PolicyVersionSchema>;
+
 export const EvidenceBundleSchema = z.object({
   v: z.literal(1),
   principalId: z.string(),
   exportedAt: z.string().datetime(),
   gateway: z.object({ address: z.string(), chain: z.string() }),
   contracts: z.record(z.string()),
-  policy: z.object({ hash: z.string(), document: PolicySchema }),
+  policy: z.object({ hash: z.string(), document: PolicySchema }), // the active version
+  policyVersions: z.array(PolicyVersionSchema).default([]),
+  approvers: z.record(z.string()).default({}), // approver id -> address
   credentials: z.array(CredentialPublicSchema),
   receipts: z.array(ReceiptSchema),
   anchors: z.array(
@@ -47,18 +62,39 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   const parsed = EvidenceBundleSchema.safeParse(bundle);
   push("schema", parsed.success, parsed.success ? undefined : parsed.error.issues[0]?.message);
   if (!parsed.success) return { ok: false, checks };
+  bundle = parsed.data;
 
-  // policy hash
+  // active policy hash
   const ph = policyHash(bundle.policy.document);
   push("policy.hash", ph === bundle.policy.hash, `${ph} vs ${bundle.policy.hash}`);
+
+  // policy versions: hashes recompute, prev links chain, numbering is sequential, active = last
+  const versions = [...bundle.policyVersions].sort((a, b) => a.version - b.version);
+  const vProblems: string[] = [];
+  versions.forEach((v, i) => {
+    if (policyHash(v.document) !== v.hash) vProblems.push(`v${v.version}: hash mismatch`);
+    if (v.version !== i + 1) vProblems.push(`v${v.version}: expected v${i + 1}`);
+    const expectedPrev = i === 0 ? null : versions[i - 1]!.hash;
+    if (v.prevHash !== expectedPrev) vProblems.push(`v${v.version}: prevHash link broken`);
+    if (i > 0 && new Date(v.activatedAt) < new Date(versions[i - 1]!.activatedAt)) vProblems.push(`v${v.version}: activated before v${i - 1 + 1}`);
+  });
+  if (versions.length && versions[versions.length - 1]!.hash !== bundle.policy.hash) vProblems.push("active policy is not the latest version");
+  push("policy.versions", vProblems.length === 0, vProblems.join("; ") || `${versions.length} versions`);
 
   // receipts chain + signatures
   const chain = await verifyChain(bundle.receipts, bundle.gateway.address);
   push("receipts.chain", chain.ok, chain.problems.slice(0, 5).join("; ") || `${bundle.receipts.length} receipts`);
 
-  // every receipt that cites a policy hash cites this policy
-  const stale = bundle.receipts.filter((r) => r.policyHash && r.policyHash !== bundle.policy.hash);
-  push("receipts.policyHash", stale.length === 0, stale.length ? `${stale.length} receipts cite another policy version` : undefined);
+  // every receipt that cites a policy hash cites the version that was active at its timestamp
+  const activeAt = (ts: string): string | null => {
+    if (versions.length === 0) return bundle.policy.hash;
+    const t = new Date(ts).getTime();
+    let cur: PolicyVersion | null = null;
+    for (const v of versions) if (new Date(v.activatedAt).getTime() <= t) cur = v;
+    return cur ? cur.hash : null;
+  };
+  const stale = bundle.receipts.filter((r) => r.policyHash && r.policyHash !== activeAt(r.ts));
+  push("receipts.policyHash", stale.length === 0, stale.length ? `${stale.length} receipts cite a policy that was not active at their time (e.g. ${stale[0]!.id})` : undefined);
 
   // credentials: ids derive from caveats; every child is a subset of its parent
   const byId = new Map(bundle.credentials.map((c) => [c.id, c]));
@@ -79,7 +115,6 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
         monoOk = false;
         monoDetail.push(`${c.id}: wider than parent in ${r.violations.join(",")}`);
       }
-      // structural: child's caveats must extend parent's caveats
       const prefix = p.caveats.every((pc, i) => JSON.stringify(pc) === JSON.stringify(c.caveats[i]));
       if (!prefix) {
         monoOk = false;
@@ -109,7 +144,33 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   const orphan = bundle.receipts.filter((r) => r.kind === "payment.settled" && !allowed.has(r.intentId));
   push("settlements.have_allow_decision", orphan.length === 0, orphan.map((r) => r.id).join(",") || undefined);
 
+  // approvals: signed resolutions verify against registered approver addresses; consumed approvals were granted
+  const approvalProblems: string[] = [];
+  const granted = new Set<string>();
+  let signedCount = 0;
+  for (const r of bundle.receipts) {
+    if (r.kind === "approval.granted" || r.kind === "approval.rejected") {
+      const d = r.data as { approver?: { id: string; method: string; address?: string; signature?: string }; approval?: { id: string; principalId: string; intentHash: string; amount: string } };
+      if (r.kind === "approval.granted" && r.approvalId) granted.add(r.approvalId);
+      if (d.approver?.method === "signature") {
+        const registered = bundle.approvers[d.approver.id];
+        const verdict: ApprovalVerdict = r.kind === "approval.granted" ? "approve" : "reject";
+        if (!registered) approvalProblems.push(`${r.id}: approver ${d.approver.id} not registered`);
+        else if (!d.approver.signature || !d.approval) approvalProblems.push(`${r.id}: missing signature or approval data`);
+        else if (d.approver.address && d.approver.address.toLowerCase() !== registered.toLowerCase()) approvalProblems.push(`${r.id}: approver address mismatch`);
+        else {
+          signedCount++;
+          const ok = await verifyApprovalSignature(d.approval, verdict, d.approver.signature as Hex, registered as Address);
+          if (!ok) approvalProblems.push(`${r.id}: approver signature invalid`);
+        }
+      }
+    }
+  }
+  const consumedWithoutGrant = bundle.receipts.filter((r) => r.kind === "approval.consumed" && (!r.approvalId || !granted.has(r.approvalId)));
+  if (consumedWithoutGrant.length) approvalProblems.push(`${consumedWithoutGrant.length} approvals consumed without a grant`);
+  push("approvals", approvalProblems.length === 0, approvalProblems.join("; ") || `${granted.size} granted, ${signedCount} signature-verified`);
+
   return { ok: checks.every((c) => c.ok), checks };
 }
 
-export type { CredentialPublic };
+export type { CredentialPublic, Receipt };

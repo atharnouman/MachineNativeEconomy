@@ -1,18 +1,23 @@
 import { randomId, nowIso, receiptHash, type Receipt, type ReceiptBody, type ReceiptKind } from "@apgw/core";
 import type { Store } from "./store.js";
 import type { Signer } from "./signer.js";
+import type { Metrics } from "./metrics.js";
 
 /** Append-only, hash-chained, gateway-signed receipt log. One chain per principal. */
 export class ReceiptLog {
   private chain = Promise.resolve(); // serialises appends so seq/prev are never raced
 
-  constructor(private readonly store: Store, private readonly signer: Signer) {}
+  constructor(
+    private readonly store: Store,
+    private readonly signer: Signer,
+    private readonly metrics?: Metrics,
+  ) {}
 
   append(
     principalId: string,
     kind: ReceiptKind,
     data: Record<string, unknown>,
-    meta: Partial<Pick<Receipt, "agentId" | "credentialId" | "intentId" | "intentHash" | "rail" | "policyHash">> = {},
+    meta: Partial<Pick<Receipt, "agentId" | "credentialId" | "intentId" | "intentHash" | "approvalId" | "subscriptionId" | "rail" | "policyHash">> = {},
   ): Promise<Receipt> {
     const run = async (): Promise<Receipt> => {
       const prevReceipts = this.store.receiptsFor(principalId);
@@ -32,6 +37,7 @@ export class ReceiptLog {
       const sig = await this.signer.signReceiptHash(hash);
       const receipt: Receipt = { ...body, hash, sig };
       this.store.appendReceipt(receipt);
+      this.metrics?.receipts.inc({ kind });
       return receipt;
     };
     const p = this.chain.then(run, run);

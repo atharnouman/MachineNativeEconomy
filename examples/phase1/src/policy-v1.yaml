@@ -1,0 +1,35 @@
+# Phase 1 policy, version 1. Budget periods, a velocity rule, and an escalation threshold.
+version: 1
+principalId: org-acme
+currency: { asset: USDC, decimals: 6 }
+
+budgets:
+  org:            { cap: "5.00" }                                   # lifetime
+  research:       { cap: "2.00", parent: org, period: monthly }     # resets on the 1st, UTC
+  research-daily: { cap: "0.14", parent: research, period: daily }  # resets at UTC midnight
+
+agents:
+  research-agent: { budget: research-daily }
+
+velocity:
+  - id: principal-burst
+    description: No principal-wide burst above 20 payments in 10 minutes
+    scope: principal
+    window: 10m
+    max_count: 20
+
+rules:
+  - id: deny-blocked-payees
+    description: Never pay these hosts, whatever the credential says
+    effect: deny
+    match: { payees: [evil.example, phish.example] }
+
+  - id: escalate-above-3c
+    description: Anything above 0.03 USDC needs a human (the CFO key is registered as approver)
+    effect: escalate
+    match: { amount_gt: "0.03" }
+
+  - id: allow-research-data
+    description: Research purchases over any rail, including Lightning
+    effect: allow
+    match: { purposes: [research], rails: [x402, mpp, l402] }

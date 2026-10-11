@@ -16,8 +16,20 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). In one line: the model never s
 | Credential root key | gateway | HMAC root of credential chains |
 | Account owner key | the principal (dev: = gateway key) | grants sessions, pause, treasury |
 | Payee relayer key | payee | gas for MPP settlement only |
+| Gateway Ed25519 signing key | derived from the session-key secret | signs outbound requests to payees (Web Bot Auth) and the key directory; published as a public JWK |
+| Holder keys | the agent process that owns a holder-bound credential | proves possession on every gateway request; never sent to the gateway |
 
 Rotating the session-key secret invalidates every on-chain session (keys change); re-register credentials.
+
+## Operating modes
+* **Dev (`ownerIsGateway: true`)**: the gateway key owns the account. Convenient, and the gateway can lose everything in the account.
+* **Bounded operator (`ownerIsGateway: false`)**: the owner grants the gateway a root session with a cap, per-transaction limit, payee allowlist and expiry. Every credential the gateway registers is a child of that session. A compromised gateway is limited to that session's remaining cap and cannot unpause the account. Use this for anything beyond a demo.
+
+## EIP-7702 accounts
+Delegating an EOA to `AgentAccount` restricts calls *to* the address, not transactions *from* the EOA key: that key remains the owner with full control. Keep it cold (hardware wallet or custody); agents and the gateway only ever hold session credentials.
+
+## Endpoints without authentication
+`/healthz`, `/metrics`, `/openapi.json` and the two `/.well-known/*` key endpoints are unauthenticated by design. Metrics are aggregates only; put the gateway behind a network boundary that limits who can scrape them.
 
 ## Before mainnet (v0.2 blockers)
 Third-party audit of `packages/contracts`; Slither/Aderyn clean in CI; confirmation-depth handling; signed policy versions; revocation list; rate limits on the API; RFC 9421 request signing.

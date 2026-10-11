@@ -1,6 +1,13 @@
 export { buildGateway, type Gateway } from "./server.js";
 export { configFromEnv, type GatewayConfig, type ContractAddresses, type PrincipalConfig } from "./config.js";
 export { LocalSigner, type Signer } from "./signer.js";
-export { ChainClient } from "./chain.js";
-export { Store } from "./store.js";
-export type { PayRequest, PayResult } from "./pay.js";
+export { ChainClient, type SessionCaveatsOnChain } from "./chain.js";
+export { openStore, type Store, type StoreDriver, type StoreOptions, type LedgerEntry, type RegisteredCredential, type AnchorRecord, type IntentRecord } from "./store.js";
+export { JsonStore } from "./store-json.js";
+export { SqliteStore } from "./store-sqlite.js";
+export { PolicyService, type PolicyUpdateResult } from "./policies.js";
+export { ApprovalService } from "./approvals.js";
+export { Metrics } from "./metrics.js";
+export { buildOpenApi, PayBodySchema } from "./openapi.js";
+export { checkHolder } from "./httpauth.js";
+export type { PayRequest, PayResult, SubscribeResult, ChargeResult } from "./pay.js";

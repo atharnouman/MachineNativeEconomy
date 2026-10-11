@@ -1,0 +1,3672 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "apgw — Agentic Payment Gateway",
+    "version": "0.0.2",
+    "description": "Policy, settlement and evidence control plane between AI agents and any payment rail. Agents authenticate with a bearer credential (and, when holder-bound, an RFC 9421 signature); operators with an admin token.",
+    "license": {
+      "name": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4402"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "credential": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag apgw-holder) and Content-Digest for bodies."
+      },
+      "adminToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-token"
+      }
+    },
+    "schemas": {
+      "PayRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Resource URL to buy"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "body": {},
+          "maxAmount": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$",
+            "description": "Ceiling in human units, e.g. '0.05'. A ceiling, not a price."
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rail": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp",
+              "auto"
+            ]
+          },
+          "approvalId": {
+            "type": "string",
+            "description": "Resume an escalated intent under a granted approval"
+          },
+          "x402Mode": {
+            "type": "string",
+            "enum": [
+              "agent-account",
+              "standard"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "maxAmount",
+          "purpose"
+        ],
+        "additionalProperties": false
+      },
+      "Caveat": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "delegate"
+              },
+              "agentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "nonce": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "type",
+              "agentId",
+              "nonce"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "spend_cap"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^\\d+$"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "per_tx_max"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^\\d+$"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "expires_at"
+              },
+              "value": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "not_before"
+              },
+              "value": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "allowed_payees"
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "allowed_rails"
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "x402",
+                    "mpp",
+                    "l402"
+                  ]
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "purposes"
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "chains"
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^eip155:\\d+$"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "rate_limit"
+              },
+              "window": {
+                "type": "string",
+                "pattern": "^\\d+(ms|s|m|h|d|w)$"
+              },
+              "max_count": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "max_amount": {
+                "type": "string",
+                "pattern": "^\\d+$"
+              }
+            },
+            "required": [
+              "type",
+              "window"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "holder_key"
+              },
+              "jwk": {
+                "type": "object",
+                "properties": {
+                  "kty": {
+                    "type": "string",
+                    "const": "OKP"
+                  },
+                  "crv": {
+                    "type": "string",
+                    "const": "Ed25519"
+                  },
+                  "x": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kty",
+                  "crv",
+                  "x"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "jwk"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Credential": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "number",
+            "const": 1
+          },
+          "rootId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "principalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "caveats": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "delegate"
+                    },
+                    "agentId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "nonce": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "agentId",
+                    "nonce"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "spend_cap"
+                    },
+                    "value": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "per_tx_max"
+                    },
+                    "value": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "expires_at"
+                    },
+                    "value": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "not_before"
+                    },
+                    "value": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "allowed_payees"
+                    },
+                    "value": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "allowed_rails"
+                    },
+                    "value": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "x402",
+                          "mpp",
+                          "l402"
+                        ]
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "purposes"
+                    },
+                    "value": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "chains"
+                    },
+                    "value": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^eip155:\\d+$"
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "rate_limit"
+                    },
+                    "window": {
+                      "type": "string",
+                      "pattern": "^\\d+(ms|s|m|h|d|w)$"
+                    },
+                    "max_count": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "max_amount": {
+                      "type": "string",
+                      "pattern": "^\\d+$"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "window"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "holder_key"
+                    },
+                    "jwk": {
+                      "type": "object",
+                      "properties": {
+                        "kty": {
+                          "type": "string",
+                          "const": "OKP"
+                        },
+                        "crv": {
+                          "type": "string",
+                          "const": "Ed25519"
+                        },
+                        "x": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kty",
+                        "crv",
+                        "x"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "jwk"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "minItems": 1
+          },
+          "sig": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "v",
+          "rootId",
+          "principalId",
+          "caveats",
+          "sig"
+        ],
+        "additionalProperties": false
+      },
+      "Approval": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "number",
+            "const": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "principalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "intentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "intentHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{64}$"
+          },
+          "credentialId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "token": {
+            "type": "string"
+          },
+          "chain": {
+            "type": "string"
+          },
+          "payee": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "host",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "resource": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "rail": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp",
+              "l402"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "expired",
+              "consumed"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approver": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "admin-token",
+                  "signature"
+                ]
+              },
+              "address": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]+$"
+              }
+            },
+            "required": [
+              "id",
+              "method"
+            ],
+            "additionalProperties": false
+          },
+          "note": {
+            "type": "string"
+          },
+          "consumedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumedByIntentId": {
+            "type": "string"
+          },
+          "request": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST"
+                ]
+              },
+              "body": {}
+            },
+            "required": [
+              "method"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "v",
+          "id",
+          "principalId",
+          "intentId",
+          "intentHash",
+          "credentialId",
+          "agentId",
+          "amount",
+          "token",
+          "chain",
+          "payee",
+          "resource",
+          "purpose",
+          "rail",
+          "reasons",
+          "status",
+          "requestedAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "number",
+            "const": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "principalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "prev": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "credential.issued",
+              "credential.registered",
+              "decision",
+              "payment.settled",
+              "payment.denied",
+              "onchain.denied",
+              "preapproval.reclaimed",
+              "approval.requested",
+              "approval.granted",
+              "approval.rejected",
+              "approval.expired",
+              "approval.consumed",
+              "policy.updated",
+              "subscription.created",
+              "subscription.charged",
+              "subscription.refused",
+              "subscription.cancelled",
+              "killswitch",
+              "evidence.anchored",
+              "external"
+            ]
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "intentHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{64}$"
+          },
+          "approvalId": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "rail": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp",
+              "l402"
+            ]
+          },
+          "policyHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{64}$"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{64}$"
+          },
+          "sig": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]+$"
+          }
+        },
+        "required": [
+          "v",
+          "id",
+          "principalId",
+          "seq",
+          "prev",
+          "ts",
+          "kind",
+          "data",
+          "hash",
+          "sig"
+        ],
+        "additionalProperties": false
+      },
+      "EvidenceBundle": {
+        "type": "object",
+        "properties": {
+          "v": {
+            "type": "number",
+            "const": 1
+          },
+          "principalId": {
+            "type": "string"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gateway": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "chain": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "address",
+              "chain"
+            ],
+            "additionalProperties": false
+          },
+          "contracts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "hash": {
+                "type": "string"
+              },
+              "document": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "principalId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "currency": {
+                    "type": "object",
+                    "properties": {
+                      "asset": {
+                        "type": "string"
+                      },
+                      "decimals": {
+                        "type": "integer",
+                        "default": 6
+                      }
+                    },
+                    "required": [
+                      "asset"
+                    ],
+                    "additionalProperties": false,
+                    "default": {
+                      "asset": "USDC",
+                      "decimals": 6
+                    }
+                  },
+                  "budgets": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "cap": {
+                          "type": "string",
+                          "pattern": "^\\d+(\\.\\d+)?$"
+                        },
+                        "parent": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string",
+                          "enum": [
+                            "lifetime",
+                            "daily",
+                            "weekly",
+                            "monthly"
+                          ],
+                          "default": "lifetime"
+                        }
+                      },
+                      "required": [
+                        "cap"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "agents": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "budget": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "budget"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "velocity": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "credential",
+                            "agent",
+                            "principal"
+                          ]
+                        },
+                        "window": {
+                          "type": "string",
+                          "pattern": "^\\d+(ms|s|m|h|d|w)$"
+                        },
+                        "max_count": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "max_amount": {
+                          "type": "string",
+                          "pattern": "^\\d+(\\.\\d+)?$"
+                        },
+                        "agents": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scope",
+                        "window"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "effect": {
+                          "type": "string",
+                          "enum": [
+                            "allow",
+                            "deny",
+                            "escalate"
+                          ]
+                        },
+                        "match": {
+                          "type": "object",
+                          "properties": {
+                            "payees": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "payees_not": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "rails": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "x402",
+                                  "mpp",
+                                  "l402"
+                                ]
+                              }
+                            },
+                            "purposes": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "amount_gt": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?$"
+                            },
+                            "amount_lte": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?$"
+                            },
+                            "resource_glob": {
+                              "type": "string"
+                            },
+                            "agents": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "additionalProperties": false,
+                          "default": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "effect"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "version",
+                  "principalId",
+                  "budgets",
+                  "agents"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "hash",
+              "document"
+            ],
+            "additionalProperties": false
+          },
+          "policyVersions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "prevHash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "activatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "activatedBy": {
+                  "type": "string"
+                },
+                "document": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "const": 1
+                    },
+                    "principalId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "currency": {
+                      "type": "object",
+                      "properties": {
+                        "asset": {
+                          "type": "string"
+                        },
+                        "decimals": {
+                          "type": "integer",
+                          "default": 6
+                        }
+                      },
+                      "required": [
+                        "asset"
+                      ],
+                      "additionalProperties": false,
+                      "default": {
+                        "asset": "USDC",
+                        "decimals": 6
+                      }
+                    },
+                    "budgets": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "cap": {
+                            "type": "string",
+                            "pattern": "^\\d+(\\.\\d+)?$"
+                          },
+                          "parent": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string",
+                            "enum": [
+                              "lifetime",
+                              "daily",
+                              "weekly",
+                              "monthly"
+                            ],
+                            "default": "lifetime"
+                          }
+                        },
+                        "required": [
+                          "cap"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "agents": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "budget": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "budget"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "velocity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "credential",
+                              "agent",
+                              "principal"
+                            ]
+                          },
+                          "window": {
+                            "type": "string",
+                            "pattern": "^\\d+(ms|s|m|h|d|w)$"
+                          },
+                          "max_count": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          },
+                          "max_amount": {
+                            "type": "string",
+                            "pattern": "^\\d+(\\.\\d+)?$"
+                          },
+                          "agents": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "scope",
+                          "window"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "effect": {
+                            "type": "string",
+                            "enum": [
+                              "allow",
+                              "deny",
+                              "escalate"
+                            ]
+                          },
+                          "match": {
+                            "type": "object",
+                            "properties": {
+                              "payees": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "payees_not": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "rails": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "x402",
+                                    "mpp",
+                                    "l402"
+                                  ]
+                                }
+                              },
+                              "purposes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "amount_gt": {
+                                "type": "string",
+                                "pattern": "^\\d+(\\.\\d+)?$"
+                              },
+                              "amount_lte": {
+                                "type": "string",
+                                "pattern": "^\\d+(\\.\\d+)?$"
+                              },
+                              "resource_glob": {
+                                "type": "string"
+                              },
+                              "agents": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "additionalProperties": false,
+                            "default": {}
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "effect"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "principalId",
+                    "budgets",
+                    "agents"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "version",
+                "hash",
+                "prevHash",
+                "activatedAt",
+                "document"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "approvers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "credentials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "v": {
+                  "type": "number",
+                  "const": 1
+                },
+                "id": {
+                  "type": "string"
+                },
+                "rootId": {
+                  "type": "string"
+                },
+                "principalId": {
+                  "type": "string"
+                },
+                "agentId": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "caveats": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "delegate"
+                          },
+                          "agentId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "nonce": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "agentId",
+                          "nonce"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "spend_cap"
+                          },
+                          "value": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "per_tx_max"
+                          },
+                          "value": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "expires_at"
+                          },
+                          "value": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "not_before"
+                          },
+                          "value": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "allowed_payees"
+                          },
+                          "value": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "minItems": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "allowed_rails"
+                          },
+                          "value": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "x402",
+                                "mpp",
+                                "l402"
+                              ]
+                            },
+                            "minItems": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "purposes"
+                          },
+                          "value": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "minItems": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "chains"
+                          },
+                          "value": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^eip155:\\d+$"
+                            },
+                            "minItems": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "rate_limit"
+                          },
+                          "window": {
+                            "type": "string",
+                            "pattern": "^\\d+(ms|s|m|h|d|w)$"
+                          },
+                          "max_count": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          },
+                          "max_amount": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "window"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "holder_key"
+                          },
+                          "jwk": {
+                            "type": "object",
+                            "properties": {
+                              "kty": {
+                                "type": "string",
+                                "const": "OKP"
+                              },
+                              "crv": {
+                                "type": "string",
+                                "const": "Ed25519"
+                              },
+                              "x": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "kty",
+                              "crv",
+                              "x"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "jwk"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "v",
+                "id",
+                "rootId",
+                "principalId",
+                "agentId",
+                "parentId",
+                "caveats"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "v": {
+                  "type": "number",
+                  "const": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "principalId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prev": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "credential.issued",
+                    "credential.registered",
+                    "decision",
+                    "payment.settled",
+                    "payment.denied",
+                    "onchain.denied",
+                    "preapproval.reclaimed",
+                    "approval.requested",
+                    "approval.granted",
+                    "approval.rejected",
+                    "approval.expired",
+                    "approval.consumed",
+                    "policy.updated",
+                    "subscription.created",
+                    "subscription.charged",
+                    "subscription.refused",
+                    "subscription.cancelled",
+                    "killswitch",
+                    "evidence.anchored",
+                    "external"
+                  ]
+                },
+                "agentId": {
+                  "type": "string"
+                },
+                "credentialId": {
+                  "type": "string"
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "intentHash": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "approvalId": {
+                  "type": "string"
+                },
+                "subscriptionId": {
+                  "type": "string"
+                },
+                "rail": {
+                  "type": "string",
+                  "enum": [
+                    "x402",
+                    "mpp",
+                    "l402"
+                  ]
+                },
+                "policyHash": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "sig": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]+$"
+                }
+              },
+              "required": [
+                "v",
+                "id",
+                "principalId",
+                "seq",
+                "prev",
+                "ts",
+                "kind",
+                "data",
+                "hash",
+                "sig"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "head": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "txHash": {
+                  "type": "string"
+                },
+                "blockNumber": {
+                  "type": "string"
+                },
+                "registry": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "head",
+                "count",
+                "txHash",
+                "blockNumber",
+                "registry"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "v",
+          "principalId",
+          "exportedAt",
+          "gateway",
+          "contracts",
+          "policy",
+          "credentials",
+          "receipts",
+          "anchors"
+        ],
+        "additionalProperties": false
+      },
+      "Policy": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "principalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "currency": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "type": "string"
+              },
+              "decimals": {
+                "type": "integer",
+                "default": 6
+              }
+            },
+            "required": [
+              "asset"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "asset": "USDC",
+              "decimals": 6
+            }
+          },
+          "budgets": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "cap": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$"
+                },
+                "parent": {
+                  "type": "string"
+                },
+                "period": {
+                  "type": "string",
+                  "enum": [
+                    "lifetime",
+                    "daily",
+                    "weekly",
+                    "monthly"
+                  ],
+                  "default": "lifetime"
+                }
+              },
+              "required": [
+                "cap"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "agents": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "budget": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "budget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "velocity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "credential",
+                    "agent",
+                    "principal"
+                  ]
+                },
+                "window": {
+                  "type": "string",
+                  "pattern": "^\\d+(ms|s|m|h|d|w)$"
+                },
+                "max_count": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "max_amount": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$"
+                },
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "scope",
+                "window"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string",
+                  "enum": [
+                    "allow",
+                    "deny",
+                    "escalate"
+                  ]
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "payees": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payees_not": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rails": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "x402",
+                          "mpp",
+                          "l402"
+                        ]
+                      }
+                    },
+                    "purposes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "amount_gt": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?$"
+                    },
+                    "amount_lte": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?$"
+                    },
+                    "resource_glob": {
+                      "type": "string"
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "default": {}
+                }
+              },
+              "required": [
+                "id",
+                "effect"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "version",
+          "principalId",
+          "budgets",
+          "agents"
+        ],
+        "additionalProperties": false
+      },
+      "X402PaymentPayload": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "number",
+            "const": 2
+          },
+          "scheme": {
+            "type": "string",
+            "const": "exact"
+          },
+          "network": {
+            "type": "string"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "agent-account"
+                  },
+                  "account": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "authorization": {
+                    "type": "object",
+                    "properties": {
+                      "token": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "intentHash": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "validAfter": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "validBefore": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "nonce": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": [
+                      "token",
+                      "to",
+                      "amount",
+                      "intentHash",
+                      "validAfter",
+                      "validBefore",
+                      "nonce"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]*$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "account",
+                  "authorization",
+                  "signature"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]*$"
+                  },
+                  "authorization": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "value": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "validAfter": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "validBefore": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "nonce": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to",
+                      "value",
+                      "validAfter",
+                      "validBefore",
+                      "nonce"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "signature",
+                  "authorization"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "x402Version",
+          "scheme",
+          "network",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "X402Requirements": {
+        "type": "object",
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "const": "exact"
+          },
+          "network": {
+            "type": "string",
+            "pattern": "^eip155:\\d+$"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "payTo": {
+            "type": "string"
+          },
+          "maxTimeoutSeconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "extra": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "scheme",
+          "network",
+          "amount",
+          "asset",
+          "payTo",
+          "maxTimeoutSeconds",
+          "resource"
+        ],
+        "additionalProperties": false
+      },
+      "PayResult": {
+        "type": "object",
+        "description": "ok, status, rail, payloadKind, intent, decision, onchain, settlement, pending, receipts[], body, error",
+        "additionalProperties": true
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness, gateway address, active policy versions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "ok, gateway, chainId, policies",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics",
+        "responses": {
+          "200": {
+            "description": "text/plain; version=0.0.4"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "OpenAPI 3.1",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/http-message-signatures-directory": {
+      "get": {
+        "summary": "Web Bot Auth key directory (signed response)",
+        "responses": {
+          "200": {
+            "description": "application/http-message-signatures-directory+json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "{ keys: JWK[] }",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "summary": "Gateway signing keys as a JWK Set",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "{ keys: JWK[] }",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/credentials": {
+      "post": {
+        "summary": "Issue and register a root credential for an agent",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "principalId",
+                  "agentId"
+                ],
+                "properties": {
+                  "principalId": {
+                    "type": "string"
+                  },
+                  "agentId": {
+                    "type": "string"
+                  },
+                  "caveats": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Caveat"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "credential (bearer), registered (session)",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/credentials/attenuate": {
+      "post": {
+        "summary": "Attenuate the caller's credential (optionally delegating) and register it",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "caveats"
+                ],
+                "properties": {
+                  "caveats": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Caveat"
+                    }
+                  },
+                  "delegateTo": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "credential, registered",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/credentials/register": {
+      "post": {
+        "summary": "Register an offline-attenuated credential (compiles an on-chain session)",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "credential"
+                ],
+                "properties": {
+                  "credential": {
+                    "$ref": "#/components/schemas/Credential"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "registered",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/credentials/me": {
+      "get": {
+        "summary": "Public view of the caller's credential and its on-chain session",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "credential, registered",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/intents/simulate": {
+      "post": {
+        "summary": "Dry-run: fetch the 402 quote, decide, ask the account contract; nothing is paid",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/intents": {
+      "post": {
+        "summary": "Pay for a resource under policy (x402 or MPP). 202 = approval required",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "pending approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "quote exceeds ceiling",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "quote differs from approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "payee / settlement failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/intents/resume": {
+      "post": {
+        "summary": "Continue an escalated payment under a granted approval",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "approvalId"
+                ],
+                "properties": {
+                  "approvalId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions": {
+      "post": {
+        "summary": "Open a subscription (MPP): the first charge pays now; the payee may charge later within the terms",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url",
+                  "purpose",
+                  "maxAmountPerCharge"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "type": "string"
+                  },
+                  "maxAmountPerCharge": {
+                    "type": "string"
+                  },
+                  "maxCharges": {
+                    "type": "integer"
+                  },
+                  "maxTotal": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "ok, subscription, firstCharge",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "offer above cap",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "no subscription offer",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List subscriptions: a credential sees those opened in its own lineage; the admin token sees a whole principal",
+        "security": [
+          {
+            "credential": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "admin token only"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "subscriptions[]",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}/cancel": {
+      "post": {
+        "summary": "Cancel a subscription (own lineage, or the admin token with principalId); further payee charges are refused with 410",
+        "security": [
+          {
+            "credential": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string",
+                    "description": "admin token only"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "subscription",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}/charges": {
+      "post": {
+        "summary": "Payee charges a subscription (Bearer charge token). Policy runs on every charge; settled on-chain by the gateway",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "units": {
+                    "type": "integer"
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "ok, txHash, amount, charges, totalCharged, subscriptionStatus",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "invalid charge token",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "over cap or denied by policy",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "cancelled / exhausted / expired",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "too early; nextAllowedAt",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals": {
+      "get": {
+        "summary": "List approvals for a principal",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "consumed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "approvals": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Approval"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{id}": {
+      "get": {
+        "summary": "Approval status (agent side)",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "approval": {
+                      "$ref": "#/components/schemas/Approval"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{id}/approve": {
+      "post": {
+        "summary": "Approve, optionally with an EIP-191 approver signature",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "approverId"
+                ],
+                "properties": {
+                  "approverId": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "approval",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{id}/reject": {
+      "post": {
+        "summary": "Reject, optionally with an EIP-191 approver signature",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "approverId"
+                ],
+                "properties": {
+                  "approverId": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "approval",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/policies/{principalId}": {
+      "get": {
+        "summary": "Active policy version and version history",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "active, versions[]",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Activate a new policy version (validated, diffed, impact-analysed, receipted)",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "yaml",
+                  "by"
+                ],
+                "properties": {
+                  "yaml": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "version, diff, impact[]",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "policy unchanged",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/receipts": {
+      "get": {
+        "summary": "Signed receipts for the caller's principal",
+        "security": [
+          {
+            "credential": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Receipt"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/receipts/external": {
+      "post": {
+        "summary": "Attach an operator-provided receipt with provenance",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "principalId",
+                  "source",
+                  "data"
+                ],
+                "properties": {
+                  "principalId": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object"
+                  },
+                  "credentialId": {
+                    "type": "string"
+                  },
+                  "intentId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "receipt",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/evidence/{principalId}": {
+      "get": {
+        "summary": "Export the evidence bundle (offline-verifiable)",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceBundle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/evidence/anchor": {
+      "post": {
+        "summary": "Anchor the receipt chain head on-chain",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "principalId"
+                ],
+                "properties": {
+                  "principalId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "head, count, txHash, blockNumber",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/maintenance/reclaim": {
+      "post": {
+        "summary": "Reclaim on-chain charges of expired, unused standard-x402 pre-approvals (safe to run on a schedule)",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "reclaimed, results[], pending",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/killswitch": {
+      "post": {
+        "summary": "Engage or clear the kill switch (gateway + on-chain pause; unpause needs the owner)",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "principalId",
+                  "on"
+                ],
+                "properties": {
+                  "principalId": {
+                    "type": "string"
+                  },
+                  "on": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "on, txHash, onchain, receipt",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/supported": {
+      "get": {
+        "summary": "x402 facilitator: supported kinds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "kinds[]",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/verify": {
+      "post": {
+        "summary": "x402 facilitator: verify a payment payload (standard EIP-3009 or agent-account)",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paymentPayload",
+                  "paymentRequirements"
+                ],
+                "properties": {
+                  "paymentPayload": {
+                    "$ref": "#/components/schemas/X402PaymentPayload"
+                  },
+                  "paymentRequirements": {
+                    "$ref": "#/components/schemas/X402Requirements"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "isValid, invalidReason, payer",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/settle": {
+      "post": {
+        "summary": "x402 facilitator: settle a verified payload on-chain",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paymentPayload",
+                  "paymentRequirements"
+                ],
+                "properties": {
+                  "paymentPayload": {
+                    "$ref": "#/components/schemas/X402PaymentPayload"
+                  },
+                  "paymentRequirements": {
+                    "$ref": "#/components/schemas/X402Requirements"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "success, transaction, network, payer, errorReason",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

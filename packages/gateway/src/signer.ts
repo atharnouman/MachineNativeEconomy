@@ -1,7 +1,15 @@
-import { createHmac } from "node:crypto";
+import { createHmac, type KeyObject } from "node:crypto";
 import { keccak256, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { PaymentAuthorizationTypes, agentAccountDomain, type PaymentAuthorizationStruct } from "@apgw/core";
+import { PaymentAuthorizationTypes, TokenAuthorizationTypes, agentAccountDomain, ed25519FromSecret, type PaymentAuthorizationStruct, type TokenAuthorizationStruct, type Ed25519Jwk } from "@apgw/core";
+
+/** The gateway's HTTP message signing identity (Web Bot Auth / RFC 9421). */
+export interface AgentSigningKey {
+  privateKey: KeyObject;
+  publicKey: KeyObject;
+  publicJwk: Ed25519Jwk;
+  keyid: string;
+}
 
 /**
  * Signing is isolated here so the backend can be swapped (KMS, HSM, MPC) without touching policy or rails.
@@ -14,6 +22,10 @@ export interface Signer {
   signReceiptHash(hash: Hex): Promise<Hex>;
   sessionKeyAddress(credentialId: string): Address;
   signAuthorization(credentialId: string, account: Address, chainId: number, auth: PaymentAuthorizationStruct): Promise<Hex>;
+  /** Standard-x402 interop: authorize the account to pre-approve an EIP-3009 transfer (ERC-1271 path). */
+  signTokenAuthorization(credentialId: string, account: Address, chainId: number, auth: TokenAuthorizationStruct): Promise<Hex>;
+  /** Ed25519 key used to sign outbound HTTP requests (RFC 9421 / Web Bot Auth) and the key directory. */
+  readonly agentKey: AgentSigningKey;
   /** Dev-only escape hatch used by the demo's "key exfiltration" attack. Not exposed over HTTP. */
   _unsafeSessionPrivateKey(credentialId: string): Hex;
 }
@@ -21,11 +33,14 @@ export interface Signer {
 export class LocalSigner implements Signer {
   readonly gateway: PrivateKeyAccount;
   readonly address: Address;
+  readonly agentKey: AgentSigningKey;
   private readonly cache = new Map<string, PrivateKeyAccount>();
 
   constructor(gatewayPrivateKey: Hex, private readonly sessionSecret: string) {
     this.gateway = privateKeyToAccount(gatewayPrivateKey);
     this.address = this.gateway.address;
+    const k = ed25519FromSecret(sessionSecret, "httpsig-ed25519");
+    this.agentKey = { privateKey: k.privateKey, publicKey: k.publicKey, publicJwk: k.publicJwk, keyid: k.keyid };
   }
 
   private sessionAccount(credentialId: string): PrivateKeyAccount {
@@ -52,6 +67,15 @@ export class LocalSigner implements Signer {
       domain: agentAccountDomain(account, chainId),
       types: PaymentAuthorizationTypes,
       primaryType: "PaymentAuthorization",
+      message: auth,
+    });
+  }
+
+  signTokenAuthorization(credentialId: string, account: Address, chainId: number, auth: TokenAuthorizationStruct): Promise<Hex> {
+    return this.sessionAccount(credentialId).signTypedData({
+      domain: agentAccountDomain(account, chainId),
+      types: TokenAuthorizationTypes,
+      primaryType: "TokenAuthorization",
       message: auth,
     });
   }

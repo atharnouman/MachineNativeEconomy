@@ -18,6 +18,7 @@ import {
   decodeRevert,
   describeRevert,
   type PaymentAuthorizationStruct,
+  type TokenAuthorizationStruct,
 } from "@apgw/core";
 import type { GatewayConfig } from "./config.js";
 
@@ -39,7 +40,7 @@ export class ChainClient {
 
   constructor(private readonly cfg: Pick<GatewayConfig, "rpcUrl" | "chainId" | "gatewayPrivateKey">) {
     this.chain = chainFor(cfg.chainId, cfg.rpcUrl);
-    this.pub = createPublicClient({ chain: this.chain, transport: http(cfg.rpcUrl) });
+    this.pub = createPublicClient({ chain: this.chain, transport: http(cfg.rpcUrl), pollingInterval: 500 }); // receipts within a block, not viem's 4 s default
     this.wallet = createWalletClient({ chain: this.chain, transport: http(cfg.rpcUrl), account: privateKeyToAccount(cfg.gatewayPrivateKey) });
   }
 
@@ -72,6 +73,13 @@ export class ChainClient {
     return hash;
   }
 
+  /** The later of the latest block's timestamp and the wall clock: the next block cannot be earlier than either. */
+  async now(): Promise<bigint> {
+    const latest = await this.pub.getBlock({ blockTag: "latest" });
+    const wall = BigInt(Math.floor(Date.now() / 1000));
+    return latest.timestamp > wall ? latest.timestamp : wall;
+  }
+
   async readSession(account: Address, key: Address) {
     return this.pub.readContract({ address: account, abi: AgentAccountAbi, functionName: "getSession", args: [key] });
   }
@@ -91,6 +99,45 @@ export class ChainClient {
     } catch (err) {
       return { ok: false, reason: describeRevert(err) };
     }
+  }
+
+  /**
+   * Standard-x402 interop: have the account pre-approve an EIP-3009 transfer under session caveats. The gateway
+   * pays gas for this one; the facilitator then settles with `transferWithAuthorization` and ERC-1271.
+   */
+  async approveAuthorization(account: Address, auth: TokenAuthorizationStruct, sig: Hex): Promise<{ ok: true; txHash: Hex; blockNumber: bigint; digest: Hex } | { ok: false; reason: string }> {
+    try {
+      const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "approveAuthorization", args: [auth, sig] });
+      const r = await this.pub.waitForTransactionReceipt({ hash });
+      if (r.status !== "success") return { ok: false, reason: "reverted" };
+      const { parseEventLogs } = await import("viem");
+      const ev = parseEventLogs({ abi: AgentAccountAbi, logs: r.logs, eventName: "AuthorizationApproved" })[0];
+      return { ok: true, txHash: hash, blockNumber: r.blockNumber, digest: (ev?.args.tokenDigest ?? "0x") as Hex };
+    } catch (err) {
+      return { ok: false, reason: describeRevert(err) };
+    }
+  }
+
+  /** Restore the charge of an expired, unused pre-approval (anyone may call; the contract checks expiry and token nonce state). */
+  async reclaimApproval(account: Address, digest: Hex): Promise<{ ok: true; txHash: Hex } | { ok: false; reason: string }> {
+    try {
+      const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "reclaimApproval", args: [digest] });
+      const r = await this.pub.waitForTransactionReceipt({ hash });
+      return r.status === "success" ? { ok: true, txHash: hash } : { ok: false, reason: "reverted" };
+    } catch (err) {
+      return { ok: false, reason: describeRevert(err) };
+    }
+  }
+
+  /** Confirms a standard EIP-3009 settlement: the token emitted AuthorizationUsed(account, nonce) and Transfer(account → payTo, amount). */
+  async confirmStandardPayment(txHash: Hex, token: Address, account: Address, payTo: Address, amount: bigint, nonce: Hex): Promise<{ ok: boolean; blockNumber?: bigint; reason?: string }> {
+    const r = await this.pub.waitForTransactionReceipt({ hash: txHash });
+    if (r.status !== "success") return { ok: false, reason: "tx reverted" };
+    const { parseEventLogs } = await import("viem");
+    const tokenLogs = r.logs.filter((l) => l.address.toLowerCase() === token.toLowerCase());
+    const used = parseEventLogs({ abi: MockUSDCAbi, logs: tokenLogs, eventName: "AuthorizationUsed" }).some((l) => l.args.authorizer.toLowerCase() === account.toLowerCase() && l.args.nonce === nonce);
+    const moved = parseEventLogs({ abi: MockUSDCAbi, logs: tokenLogs, eventName: "Transfer" }).some((l) => l.args.from.toLowerCase() === account.toLowerCase() && l.args.to.toLowerCase() === payTo.toLowerCase() && l.args.value === amount);
+    return used && moved ? { ok: true, blockNumber: r.blockNumber } : { ok: false, reason: `missing ${used ? "" : "AuthorizationUsed "}${moved ? "" : "Transfer"} event` };
   }
 
   /** Confirms a settlement the payee or facilitator claims: tx succeeded and emitted PaymentExecuted for our intent. */

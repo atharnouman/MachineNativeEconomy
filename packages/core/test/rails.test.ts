@@ -22,17 +22,30 @@ describe("rail wire formats", () => {
     expect(h.startsWith('Payment realm="data.example", challenge="')).toBe(true);
     expect(decodeMppChallengeHeader(h)).toEqual(c);
     expect(decodeMppChallengeHeader('Bearer realm="x"')).toBeNull();
+    const addr = (n: number) => `0x${n.toString(16).padStart(40, "0")}`;
     const cred = {
       challengeId: "ch_1",
       method: "evm-agent-account" as const,
       payload: {
         kind: "agent-account" as const,
-        account: "0x0000000000000000000000000000000000000001",
-        authorization: { token: "0x01", to: "0x02", amount: "10000", intentHash: "0x" + "ab".repeat(32), validAfter: "0", validBefore: "1", nonce: "0x" + "cd".repeat(32) },
+        account: addr(1),
+        authorization: { token: addr(2), to: addr(3), amount: "10000", intentHash: "0x" + "ab".repeat(32), validAfter: "0", validBefore: "1", nonce: "0x" + "cd".repeat(32) },
         signature: "0xdeadbeef",
       },
     };
     expect(decodeMppCredentialHeader(encodeMppCredentialHeader(cred))).toEqual(cred);
+    // placeholder addresses are rejected: a malformed payee must never reach the signer
+    const bad = { ...cred, payload: { ...cred.payload, authorization: { ...cred.payload.authorization, to: "0x02" } } };
+    expect(decodeMppCredentialHeader(encodeMppCredentialHeader(bad))).toBeNull();
+  });
+
+  it("accepts both x402 payload shapes", async () => {
+    const { PaymentPayloadSchema, isAgentAccountPayload } = await import("../src/index.js");
+    const addr = (n: number) => `0x${n.toString(16).padStart(40, "0")}`;
+    const standard = { signature: `0x${"00".repeat(65)}`, authorization: { from: addr(1), to: addr(2), value: "10000", validAfter: "0", validBefore: "1", nonce: "0x" + "cd".repeat(32) } };
+    const parsed = PaymentPayloadSchema.parse(standard);
+    expect(isAgentAccountPayload(parsed)).toBe(false);
+    expect(PaymentPayloadSchema.safeParse({ ...standard, authorization: { ...standard.authorization, from: "nope" } }).success).toBe(false);
   });
 
   it("round-trips an x402 PAYMENT-REQUIRED header", () => {

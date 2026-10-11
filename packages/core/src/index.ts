@@ -1,5 +1,7 @@
 export * from "./canonical.js";
 export * from "./amount.js";
+export * from "./time.js";
+export * from "./approval.js";
 export * from "./credential.js";
 export * from "./intent.js";
 export * from "./policy.js";
@@ -9,3 +11,7 @@ export * from "./rails.js";
 export * from "./abi/generated.js";
 export * from "./typedData.js";
 export * from "./onchain.js";
+export * from "./httpsig.js";
+export * from "./subscription.js";
+export * from "./lightning.js";
+export * from "./net.js";

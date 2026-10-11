@@ -1,0 +1,20 @@
+{
+  "name": "@apgw/devnet",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Local development chain helpers for the Agentic Payment Gateway: anvil lifecycle, contract deployment, EIP-7702 delegation of an EOA to AgentAccount, well-known dev keys",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@apgw/core": "workspace:*",
+    "viem": "^2.21.54"
+  }
+}

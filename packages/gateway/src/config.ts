@@ -1,4 +1,5 @@
 import type { Address, Hex } from "viem";
+import type { LightningBackend } from "@apgw/core";
 
 export interface ContractAddresses {
   usdc: Address;
@@ -7,8 +8,14 @@ export interface ContractAddresses {
 }
 
 export interface PrincipalConfig {
-  /** The AgentAccount holding this principal's funds. Owner must be the gateway key (dev) or grant it operator rights. */
+  /** The AgentAccount holding this principal's funds (standalone contract or an EIP-7702-delegated EOA). */
   account: Address;
+  /**
+   * true (dev default): the gateway key owns the account and grants root sessions directly.
+   * false (production): the owner has granted the gateway key a root session; every credential the gateway
+   * registers becomes a child of that session and is bounded by it. Unpausing then needs the owner key.
+   */
+  ownerIsGateway?: boolean;
 }
 
 export interface GatewayConfig {
@@ -16,7 +23,7 @@ export interface GatewayConfig {
   port: number;
   rpcUrl: string;
   chainId: number;
-  /** Signs receipts, submits on-chain sessions/anchors, relays settlements. Dev: also owns the AgentAccount. */
+  /** Signs receipts, submits sessions/anchors, relays settlements. Dev: also owns the AgentAccount. */
   gatewayPrivateKey: Hex;
   /** Secret from which per-credential session keys are derived (HMAC). Never leaves the gateway. */
   sessionSecret: string;
@@ -24,6 +31,8 @@ export interface GatewayConfig {
   credentialRootKey: string;
   adminToken: string;
   dataDir: string;
+  /** `json` (zero-dependency file, default for demos) or `sqlite` (WAL file, recommended for self-hosting). */
+  storeDriver?: "json" | "sqlite";
   policyYaml: string;
   contracts: ContractAddresses;
   principals: Record<string, PrincipalConfig>;
@@ -31,6 +40,38 @@ export interface GatewayConfig {
   facilitator: { enabled: boolean };
   /** Seconds a signed authorization stays valid. */
   authorizationTtlSeconds: number;
+  /** Approver id -> address whose EIP-191 signature resolves escalations. */
+  approvers?: Record<string, Address>;
+  /** When true, approvals must carry a valid approver signature; the admin token alone is not enough. */
+  requireSignedApprovals?: boolean;
+  /** Seconds a pending approval stays open. Default 3600. */
+  approvalTtlSeconds?: number;
+  /**
+   * How x402 payments are presented to facilitators. `agent-account` (default): one transaction, needs a
+   * facilitator that knows AgentAccount (the bundled one). `standard`: the account pre-approves an EIP-3009
+   * transfer on-chain (one extra transaction, gas paid by the gateway) and the payload is the standard x402
+   * `exact` shape, so any facilitator (Coinbase CDP, Stellar/OZ, …) can settle it via ERC-1271.
+   */
+  x402Mode?: "agent-account" | "standard";
+  /** Public origin of this gateway, advertised as Signature-Agent and serving the key directory. Default http://host:port. */
+  publicUrl?: string;
+  /** Sign outbound requests to payees as a Web Bot Auth agent (RFC 9421, Ed25519). Default true. */
+  signOutbound?: boolean;
+  /** Fastify/pino log level (e.g. "info"); undefined = logging off (demos). Secrets are redacted. */
+  logLevel?: string;
+  /** Collect Node default metrics (CPU, memory, event loop) in addition to gateway metrics. Default false. */
+  defaultMetrics?: boolean;
+  /** Lightning backend for the L402 rail (pays invoices). Policy is the only limit on this rail; keep the wallet small. */
+  lightning?: LightningBackend;
+  /**
+   * Where the gateway may send requests on an agent's behalf. By default loopback, private and link-local
+   * destinations are refused (the gateway must not be an open proxy into its own network); set `allowLoopback`
+   * for a payee on this machine (demos), `allowPrivate`
+   * for demos and in-cluster payees, and `allowedHosts` to pin the payees a deployment may ever contact.
+   */
+  outbound?: { allowLoopback?: boolean; allowPrivate?: boolean; allowedHosts?: string[] };
+  /** Reference-currency conversion for non-USDC rails: how many sats one unit of the reference asset buys. */
+  fx?: { satsPerUsdc: number };
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -51,11 +92,22 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     credentialRootKey: need("APGW_CREDENTIAL_ROOT_KEY"),
     adminToken: need("APGW_ADMIN_TOKEN"),
     dataDir: env.APGW_DATA_DIR ?? "./data",
+    storeDriver: env.APGW_STORE === "sqlite" ? "sqlite" : "json",
     policyYaml: need("APGW_POLICY_YAML"),
     contracts,
     principals,
     asset: { symbol: env.APGW_ASSET ?? "USDC", decimals: Number(env.APGW_DECIMALS ?? 6) },
     facilitator: { enabled: (env.APGW_FACILITATOR ?? "true") !== "false" },
     authorizationTtlSeconds: Number(env.APGW_AUTH_TTL ?? 120),
+    approvers: env.APGW_APPROVERS ? (JSON.parse(env.APGW_APPROVERS) as Record<string, Address>) : undefined,
+    requireSignedApprovals: env.APGW_REQUIRE_SIGNED_APPROVALS === "true",
+    approvalTtlSeconds: env.APGW_APPROVAL_TTL ? Number(env.APGW_APPROVAL_TTL) : undefined,
+    x402Mode: env.APGW_X402_MODE === "standard" ? "standard" : "agent-account",
+    publicUrl: env.APGW_PUBLIC_URL,
+    signOutbound: env.APGW_SIGN_OUTBOUND !== "false",
+    logLevel: env.APGW_LOG_LEVEL,
+    defaultMetrics: env.APGW_DEFAULT_METRICS === "true",
+    fx: env.APGW_SATS_PER_USDC ? { satsPerUsdc: Number(env.APGW_SATS_PER_USDC) } : undefined,
+    outbound: { allowLoopback: env.APGW_OUTBOUND_ALLOW_LOOPBACK === "true", allowPrivate: env.APGW_OUTBOUND_ALLOW_PRIVATE === "true", allowedHosts: env.APGW_OUTBOUND_ALLOWED_HOSTS ? env.APGW_OUTBOUND_ALLOWED_HOSTS.split(",").map((s) => s.trim()).filter(Boolean) : undefined },
   };
 }

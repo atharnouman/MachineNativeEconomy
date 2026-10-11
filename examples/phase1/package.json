@@ -1,0 +1,23 @@
+{
+  "name": "@apgw/example-phase1",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Athar Nouman <atharnouman@gmail.com>",
+  "description": "Phase 1 demo: EIP-7702 EOA account, gateway as bounded operator, lineage spend on-chain, budget periods and velocity, signed approvals with resume, receipted policy versions, owner-only unpause, verified evidence",
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@apgw/core": "workspace:*",
+    "@apgw/devnet": "workspace:*",
+    "@apgw/gateway": "workspace:*",
+    "@apgw/payee": "workspace:*",
+    "@apgw/sdk": "workspace:*",
+    "@apgw/cli": "workspace:*",
+    "viem": "^2.21.54"
+  }
+}

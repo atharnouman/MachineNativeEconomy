@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { canonicalize, hashJson } from "./canonical.js";
 import { minBig, maxBig } from "./amount.js";
+import { DurationSchema } from "./time.js";
 
 /**
  * Credentials are macaroon-style bearer tokens.
@@ -17,8 +18,23 @@ import { minBig, maxBig } from "./amount.js";
  * agentId are derived from the chain, so they are bound into the signature too.
  */
 
-export const RailSchema = z.enum(["x402", "mpp"]);
+export const RailSchema = z.enum(["x402", "mpp", "l402"]);
 export type Rail = z.infer<typeof RailSchema>;
+
+export const RateLimitSchema = z.object({
+  type: z.literal("rate_limit"),
+  window: DurationSchema, // rolling, e.g. "10m"
+  max_count: z.number().int().positive().optional(),
+  max_amount: z.string().regex(/^\d+$/).optional(), // base units
+});
+export type RateLimit = z.infer<typeof RateLimitSchema>;
+
+export const HolderKeySchema = z.object({
+  type: z.literal("holder_key"),
+  // strict: an extra member (e.g. kid) would be silently dropped by a lenient parse and break the HMAC chain
+  jwk: z.object({ kty: z.literal("OKP"), crv: z.literal("Ed25519"), x: z.string().min(1) }).strict(),
+});
+export type HolderKey = z.infer<typeof HolderKeySchema>;
 
 export const CaveatSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("delegate"), agentId: z.string().min(1), nonce: z.string().min(1) }),
@@ -30,6 +46,8 @@ export const CaveatSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("allowed_rails"), value: z.array(RailSchema).min(1) }),
   z.object({ type: z.literal("purposes"), value: z.array(z.string().min(1)).min(1) }),
   z.object({ type: z.literal("chains"), value: z.array(z.string().regex(/^eip155:\d+$/)).min(1) }),
+  RateLimitSchema, // every rate limit in the chain applies (conjunction); scope = the node that introduced it
+  HolderKeySchema, // proof of possession: requests must be RFC 9421-signed by this key; the last one in the chain applies
 ]);
 export type Caveat = z.infer<typeof CaveatSchema>;
 
@@ -118,6 +136,17 @@ export function lineage(c: Pick<Credential, "rootId" | "caveats">): Array<Pick<C
   return out;
 }
 
+/** Lineage nodes together with the caveats each node introduced (its segment of the chain). */
+export function lineageSegments(
+  c: Pick<Credential, "rootId" | "caveats">,
+): Array<{ node: Pick<Credential, "rootId" | "caveats">; id: string; agentId: string; segment: Caveat[] }> {
+  const nodes = lineage(c);
+  return nodes.map((node, k) => {
+    const prevLen = k === 0 ? 0 : nodes[k - 1]!.caveats.length;
+    return { node, id: credentialId(node), agentId: agentIdOf(node), segment: node.caveats.slice(prevLen) };
+  });
+}
+
 export function parentOf(c: Pick<Credential, "rootId" | "caveats">): Pick<Credential, "rootId" | "caveats"> | null {
   const l = lineage(c);
   return l.length >= 2 ? l[l.length - 2]! : null;
@@ -139,6 +168,9 @@ export interface EffectiveLimits {
   allowedRails: Set<Rail> | null;
   purposes: Set<string> | null;
   chains: Set<string> | null;
+  rateLimits: RateLimit[]; // all apply; empty = unrestricted
+  /** The key that must sign requests using this credential (the most recent binding in the chain), or null. */
+  holderKey: HolderKey["jwk"] | null;
 }
 
 function intersect<T>(a: Set<T> | null, b: T[]): Set<T> {
@@ -157,7 +189,10 @@ export function effectiveLimits(caveats: Caveat[]): EffectiveLimits {
     allowedRails: null,
     purposes: null,
     chains: null,
+    rateLimits: [],
+    holderKey: null,
   };
+  const seenRl = new Set<string>();
   for (const c of caveats) {
     switch (c.type) {
       case "delegate":
@@ -190,8 +225,20 @@ export function effectiveLimits(caveats: Caveat[]): EffectiveLimits {
       case "chains":
         e.chains = intersect(e.chains, c.value);
         break;
+      case "rate_limit": {
+        const k = canonicalize(c);
+        if (!seenRl.has(k)) {
+          seenRl.add(k);
+          e.rateLimits.push(c);
+        }
+        break;
+      }
+      case "holder_key":
+        e.holderKey = c.jwk; // positional by design: a delegation rebinds to the sub-agent's key
+        break;
     }
   }
+  e.rateLimits.sort((a, b) => canonicalize(a).localeCompare(canonicalize(b)));
   return e;
 }
 
@@ -208,6 +255,9 @@ export function isSubsetOf(child: EffectiveLimits, parent: EffectiveLimits): { o
   if (!sub(child.allowedRails, parent.allowedRails)) v.push("allowedRails");
   if (!sub(child.purposes, parent.purposes)) v.push("purposes");
   if (!sub(child.chains, parent.chains)) v.push("chains");
+  const childRl = new Set(child.rateLimits.map((r) => canonicalize(r)));
+  if (!parent.rateLimits.every((r) => childRl.has(canonicalize(r)))) v.push("rateLimits");
+  if (parent.holderKey !== null && child.holderKey === null) v.push("holderKey"); // a binding can be replaced, never removed
   return { ok: v.length === 0, violations: v };
 }
 

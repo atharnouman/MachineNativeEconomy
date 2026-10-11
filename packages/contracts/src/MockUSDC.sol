@@ -111,7 +111,13 @@ contract MockUSDC {
         if (authorizationState[from][nonce]) revert AuthorizationUsedOrCanceled();
         bytes32 structHash = keccak256(abi.encode(typehash, from, to, value, validAfter, validBefore, nonce));
         bytes32 digest = SigLib.typedDataHash(DOMAIN_SEPARATOR(), structHash);
-        if (digest.recover(signature) != from) revert InvalidAuthorizationSigner();
+        if (from.code.length > 0) {
+            // ERC-1271, as Circle's FiatToken v2.2 does for contract authorizers (incl. EIP-7702-delegated EOAs)
+            (bool ok, bytes memory ret) = from.staticcall(abi.encodeWithSelector(0x1626ba7e, digest, signature));
+            if (!ok || ret.length < 32 || abi.decode(ret, (bytes4)) != bytes4(0x1626ba7e)) revert InvalidAuthorizationSigner();
+        } else if (digest.recover(signature) != from) {
+            revert InvalidAuthorizationSigner();
+        }
         authorizationState[from][nonce] = true;
         emit AuthorizationUsed(from, nonce);
     }

@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [main, phase-1]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Contracts (build, lint, test incl. fuzz/invariant/7702/4337)
+        run: |
+          pnpm contracts:build
+          pnpm contracts:test
+          node scripts/sync-abi.mjs
+          git diff --exit-code packages/core/src/abi/generated.ts || (echo "ABI drift: run node scripts/sync-abi.mjs" && exit 1)
+
+      - name: TypeScript (build, typecheck)
+        run: |
+          pnpm build
+          pnpm typecheck
+
+      - name: Unit + property tests
+        run: pnpm test:unit
+
+      - name: End-to-end (thin slice + Phase 1, local anvil)
+        run: pnpm test:e2e && pnpm --filter @apgw/example-phase1 test
+
+      - name: OpenAPI drift
+        run: |
+          node scripts/gen-openapi.mjs
+          git diff --exit-code docs/openapi.json || (echo "OpenAPI drift: run node scripts/gen-openapi.mjs" && exit 1)
+
+  slither:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: crytic/slither-action@v0.4.0
+        with:
+          target: packages/contracts
+          slither-args: --filter-paths "lib/" --exclude-dependencies
+          fail-on: high

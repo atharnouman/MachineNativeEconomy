@@ -9,12 +9,14 @@ import {TimeWindowEnforcer} from "../src/enforcers/TimeWindowEnforcer.sol";
 import {AllowedTargetsEnforcer} from "../src/enforcers/AllowedTargetsEnforcer.sol";
 import {PaymentAuthorization} from "../src/types/Session.sol";
 
-/// @dev Handler drives the account with random authorizations from the session key, including over-limit ones.
+/// @dev Handler drives a three-level chain (root -> child -> grandchild) with random authorizations from the
+///      child and grandchild keys, including over-limit ones, and random extra delegations.
 contract Handler is Test {
     AgentAccount public acct;
     MockUSDC public usdc;
     address public payee;
-    uint256 pk = 0x5E55;
+    uint256 public constant CHILD_PK = 0xC1;
+    uint256 public constant GRAND_PK = 0x61;
     uint256 n;
 
     constructor(AgentAccount a, MockUSDC u, address p) {
@@ -23,12 +25,17 @@ contract Handler is Test {
         payee = p;
     }
 
-    function key() external view returns (address) {
-        return vm.addr(pk);
+    function childKey() public pure returns (address) {
+        return vm.addr(CHILD_PK);
     }
 
-    function pay(uint256 amount) external {
+    function grandKey() public pure returns (address) {
+        return vm.addr(GRAND_PK);
+    }
+
+    function pay(uint256 amount, bool fromGrand) external {
         amount = bound(amount, 0, 2_000_000);
+        uint256 pk = fromGrand ? GRAND_PK : CHILD_PK;
         PaymentAuthorization memory a = PaymentAuthorization({
             token: address(usdc),
             to: payee,
@@ -41,6 +48,17 @@ contract Handler is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, acct.hashAuthorization(a));
         try acct.payWithAuthorization(a, abi.encodePacked(r, s, v)) {} catch {}
     }
+
+    /// @dev The grandchild tries to mint itself more authority via a further child; must never widen anything.
+    function rogueDelegate(uint256 cap, uint256 perTx, uint256 salt) external {
+        address[] memory t = new address[](1);
+        t[0] = payee;
+        address[] memory tok = new address[](1);
+        tok[0] = address(usdc);
+        address k = vm.addr(bound(salt, 1, type(uint64).max));
+        vm.prank(grandKey());
+        try acct.grantChildSession(grandKey(), k, cap, perTx, 0, uint64(block.timestamp + 365 days), false, t, tok) {} catch {}
+    }
 }
 
 contract AgentAccountInvariant is Test {
@@ -49,7 +67,9 @@ contract AgentAccountInvariant is Test {
     Handler h;
     address owner = makeAddr("owner");
     address payee = makeAddr("payee");
-    uint256 constant CAP = 1_000_000;
+    address rootKey = makeAddr("rootKey");
+    uint256 constant ROOT_CAP = 1_000_000;
+    uint256 constant GRAND_CAP = 400_000;
 
     function setUp() public {
         usdc = new MockUSDC();
@@ -66,17 +86,30 @@ contract AgentAccountInvariant is Test {
         t[0] = payee;
         address[] memory tok = new address[](1);
         tok[0] = address(usdc);
-        address k = h.key();
-        vm.prank(owner);
-        acct.grantSession(k, CAP, 300_000, 0, uint64(block.timestamp + 365 days), false, t, tok);
+        address c = h.childKey();
+        address g = h.grandKey();
+        vm.startPrank(owner);
+        acct.grantSession(rootKey, ROOT_CAP, 300_000, 0, uint64(block.timestamp + 365 days), false, t, tok);
+        acct.grantChildSession(rootKey, c, ROOT_CAP, 300_000, 0, uint64(block.timestamp + 365 days), false, t, tok);
+        acct.grantChildSession(c, g, GRAND_CAP, 200_000, 0, uint64(block.timestamp + 365 days), false, t, tok);
+        vm.stopPrank();
         targetContract(address(h));
     }
 
-    function invariant_SpentNeverExceedsCap() public view {
-        assertLe(acct.getSession(h.key()).spent, CAP);
+    function invariant_RootSpentNeverExceedsCap() public view {
+        assertLe(acct.getSession(rootKey).spent, ROOT_CAP);
     }
 
-    function invariant_PayeeBalanceEqualsSpent() public view {
-        assertEq(usdc.balanceOf(payee), acct.getSession(h.key()).spent);
+    function invariant_RootSpentEqualsPayeeBalance() public view {
+        assertEq(usdc.balanceOf(payee), acct.getSession(rootKey).spent);
+    }
+
+    function invariant_ChildSpentEqualsRootSpent() public view {
+        // all spending under root flows through child, so the lineage accounting must agree
+        assertEq(acct.getSession(h.childKey()).spent, acct.getSession(rootKey).spent);
+    }
+
+    function invariant_GrandchildBoundedByOwnCap() public view {
+        assertLe(acct.getSession(h.grandKey()).spent, GRAND_CAP);
     }
 }

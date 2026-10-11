@@ -3,6 +3,9 @@ import {
   recoverTypedDataAddress,
   defineChain,
   toFunctionSelector,
+  keccak256,
+  encodeAbiParameters,
+  concatHex,
   type Address,
   type Hex,
   type PublicClient,
@@ -12,16 +15,18 @@ import {
 } from "viem";
 import {
   AgentAccountAbi,
+  MockUSDCAbi,
   SpendLimitEnforcerAbi,
   TimeWindowEnforcerAbi,
   AllowedTargetsEnforcerAbi,
 } from "./abi/generated.js";
-import { PaymentAuthorizationTypes, agentAccountDomain, fromWireAuthorization } from "./typedData.js";
-import type { AuthorizationPayload } from "./rails.js";
+import { PaymentAuthorizationTypes, agentAccountDomain, fromWireAuthorization, TRANSFER_WITH_AUTHORIZATION_TYPEHASH } from "./typedData.js";
+import type { AuthorizationPayload, X402StandardPayload } from "./rails.js";
 
-/** All ABIs whose custom errors can surface from AgentAccount.payWithAuthorization / simulate. */
+/** All ABIs whose custom errors can surface from AgentAccount calls. */
 export const RevertAbi = [
   ...AgentAccountAbi,
+  ...MockUSDCAbi,
   ...SpendLimitEnforcerAbi,
   ...TimeWindowEnforcerAbi,
   ...AllowedTargetsEnforcerAbi,
@@ -93,11 +98,15 @@ export interface PayloadRequirements {
   minAmount: bigint;
 }
 
+type Wallet = WalletClient<ReturnType<typeof import("viem").http>, Chain, Account>;
+
+// ───────────────────────────── agent-account payloads ─────────────────────────────
+
 /**
  * Verify an agent-account payment payload without sending anything:
  *  - fields match the requirements (token, payee, amount, time window)
  *  - the EIP-712 signature recovers to a session key
- *  - the account's own `simulate` says every enforcer would pass
+ *  - the account's own `simulate` says every enforcer and the lineage would pass
  */
 export async function verifyAgentAccountPayload(
   client: PublicClient,
@@ -138,7 +147,7 @@ export async function verifyAgentAccountPayload(
 
 /** Submit the authorization. The submitter pays gas; the agent account pays the payee. */
 export async function settleAgentAccountPayload(
-  wallet: WalletClient<ReturnType<typeof import("viem").http>, Chain, Account>,
+  wallet: Wallet,
   client: PublicClient,
   payload: AuthorizationPayload,
 ): Promise<{ ok: true; txHash: Hex; blockNumber: bigint } | { ok: false; reason: string }> {
@@ -149,6 +158,77 @@ export async function settleAgentAccountPayload(
       abi: AgentAccountAbi,
       functionName: "payWithAuthorization",
       args: [auth, payload.signature as Hex],
+    });
+    const rcpt = await client.waitForTransactionReceipt({ hash });
+    if (rcpt.status !== "success") return { ok: false, reason: "transaction reverted" };
+    return { ok: true, txHash: hash, blockNumber: rcpt.blockNumber };
+  } catch (err) {
+    return { ok: false, reason: describeRevert(err) };
+  }
+}
+
+// ───────────────────────────── standard EIP-3009 payloads ─────────────────────────────
+
+/** The EIP-3009 `TransferWithAuthorization` digest under the token's own domain (read from the chain). */
+export async function eip3009Digest(client: PublicClient, token: Address, a: X402StandardPayload["authorization"]): Promise<Hex> {
+  const domainSeparator = await client.readContract({ address: token, abi: MockUSDCAbi, functionName: "DOMAIN_SEPARATOR" });
+  const structHash = keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "address" }, { type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes32" }],
+      [TRANSFER_WITH_AUTHORIZATION_TYPEHASH, a.from as Address, a.to as Address, BigInt(a.value), BigInt(a.validAfter), BigInt(a.validBefore), a.nonce as Hex],
+    ),
+  );
+  return keccak256(concatHex(["0x1901", domainSeparator, structHash]));
+}
+
+/**
+ * Verify a standard x402 payload the way any EIP-3009-aware facilitator does: fields, window, balance, unused
+ * nonce, and a signature that is either ECDSA from `from` (EOA) or ERC-1271-valid on `from` (contract account,
+ * including EIP-7702-delegated EOAs and AgentAccounts that pre-approved the digest).
+ */
+export async function verifyStandardPayload(
+  client: PublicClient,
+  payload: X402StandardPayload,
+  req: PayloadRequirements,
+): Promise<{ ok: true; payer: Address; digest: Hex } | { ok: false; reason: string }> {
+  const a = payload.authorization;
+  if (a.to.toLowerCase() !== req.payTo.toLowerCase()) return { ok: false, reason: "payTo mismatch" };
+  if (BigInt(a.value) < req.minAmount) return { ok: false, reason: `value ${a.value} below required ${req.minAmount}` };
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (BigInt(a.validBefore) <= now) return { ok: false, reason: "authorization expired" };
+  if (BigInt(a.validAfter) > now) return { ok: false, reason: "authorization not yet valid" };
+  const from = a.from as Address;
+  const [balance, used] = await Promise.all([
+    client.readContract({ address: req.token, abi: MockUSDCAbi, functionName: "balanceOf", args: [from] }),
+    client.readContract({ address: req.token, abi: MockUSDCAbi, functionName: "authorizationState", args: [from, a.nonce as Hex] }),
+  ]);
+  if (balance < BigInt(a.value)) return { ok: false, reason: `insufficient balance ${balance}` };
+  if (used) return { ok: false, reason: "nonce already used" };
+  const digest = await eip3009Digest(client, req.token, a);
+  let valid = false;
+  try {
+    valid = await client.verifyHash({ address: from, hash: digest, signature: payload.signature as Hex });
+  } catch {
+    valid = false;
+  }
+  if (!valid) return { ok: false, reason: "signature not valid for payer (ECDSA or ERC-1271)" };
+  return { ok: true, payer: from, digest };
+}
+
+/** Settle a standard payload with `transferWithAuthorization`. The submitter pays gas. */
+export async function settleStandardPayload(
+  wallet: Wallet,
+  client: PublicClient,
+  payload: X402StandardPayload,
+  token: Address,
+): Promise<{ ok: true; txHash: Hex; blockNumber: bigint } | { ok: false; reason: string }> {
+  const a = payload.authorization;
+  try {
+    const hash = await wallet.writeContract({
+      address: token,
+      abi: MockUSDCAbi,
+      functionName: "transferWithAuthorization",
+      args: [a.from as Address, a.to as Address, BigInt(a.value), BigInt(a.validAfter), BigInt(a.validBefore), a.nonce as Hex, payload.signature as Hex],
     });
     const rcpt = await client.waitForTransactionReceipt({ hash });
     if (rcpt.status !== "success") return { ok: false, reason: "transaction reverted" };

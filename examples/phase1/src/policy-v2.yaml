@@ -1,0 +1,40 @@
+# Phase 1 policy, version 2: full reports are no longer purchasable at all (deny beats escalation).
+version: 1
+principalId: org-acme
+currency: { asset: USDC, decimals: 6 }
+
+budgets:
+  org:            { cap: "5.00" }
+  research:       { cap: "2.00", parent: org, period: monthly }
+  research-daily: { cap: "0.14", parent: research, period: daily }
+
+agents:
+  research-agent: { budget: research-daily }
+
+velocity:
+  - id: principal-burst
+    description: No principal-wide burst above 20 payments in 10 minutes
+    scope: principal
+    window: 10m
+    max_count: 20
+
+rules:
+  - id: deny-blocked-payees
+    description: Never pay these hosts, whatever the credential says
+    effect: deny
+    match: { payees: [evil.example, phish.example] }
+
+  - id: deny-full-reports
+    description: Reports were pulled from the research budget on 8 Oct 2026
+    effect: deny
+    match: { resource_glob: "/v1/report*" }
+
+  - id: escalate-above-3c
+    description: Anything above 0.03 USDC needs a human
+    effect: escalate
+    match: { amount_gt: "0.03" }
+
+  - id: allow-research-data
+    description: Research purchases over any rail, including Lightning
+    effect: allow
+    match: { purposes: [research], rails: [x402, mpp, l402] }

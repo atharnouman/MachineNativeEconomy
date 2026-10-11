@@ -110,7 +110,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
 
     // ── 2. gateway + payee ─────────────────────────────────────────────────────────
     const payeeTreasury = privateKeyToAccount(KEYS.payeeTreasury).address;
-    gw = buildGateway({
+    gw = await buildGateway({
       host: "127.0.0.1",
       port: gatewayPort,
       rpcUrl,
@@ -126,6 +126,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
       asset: { symbol: "USDC", decimals: 6 },
       facilitator: { enabled: true },
       authorizationTtlSeconds: 120,
+      outbound: { allowLoopback: true }, // loopback payee in the demo
     });
     const gatewayUrl = await gw.listen();
     payee = buildPayee({
@@ -219,7 +220,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
     const ks = await admin.killSwitch("org-acme", true, "demo: suspected compromise");
     const duringKill = await fetcher.pay({ url: quoteUrl, maxAmount: "0.02", purpose: "research" });
     const chainPaused = await pub.readContract({ address: account, abi: AgentAccountAbi, functionName: "paused" });
-    step("kill switch", !duringKill.ok && chainPaused === true, `gateway: ${duringKill.decision?.reasons.join(",") ?? duringKill.error}; account.paused=${chainPaused} (tx ${ks.txHash.slice(0, 10)}…)`);
+    step("kill switch", !duringKill.ok && chainPaused === true, `gateway: ${duringKill.decision?.reasons.join(",") ?? duringKill.error}; account.paused=${chainPaused} (tx ${(ks.txHash ?? "").slice(0, 10)}…)`);
     await admin.killSwitch("org-acme", false, "demo: cleared");
 
     // ── 8. anchor + export + verify ────────────────────────────────────────────────

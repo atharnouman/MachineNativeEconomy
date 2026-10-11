@@ -1,0 +1,5201 @@
+{
+  "v": 1,
+  "principalId": "org-acme",
+  "exportedAt": "2026-10-10T20:56:09.143Z",
+  "gateway": {
+    "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "chain": "eip155:31337"
+  },
+  "contracts": {
+    "agentAccount": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "usdc": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "receiptRegistry": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "enforcer.spendLimit": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+    "enforcer.timeWindow": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+    "enforcer.allowedTargets": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9"
+  },
+  "policy": {
+    "hash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+    "document": {
+      "version": 1,
+      "principalId": "org-acme",
+      "currency": {
+        "asset": "USDC",
+        "decimals": 6
+      },
+      "budgets": {
+        "org": {
+          "cap": "5.00",
+          "period": "lifetime"
+        },
+        "research": {
+          "cap": "2.00",
+          "parent": "org",
+          "period": "monthly"
+        },
+        "research-daily": {
+          "cap": "0.14",
+          "parent": "research",
+          "period": "daily"
+        }
+      },
+      "agents": {
+        "research-agent": {
+          "budget": "research-daily"
+        }
+      },
+      "velocity": [
+        {
+          "id": "principal-burst",
+          "description": "No principal-wide burst above 20 payments in 10 minutes",
+          "scope": "principal",
+          "window": "10m",
+          "max_count": 20
+        }
+      ],
+      "rules": [
+        {
+          "id": "deny-blocked-payees",
+          "description": "Never pay these hosts, whatever the credential says",
+          "effect": "deny",
+          "match": {
+            "payees": [
+              "evil.example",
+              "phish.example"
+            ]
+          }
+        },
+        {
+          "id": "deny-full-reports",
+          "description": "Reports were pulled from the research budget on 8 Oct 2026",
+          "effect": "deny",
+          "match": {
+            "resource_glob": "/v1/report*"
+          }
+        },
+        {
+          "id": "escalate-above-3c",
+          "description": "Anything above 0.03 USDC needs a human",
+          "effect": "escalate",
+          "match": {
+            "amount_gt": "0.03"
+          }
+        },
+        {
+          "id": "allow-research-data",
+          "description": "Research purchases over any rail, including Lightning",
+          "effect": "allow",
+          "match": {
+            "rails": [
+              "x402",
+              "mpp",
+              "l402"
+            ],
+            "purposes": [
+              "research"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "policyVersions": [
+    {
+      "version": 1,
+      "hash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "prevHash": null,
+      "activatedAt": "2026-10-10T20:55:55.627Z",
+      "activatedBy": "config",
+      "document": {
+        "version": 1,
+        "principalId": "org-acme",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "5.00",
+            "period": "lifetime"
+          },
+          "research": {
+            "cap": "2.00",
+            "parent": "org",
+            "period": "monthly"
+          },
+          "research-daily": {
+            "cap": "0.14",
+            "parent": "research",
+            "period": "daily"
+          }
+        },
+        "agents": {
+          "research-agent": {
+            "budget": "research-daily"
+          }
+        },
+        "velocity": [
+          {
+            "id": "principal-burst",
+            "description": "No principal-wide burst above 20 payments in 10 minutes",
+            "scope": "principal",
+            "window": "10m",
+            "max_count": 20
+          }
+        ],
+        "rules": [
+          {
+            "id": "deny-blocked-payees",
+            "description": "Never pay these hosts, whatever the credential says",
+            "effect": "deny",
+            "match": {
+              "payees": [
+                "evil.example",
+                "phish.example"
+              ]
+            }
+          },
+          {
+            "id": "escalate-above-3c",
+            "description": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-research-data",
+            "description": "Research purchases over any rail, including Lightning",
+            "effect": "allow",
+            "match": {
+              "rails": [
+                "x402",
+                "mpp",
+                "l402"
+              ],
+              "purposes": [
+                "research"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": 2,
+      "hash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+      "prevHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "activatedAt": "2026-10-10T20:56:07.901Z",
+      "activatedBy": "alice@org-acme",
+      "document": {
+        "version": 1,
+        "principalId": "org-acme",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "5.00",
+            "period": "lifetime"
+          },
+          "research": {
+            "cap": "2.00",
+            "parent": "org",
+            "period": "monthly"
+          },
+          "research-daily": {
+            "cap": "0.14",
+            "parent": "research",
+            "period": "daily"
+          }
+        },
+        "agents": {
+          "research-agent": {
+            "budget": "research-daily"
+          }
+        },
+        "velocity": [
+          {
+            "id": "principal-burst",
+            "description": "No principal-wide burst above 20 payments in 10 minutes",
+            "scope": "principal",
+            "window": "10m",
+            "max_count": 20
+          }
+        ],
+        "rules": [
+          {
+            "id": "deny-blocked-payees",
+            "description": "Never pay these hosts, whatever the credential says",
+            "effect": "deny",
+            "match": {
+              "payees": [
+                "evil.example",
+                "phish.example"
+              ]
+            }
+          },
+          {
+            "id": "deny-full-reports",
+            "description": "Reports were pulled from the research budget on 8 Oct 2026",
+            "effect": "deny",
+            "match": {
+              "resource_glob": "/v1/report*"
+            }
+          },
+          {
+            "id": "escalate-above-3c",
+            "description": "Anything above 0.03 USDC needs a human",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-research-data",
+            "description": "Research purchases over any rail, including Lightning",
+            "effect": "allow",
+            "match": {
+              "rails": [
+                "x402",
+                "mpp",
+                "l402"
+              ],
+              "purposes": [
+                "research"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "approvers": {
+    "cfo": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+  },
+  "credentials": [
+    {
+      "v": 1,
+      "rootId": "cred_3ddcbf9379a9621dde6de0af",
+      "principalId": "org-acme",
+      "caveats": [
+        {
+          "type": "delegate",
+          "agentId": "research-agent",
+          "nonce": "n_79a0c1b0588e7147096ee3ac"
+        },
+        {
+          "type": "spend_cap",
+          "value": "1000000"
+        },
+        {
+          "type": "per_tx_max",
+          "value": "300000"
+        },
+        {
+          "type": "allowed_payees",
+          "value": [
+            "127.0.0.1:4403",
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          ]
+        },
+        {
+          "type": "allowed_rails",
+          "value": [
+            "x402",
+            "mpp",
+            "l402"
+          ]
+        },
+        {
+          "type": "purposes",
+          "value": [
+            "research"
+          ]
+        },
+        {
+          "type": "expires_at",
+          "value": "2026-10-11T20:55:55.709Z"
+        }
+      ],
+      "id": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "agentId": "research-agent",
+      "parentId": null
+    },
+    {
+      "v": 1,
+      "rootId": "cred_3ddcbf9379a9621dde6de0af",
+      "principalId": "org-acme",
+      "caveats": [
+        {
+          "type": "delegate",
+          "agentId": "research-agent",
+          "nonce": "n_79a0c1b0588e7147096ee3ac"
+        },
+        {
+          "type": "spend_cap",
+          "value": "1000000"
+        },
+        {
+          "type": "per_tx_max",
+          "value": "300000"
+        },
+        {
+          "type": "allowed_payees",
+          "value": [
+            "127.0.0.1:4403",
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          ]
+        },
+        {
+          "type": "allowed_rails",
+          "value": [
+            "x402",
+            "mpp",
+            "l402"
+          ]
+        },
+        {
+          "type": "purposes",
+          "value": [
+            "research"
+          ]
+        },
+        {
+          "type": "expires_at",
+          "value": "2026-10-11T20:55:55.709Z"
+        },
+        {
+          "type": "delegate",
+          "agentId": "research-agent/fetcher",
+          "nonce": "n_e2b11663c33e42c4386fc732"
+        },
+        {
+          "type": "spend_cap",
+          "value": "100000"
+        },
+        {
+          "type": "per_tx_max",
+          "value": "20000"
+        },
+        {
+          "type": "rate_limit",
+          "window": "10m",
+          "max_count": 3
+        },
+        {
+          "type": "holder_key",
+          "jwk": {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "e6QzQh_3ygD-mWngxk5RCGJuCVFmyRfZcRWGXpD7bwo"
+          }
+        }
+      ],
+      "id": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "agentId": "research-agent/fetcher",
+      "parentId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+    }
+  ],
+  "receipts": [
+    {
+      "v": 1,
+      "id": "rcpt_eac76c39543249c5f35f70db",
+      "principalId": "org-acme",
+      "seq": 0,
+      "prev": null,
+      "ts": "2026-10-10T20:55:55.649Z",
+      "kind": "policy.updated",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "version": 1,
+        "prevHash": null,
+        "hash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+        "activatedBy": "config",
+        "diff": null,
+        "impact": []
+      },
+      "hash": "0xf98bb7923c6329e47288ba0a963ee4f0c1db73e3bdbe4872a375a8b2f47cdfd5",
+      "sig": "0xd95521514e5fccff856fbda9acc538fdb965ced135c234675009b821cff2f5500863db8c8c9fd92a3e9f25c81faad003c565422ec04d9562e46facc8f0f8e5b81c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_ed3ebc549a8c586f1b5dfa56",
+      "principalId": "org-acme",
+      "seq": 1,
+      "prev": "0xf98bb7923c6329e47288ba0a963ee4f0c1db73e3bdbe4872a375a8b2f47cdfd5",
+      "ts": "2026-10-10T20:55:55.718Z",
+      "kind": "credential.issued",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "data": {
+        "credential": {
+          "v": 1,
+          "rootId": "cred_3ddcbf9379a9621dde6de0af",
+          "principalId": "org-acme",
+          "caveats": [
+            {
+              "type": "delegate",
+              "agentId": "research-agent",
+              "nonce": "n_79a0c1b0588e7147096ee3ac"
+            },
+            {
+              "type": "spend_cap",
+              "value": "1000000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "300000"
+            },
+            {
+              "type": "allowed_payees",
+              "value": [
+                "127.0.0.1:4403",
+                "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+              ]
+            },
+            {
+              "type": "allowed_rails",
+              "value": [
+                "x402",
+                "mpp",
+                "l402"
+              ]
+            },
+            {
+              "type": "purposes",
+              "value": [
+                "research"
+              ]
+            },
+            {
+              "type": "expires_at",
+              "value": "2026-10-11T20:55:55.709Z"
+            }
+          ],
+          "id": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "parentId": null
+        }
+      },
+      "hash": "0x4e6d626a1df7731ab7128dce88e49e6930f02196c8b7275d1ba373f740564211",
+      "sig": "0x5fcdbd41aa629860c78a8af828590d2aa3e293186923966067db0c70e9a4f535266bc79dffede1a0aa7989d0134972d6756c3df375b2172e0cd901fcd6c04f331c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_6b36c4e4b19c5d930ea14c4f",
+      "principalId": "org-acme",
+      "seq": 2,
+      "prev": "0x4e6d626a1df7731ab7128dce88e49e6930f02196c8b7275d1ba373f740564211",
+      "ts": "2026-10-10T20:55:56.263Z",
+      "kind": "credential.registered",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "data": {
+        "credential": {
+          "v": 1,
+          "rootId": "cred_3ddcbf9379a9621dde6de0af",
+          "principalId": "org-acme",
+          "caveats": [
+            {
+              "type": "delegate",
+              "agentId": "research-agent",
+              "nonce": "n_79a0c1b0588e7147096ee3ac"
+            },
+            {
+              "type": "spend_cap",
+              "value": "1000000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "300000"
+            },
+            {
+              "type": "allowed_payees",
+              "value": [
+                "127.0.0.1:4403",
+                "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+              ]
+            },
+            {
+              "type": "allowed_rails",
+              "value": [
+                "x402",
+                "mpp",
+                "l402"
+              ]
+            },
+            {
+              "type": "purposes",
+              "value": [
+                "research"
+              ]
+            },
+            {
+              "type": "expires_at",
+              "value": "2026-10-11T20:55:55.709Z"
+            }
+          ],
+          "id": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "parentId": null
+        },
+        "sessionKey": "0x7bC4be440FBa0C0FEB4b34c911E2e10d0a497757",
+        "parentSessionKey": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "onchain": {
+          "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+          "txHash": "0x3ba3cd45cefef148132cb96b1a219e9887f92b105c9a3f5dd36c409a404ef7fb",
+          "adopted": false,
+          "spendCap": "1000000",
+          "perTxMax": "300000",
+          "validUntil": "1791752155",
+          "anyTarget": false,
+          "targets": [
+            "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          ]
+        }
+      },
+      "hash": "0x69f7b3148fa8771df9f468a8e25377f63e5867e9cb14f8d195756d00aa1a6649",
+      "sig": "0x2a3a9f6d21f16efabdd0ac35ecc026d5f6dda5ae8606d764550275ef1228d16f0b186c8de2d9de2f323f7c2cae6bcd4782062ee77109b63b4f8028c2161640871b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_a6f81099cf34128d11025127",
+      "principalId": "org-acme",
+      "seq": 3,
+      "prev": "0x69f7b3148fa8771df9f468a8e25377f63e5867e9cb14f8d195756d00aa1a6649",
+      "ts": "2026-10-10T20:55:56.297Z",
+      "kind": "credential.registered",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "data": {
+        "credential": {
+          "v": 1,
+          "rootId": "cred_3ddcbf9379a9621dde6de0af",
+          "principalId": "org-acme",
+          "caveats": [
+            {
+              "type": "delegate",
+              "agentId": "research-agent",
+              "nonce": "n_79a0c1b0588e7147096ee3ac"
+            },
+            {
+              "type": "spend_cap",
+              "value": "1000000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "300000"
+            },
+            {
+              "type": "allowed_payees",
+              "value": [
+                "127.0.0.1:4403",
+                "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+              ]
+            },
+            {
+              "type": "allowed_rails",
+              "value": [
+                "x402",
+                "mpp",
+                "l402"
+              ]
+            },
+            {
+              "type": "purposes",
+              "value": [
+                "research"
+              ]
+            },
+            {
+              "type": "expires_at",
+              "value": "2026-10-11T20:55:55.709Z"
+            },
+            {
+              "type": "delegate",
+              "agentId": "research-agent/fetcher",
+              "nonce": "n_e2b11663c33e42c4386fc732"
+            },
+            {
+              "type": "spend_cap",
+              "value": "100000"
+            },
+            {
+              "type": "per_tx_max",
+              "value": "20000"
+            },
+            {
+              "type": "rate_limit",
+              "window": "10m",
+              "max_count": 3
+            },
+            {
+              "type": "holder_key",
+              "jwk": {
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "x": "e6QzQh_3ygD-mWngxk5RCGJuCVFmyRfZcRWGXpD7bwo"
+              }
+            }
+          ],
+          "id": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+          "agentId": "research-agent/fetcher",
+          "parentId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        },
+        "sessionKey": "0x06D2DF4d2bf4568bADfb93b94D2DC5bccbf35Ce2",
+        "parentSessionKey": "0x7bC4be440FBa0C0FEB4b34c911E2e10d0a497757",
+        "onchain": {
+          "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+          "txHash": "0x4a1eed371680b4984a62ead676724b78c1fc8c5cfa678948e4c12be26d43d4a6",
+          "adopted": false,
+          "spendCap": "100000",
+          "perTxMax": "20000",
+          "validUntil": "1791752155",
+          "anyTarget": false,
+          "targets": [
+            "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          ]
+        }
+      },
+      "hash": "0xdb8334d11ca5f89f4d92df73c2855076b6bd145539eb92f21c62b258e9a097ef",
+      "sig": "0x4c19fc09e073d979dfc28a0d55995885e730cda26009abc5b81c40e9a2c53f986a5c0ec9917f5805df570c935df87325727b681fc47e791c476af4e4c2e9e8d31b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_43330bd09c2647882beb84fb",
+      "principalId": "org-acme",
+      "seq": 4,
+      "prev": "0xdb8334d11ca5f89f4d92df73c2855076b6bd145539eb92f21c62b258e9a097ef",
+      "ts": "2026-10-10T20:55:56.319Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_a71a0ac64b0cc47d3bd7d96e",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.315Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.315Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 0+1 payments vs 3, 0+0 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 0 + 0 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 0 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 0 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 0 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 0 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 0+1 vs 20 payments, 0+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x04e17c4c84f951af4b3d5aca046a93c2c8adfce1149f63c5f48bdc5b883f5145",
+      "sig": "0x428fe598e77eecf4ff370a88dbf677bfee426997b81b78f09dc48cbb771dc73b7facebe062f7ac5b61e8cc77b11a0d16a90d659de7adcccb72a0642c3479b5601c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_2e8a1800301ff6d1793ef1e0",
+      "principalId": "org-acme",
+      "seq": 5,
+      "prev": "0x04e17c4c84f951af4b3d5aca046a93c2c8adfce1149f63c5f48bdc5b883f5145",
+      "ts": "2026-10-10T20:55:56.336Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_a71a0ac64b0cc47d3bd7d96e",
+      "intentHash": "0x3b30ac65f3c7e6bb8e5b81720b2fa0b45e02f537498b46c301045d511ece2034",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.331Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.331Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 0+1 payments vs 3, 0+10000 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 0 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 0 + 10000 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 0 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 0 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 0 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 0+1 vs 20 payments, 0+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x89efd030ca5d23c40e81cdc83d82d94949967ea22b72c5082124421b2680504a",
+      "sig": "0x303e24cc2b137cd721eae47fa7494e6c131d120a5ba2f08c04962ef894b3d0596fede2bdd1938c530ca6da373cdd1366f6650d8047f158af082df7fa19a0513c1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_98c2f79f9956ed896253c615",
+      "principalId": "org-acme",
+      "seq": 6,
+      "prev": "0x89efd030ca5d23c40e81cdc83d82d94949967ea22b72c5082124421b2680504a",
+      "ts": "2026-10-10T20:55:56.912Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_a71a0ac64b0cc47d3bd7d96e",
+      "intentHash": "0x3b30ac65f3c7e6bb8e5b81720b2fa0b45e02f537498b46c301045d511ece2034",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x550402b294426fa545854d9947a0d89ce221ab87fcf4d23e6bf899e59afb3a81",
+        "blockNumber": "13",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x7ab9d2e91732c27307d51dce7529132182200115f9b1cf99be37c0e31db2b3fa",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb"
+        ],
+        "ledgerEntryId": "led_313d777407b1cca65237d34b",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x0349d589843ecf2c4644cb68a0b6f73a0cbb60713114323b6d72afa5cb1028f1",
+      "sig": "0x603d8e90b5426bad6824b7d8a4e1aaf85aea17e8a625c12a2d0e85687e26516456b89bc30dc4e676f3b0d87a26476b3f183df6e72a7fa35a48d3b7fd11f3e83b1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_de954010a007dbd43e53d76e",
+      "principalId": "org-acme",
+      "seq": 7,
+      "prev": "0x0349d589843ecf2c4644cb68a0b6f73a0cbb60713114323b6d72afa5cb1028f1",
+      "ts": "2026-10-10T20:55:56.925Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_52f43c6b045a0c2eb7895045",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.922Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.922Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 1+1 payments vs 3, 10000+0 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 10000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 10000 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 10000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 10000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 1+1 vs 20 payments, 10000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0xf4962587133a4ac55cf070e94cab2f9101bb9185058eff335cec2ad52ad7a466",
+      "sig": "0x457e6d228e9679ce7b01d893cfbf31f6af445ec52e0d58b052cdcf6976114ff5132287ce58ba492d88d9f2bd424f25cebd51f2acac71c55bac761d8a19601fb61b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_acbe69c3732934410ae6301a",
+      "principalId": "org-acme",
+      "seq": 8,
+      "prev": "0xf4962587133a4ac55cf070e94cab2f9101bb9185058eff335cec2ad52ad7a466",
+      "ts": "2026-10-10T20:55:56.939Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_52f43c6b045a0c2eb7895045",
+      "intentHash": "0xb0a5e58e23db7d94dd738e4197fe7013f24bed8abbcb3a6464b88893500336a2",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.933Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:55:56.933Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 1+1 payments vs 3, 10000+10000 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 10000 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 10000 + 10000 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 10000 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 10000 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 10000 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 1+1 vs 20 payments, 10000+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x1f99d935f63ff6104c7635384e163963640fa2d74aaa7dd18a4bb4a8929ce63b",
+      "sig": "0xd4bb5df4169681c13282229e7e5fcec8a82de122f15d67c64b63aed09026feab78c16416a7160ddf27bb947d32094e25f8b1ade6eda8529bd9bdb3626eb26ebd1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_ad73092ed43e3cb5edeb1cf7",
+      "principalId": "org-acme",
+      "seq": 9,
+      "prev": "0x1f99d935f63ff6104c7635384e163963640fa2d74aaa7dd18a4bb4a8929ce63b",
+      "ts": "2026-10-10T20:56:01.011Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_52f43c6b045a0c2eb7895045",
+      "intentHash": "0xb0a5e58e23db7d94dd738e4197fe7013f24bed8abbcb3a6464b88893500336a2",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0xa60de76af62d313ff9504977ab372b33abf617b680df59f2f19b9bef473dc077",
+        "blockNumber": "14",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0xba5ee092f885ef0cbbd7201024518fc42ae6eb9fd78f8145de2b0917a9f7f78d",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb"
+        ],
+        "ledgerEntryId": "led_a66c1570a6fb27c251e7b684",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x38c08bb579c7ac092901e04500b6c16cdd332a3d7427933a32cad6235090e31d",
+      "sig": "0xc1fc77a09d5e631e2c894eea69cc13e38f5b221556b576e8786467bfc7fdad354c155121c889bb6e5a7487636ffff5d53782318c11e2ee2fe5071131c90cacd11b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_38545fee821c26270466c55c",
+      "principalId": "org-acme",
+      "seq": 10,
+      "prev": "0x38c08bb579c7ac092901e04500b6c16cdd332a3d7427933a32cad6235090e31d",
+      "ts": "2026-10-10T20:56:01.023Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_40a95e0b5d1e059bde0a2f09",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.021Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.021Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 2+1 payments vs 3, 20000+0 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 20000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 20000 + 0 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 20000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 20000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 20000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 2+1 vs 20 payments, 20000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x738a0e14df77ad0af9477ec3520ce17dcb7fdd55e3a82a02d8214f8a6de7ba57",
+      "sig": "0x2e691bd9f830f46a031cb21d93562b46a82f66f84b68f5a6f17ff8efb5fddb5a21ff3db09b0b78fbd221c6e4a7e3caf642d3ad7b968c998da52322a96618e2671b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_3e711ed62b1209e76e55c8c5",
+      "principalId": "org-acme",
+      "seq": 11,
+      "prev": "0x738a0e14df77ad0af9477ec3520ce17dcb7fdd55e3a82a02d8214f8a6de7ba57",
+      "ts": "2026-10-10T20:56:01.043Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_40a95e0b5d1e059bde0a2f09",
+      "intentHash": "0xcc688a5813c6676662d3ecf988f7f1fd4bf197ff94771430d157ca9e5bb81842",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.032Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.032Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "window 10m: 2+1 payments vs 3, 20000+10000 vs ∞"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 20000 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": true,
+            "detail": "spent 20000 + 10000 vs cap 100000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 20000 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 20000 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 20000 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 2+1 vs 20 payments, 20000+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xf9c22a08872aaef78fae25160b2702d912abf6997ddf581f74937dbbe65d8ec2",
+      "sig": "0x718f8f67a2f2bdf6a3b2f3ce5772d151e932826220a641f66bdcf2b537d35eef51b371c644f7adabb2231b47f311e34d83789893aa014fb86c9395079a7136d91b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_50287b9ad44d3c6c9e5f830f",
+      "principalId": "org-acme",
+      "seq": 12,
+      "prev": "0xf9c22a08872aaef78fae25160b2702d912abf6997ddf581f74937dbbe65d8ec2",
+      "ts": "2026-10-10T20:56:01.127Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_40a95e0b5d1e059bde0a2f09",
+      "intentHash": "0xcc688a5813c6676662d3ecf988f7f1fd4bf197ff94771430d157ca9e5bb81842",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0xbf601227adfbb4552ea7145c5b6ad4116e253e8060be42169bde13560c79a3ee",
+        "blockNumber": "15",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x776dcda6b2f38f1ac0d56d91a47dbe6c6a22bf790c04a82efa2b0b6141ebf973",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb"
+        ],
+        "ledgerEntryId": "led_14759a4c3dec14f262b51a8e",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x4510bbc4d4f17003918c48df0742694a679e10632343d934dacf4c15c0bf8047",
+      "sig": "0x754d6e6209b9d7fead747176c4d56d96db6aa6e5a9a7502910923e5f95e51549444f67b291686d45b5041d9ec73f8598587784979451ac5363b646255087271d1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_b833ede3ce2814e7de679c28",
+      "principalId": "org-acme",
+      "seq": 13,
+      "prev": "0x4510bbc4d4f17003918c48df0742694a679e10632343d934dacf4c15c0bf8047",
+      "ts": "2026-10-10T20:56:01.153Z",
+      "kind": "decision",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_6e36308b03834826da6ee061",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "deny",
+        "reasons": [
+          "CAVEAT:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 20000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.150Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.150Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "caveat:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+            "ok": false,
+            "detail": "window 10m: 3+1 payments vs 3, 30000+0 vs ∞"
+          }
+        ],
+        "matchedRules": [],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x6a2494ca8effc5a21988c738ba2e414d1ad58410c62e17572ae0536fce51b109",
+      "sig": "0x415f2cdfe6cf54c1b0667749ba9a71f984bc14e465ebb92f2a444ccb34fa068057d5e3b5025a672d935052b15e352d0ca1948e10387dc351372e47cea064bd101b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_fb3c464168d61d082d1dc466",
+      "principalId": "org-acme",
+      "seq": 14,
+      "prev": "0x6a2494ca8effc5a21988c738ba2e414d1ad58410c62e17572ae0536fce51b109",
+      "ts": "2026-10-10T20:56:01.156Z",
+      "kind": "payment.denied",
+      "agentId": "research-agent/fetcher",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb",
+      "intentId": "int_6e36308b03834826da6ee061",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "deny",
+        "reasons": [
+          "CAVEAT:rate_limit:cred_3ddcbf9379a9621dde6de0af:0085848bea69cacb"
+        ]
+      },
+      "hash": "0x3b40db5fa6e082d96d14421343ad788059abc9c3bd5471affbcb76f2cad0e302",
+      "sig": "0xdc5113d10d0898ba1d5c8bc7aba865b1da78d3abbcb7fd3630c33b3ddc46fd8427621e53c968fa375c8107410f955bee298bdf3ce4f7fb9b00c6f622db145b6e1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_c5139a53f2d66f1de8e2c721",
+      "principalId": "org-acme",
+      "seq": 15,
+      "prev": "0x3b40db5fa6e082d96d14421343ad788059abc9c3bd5471affbcb76f2cad0e302",
+      "ts": "2026-10-10T20:56:01.165Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_78ae65c94cb2f289f6c3367f",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.162Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.162Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 30000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 30000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 30000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 30000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 3+1 vs 20 payments, 30000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "50000"
+      },
+      "hash": "0x9b5b0c0416a9feb870a8e3fb04af13864298e013631c680710ebb2580d7ed359",
+      "sig": "0x070da56cdfb1669ae6b0e027052c57a236af3aae8c0f5f7b521e51e88822b863689ec80b4fab8e9b6779e7c36df696d8e6583f3787748af776ce3c1862aa746e1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_c7a89ecfae7d54fccab9af65",
+      "principalId": "org-acme",
+      "seq": 16,
+      "prev": "0x9b5b0c0416a9feb870a8e3fb04af13864298e013631c680710ebb2580d7ed359",
+      "ts": "2026-10-10T20:56:01.184Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_78ae65c94cb2f289f6c3367f",
+      "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "escalate",
+        "reasons": [
+          "RULE_ESCALATE:escalate-above-3c"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.176Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.176Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 30000 + 40000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 30000 + 40000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 30000 + 40000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 30000 + 40000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 3+1 vs 20 payments, 30000+40000 vs ∞"
+          },
+          {
+            "check": "rule:escalate-above-3c",
+            "ok": false,
+            "detail": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)"
+          }
+        ],
+        "matchedRules": [
+          "escalate-above-3c"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x3c68061a13abbf2d7441e88da10e44b4336560f5ad23ccb428d2bd9193cf6b1b",
+      "sig": "0xe62fb2507f97d5da29b0baa3563011a11ca4ca4a08318d4290222df312b95c1a40340552770b8aa40a28643f32e700a0a13bb1bf23399ef40712646bc9d48e611b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_55988300daee1b64d694e91b",
+      "principalId": "org-acme",
+      "seq": 17,
+      "prev": "0x3c68061a13abbf2d7441e88da10e44b4336560f5ad23ccb428d2bd9193cf6b1b",
+      "ts": "2026-10-10T20:56:01.188Z",
+      "kind": "approval.requested",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_78ae65c94cb2f289f6c3367f",
+      "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_f48aa0cdd53aff6e931a139e",
+          "principalId": "org-acme",
+          "intentId": "int_78ae65c94cb2f289f6c3367f",
+          "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "payee": {
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "url": "http://127.0.0.1:4403/v1/report?symbol=ETH"
+          },
+          "resource": "/v1/report?symbol=ETH",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "pending",
+          "requestedAt": "2026-10-10T20:56:01.187Z",
+          "expiresAt": "2026-10-10T21:06:01.187Z"
+        },
+        "decision": {
+          "effect": "escalate",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "matchedRules": [
+            "escalate-above-3c"
+          ]
+        }
+      },
+      "hash": "0x27f75807ce29a15238311a4f9d888101a7bbf76e5a35600412f5c594ce7bea75",
+      "sig": "0xba25e1803c25212756b5f371a246650eb15283c9fbc6a70aaa12822cf447c9d643ee6859fc6e8f7c51603a351d2ed800513f0faa81d7dcc0c05d103bedc2ebf51c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_26737bce5fe0d8be2d232d16",
+      "principalId": "org-acme",
+      "seq": 18,
+      "prev": "0x27f75807ce29a15238311a4f9d888101a7bbf76e5a35600412f5c594ce7bea75",
+      "ts": "2026-10-10T20:56:01.216Z",
+      "kind": "approval.granted",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_78ae65c94cb2f289f6c3367f",
+      "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "rail": "x402",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_f48aa0cdd53aff6e931a139e",
+          "principalId": "org-acme",
+          "intentId": "int_78ae65c94cb2f289f6c3367f",
+          "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "payee": {
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "url": "http://127.0.0.1:4403/v1/report?symbol=ETH"
+          },
+          "resource": "/v1/report?symbol=ETH",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "approved",
+          "requestedAt": "2026-10-10T20:56:01.187Z",
+          "expiresAt": "2026-10-10T21:06:01.187Z",
+          "resolvedAt": "2026-10-10T20:56:01.214Z",
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+            "signature": "0xa72a964ef57f0e739eb47c57e6cabb2bfde95669edd2cb1520fe34a8b2e079a00db6ef67f96237954f0f3b0dfa4c4d7dbd37be8c508ed7e25c670c14965f222b1c"
+          },
+          "note": "ok for Q4 research"
+        },
+        "approver": {
+          "id": "cfo",
+          "method": "signature",
+          "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+          "signature": "0xa72a964ef57f0e739eb47c57e6cabb2bfde95669edd2cb1520fe34a8b2e079a00db6ef67f96237954f0f3b0dfa4c4d7dbd37be8c508ed7e25c670c14965f222b1c"
+        },
+        "note": "ok for Q4 research"
+      },
+      "hash": "0x4896428a43150c928b45d178f9f6ab9e0cf7d1b8e706b2f69b5540773d5f91b8",
+      "sig": "0x053a582f9d7d0bcf0f6f1f1101d6f0d40abba59131e7882ed1464ea73cc083253abe07c099bd6d410275a383ea311fb95ba295614dbe73d9371d739a168ae4a21c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_a48c82dcd8a979ddd26676dd",
+      "principalId": "org-acme",
+      "seq": 19,
+      "prev": "0x4896428a43150c928b45d178f9f6ab9e0cf7d1b8e706b2f69b5540773d5f91b8",
+      "ts": "2026-10-10T20:56:01.228Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_4c9ec9d01dd912e752c8e376",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.226Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.226Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 30000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 30000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 30000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 30000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 3+1 vs 20 payments, 30000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "40000"
+      },
+      "hash": "0xfca20c0be9cdfadaed9c2247555b5aece2eca0759b9e224b06c6b3de6dae7fec",
+      "sig": "0x1060d9ee03ee731e269b677f6fe114939df2e8f37a9e64819ca85424e96ff379460a3d3dc919c0dac969c3ab880f331b905e6fd469e61c5d4cc8932c8d648b581c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_85a047107789cdb13a60cfb8",
+      "principalId": "org-acme",
+      "seq": 20,
+      "prev": "0xfca20c0be9cdfadaed9c2247555b5aece2eca0759b9e224b06c6b3de6dae7fec",
+      "ts": "2026-10-10T20:56:01.240Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_4c9ec9d01dd912e752c8e376",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "intentHash": "0x598b4943b3059a3c2cedf97385b3bb460daf1a08ac1a57187207b90ba9991101",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.234Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.234Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 30000 + 40000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 30000 + 40000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 30000 + 40000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 30000 + 40000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 3+1 vs 20 payments, 30000+40000 vs ∞"
+          },
+          {
+            "check": "rule:escalate-above-3c",
+            "ok": true,
+            "detail": "escalation satisfied by approval apr_f48aa0cdd53aff6e931a139e"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "escalate-above-3c",
+          "allow-research-data"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x938f9bd251d094acecc6c93614587239e2186359f78346be9b280cea2d77b79e",
+      "sig": "0x4085d8db0ded3f25da6ce72e378d704873416e3c6d5eb0dcf83a16c35c8814c14eec99513ee9ee08878df376c8aae52eb549109469b92821f61fd8eca491eb491c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_8ef8d0507b0620069fd2de99",
+      "principalId": "org-acme",
+      "seq": 21,
+      "prev": "0x938f9bd251d094acecc6c93614587239e2186359f78346be9b280cea2d77b79e",
+      "ts": "2026-10-10T20:56:01.317Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_4c9ec9d01dd912e752c8e376",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "intentHash": "0x598b4943b3059a3c2cedf97385b3bb460daf1a08ac1a57187207b90ba9991101",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x2823df827062aa42f417172626f8acacf68d231fce960afd61139e60a1af74ba",
+        "blockNumber": "16",
+        "amount": "40000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/report?symbol=ETH",
+        "nonce": "0x8328b04da35d66320b00fe334e47bd873102c7bcde5b40ed419e232cbae2694c",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_a7320dd87df7450a5d9e19b1",
+        "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+        "subscriptionId": null
+      },
+      "hash": "0xc86f0c09a49a1511ade677ae592322a075398817ccd6bdf8bc9a4f9b93f7264f",
+      "sig": "0x383441553a475b7f7b5783b0d1bb1d1ace7f61741740d58047c99fd678921c4f4abc3b1280129f0ac5acdd84393e7588ab96e11d64656f5f650473a2b241f87f1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_36af83977acf9f29d7472bc5",
+      "principalId": "org-acme",
+      "seq": 22,
+      "prev": "0xc86f0c09a49a1511ade677ae592322a075398817ccd6bdf8bc9a4f9b93f7264f",
+      "ts": "2026-10-10T20:56:01.323Z",
+      "kind": "approval.consumed",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_4c9ec9d01dd912e752c8e376",
+      "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+      "approvalId": "apr_f48aa0cdd53aff6e931a139e",
+      "rail": "x402",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_f48aa0cdd53aff6e931a139e",
+          "principalId": "org-acme",
+          "intentId": "int_78ae65c94cb2f289f6c3367f",
+          "intentHash": "0xad07ea0c01954617ea74e81cf50830ed554a7b8bd32aa05e31362e904c63f7c4",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "payee": {
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "url": "http://127.0.0.1:4403/v1/report?symbol=ETH"
+          },
+          "resource": "/v1/report?symbol=ETH",
+          "purpose": "research",
+          "rail": "x402",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "consumed",
+          "requestedAt": "2026-10-10T20:56:01.187Z",
+          "expiresAt": "2026-10-10T21:06:01.187Z",
+          "resolvedAt": "2026-10-10T20:56:01.214Z",
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+            "signature": "0xa72a964ef57f0e739eb47c57e6cabb2bfde95669edd2cb1520fe34a8b2e079a00db6ef67f96237954f0f3b0dfa4c4d7dbd37be8c508ed7e25c670c14965f222b1c"
+          },
+          "note": "ok for Q4 research",
+          "consumedAt": "2026-10-10T20:56:01.322Z",
+          "consumedByIntentId": "int_4c9ec9d01dd912e752c8e376"
+        },
+        "txHash": "0x2823df827062aa42f417172626f8acacf68d231fce960afd61139e60a1af74ba"
+      },
+      "hash": "0x7a1972d50be440628e074268bc211f5cd76221b5ebfc7bc577157861c350429b",
+      "sig": "0x3c889867f8ca67edc6607163918ee919bb650c114e01db11b2305229929e31637291ef124df7b7658b7886988d6a8b97c8feba42dc9628566fbd2c9d4c18f7d11c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_473173754b37fcb3b4a0c09b",
+      "principalId": "org-acme",
+      "seq": 23,
+      "prev": "0x7a1972d50be440628e074268bc211f5cd76221b5ebfc7bc577157861c350429b",
+      "ts": "2026-10-10T20:56:01.337Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.334Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.334Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 70000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 70000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 70000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 70000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 4+1 vs 20 payments, 70000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "50000"
+      },
+      "hash": "0x26b22a55d0d079c2b68aeb10263fa69d3273e466587c56e8595b10051b41ed0c",
+      "sig": "0x95255d5484feee89e48d8c78c438996c81001074de5dd47186c90866572739772d52e14377f3f3ca928d847b061b23c463582a4aa84bd9dabb32a5a978dde79c1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_ed8b2d691af335d391fd49e6",
+      "principalId": "org-acme",
+      "seq": 24,
+      "prev": "0x26b22a55d0d079c2b68aeb10263fa69d3273e466587c56e8595b10051b41ed0c",
+      "ts": "2026-10-10T20:56:01.352Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+      "intentHash": "0xe7be25dc68b7e2963b66278673dc856da8a6f86a1e80cdddd0db0c67d2878d51",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "escalate",
+        "reasons": [
+          "RULE_ESCALATE:escalate-above-3c"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 40000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.346Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.346Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 70000 + 40000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 70000 + 40000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 70000 + 40000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 70000 + 40000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 4+1 vs 20 payments, 70000+40000 vs ∞"
+          },
+          {
+            "check": "rule:escalate-above-3c",
+            "ok": false,
+            "detail": "Anything above 0.03 USDC needs a human (the CFO key is registered as approver)"
+          }
+        ],
+        "matchedRules": [
+          "escalate-above-3c"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xf60f78f494fe6f0e1f7573e0892bce78548ffcbfc20930231b79945b08f5ce06",
+      "sig": "0xb01b8c5e3ed865fff7fa8e5a04d7ded1bf3ac32eeb761120c12bf1c57100f5716abac3475a11b3ebaae8f71647472e0f0f20cde5d6227fa809fcbd5e2de6cf761c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_967123fcf8f1f586e9b86146",
+      "principalId": "org-acme",
+      "seq": 25,
+      "prev": "0xf60f78f494fe6f0e1f7573e0892bce78548ffcbfc20930231b79945b08f5ce06",
+      "ts": "2026-10-10T20:56:01.355Z",
+      "kind": "approval.requested",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+      "intentHash": "0xe7be25dc68b7e2963b66278673dc856da8a6f86a1e80cdddd0db0c67d2878d51",
+      "approvalId": "apr_81763feb36f50a1e00f50b86",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_81763feb36f50a1e00f50b86",
+          "principalId": "org-acme",
+          "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+          "intentHash": "0xe7be25dc68b7e2963b66278673dc856da8a6f86a1e80cdddd0db0c67d2878d51",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "payee": {
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "url": "http://127.0.0.1:4403/v1/report?symbol=ETH"
+          },
+          "resource": "/v1/report?symbol=ETH",
+          "purpose": "research",
+          "rail": "mpp",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "pending",
+          "requestedAt": "2026-10-10T20:56:01.354Z",
+          "expiresAt": "2026-10-10T21:06:01.354Z"
+        },
+        "decision": {
+          "effect": "escalate",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "matchedRules": [
+            "escalate-above-3c"
+          ]
+        }
+      },
+      "hash": "0xb00872007690258390147cbda82741bc9d72e9a1236f9ae6c81f52579e21e364",
+      "sig": "0x2ba2f0d0eec0f4c0878a1a77cecd4cdb478ab94f779d42eaf5b869b6a9b0764714b557fb81ec0acc6967063922c93174d5007a8fd26bf3ce3b13c7f0dcde2b7b1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_513c61708a9ec8f613cc9801",
+      "principalId": "org-acme",
+      "seq": 26,
+      "prev": "0xb00872007690258390147cbda82741bc9d72e9a1236f9ae6c81f52579e21e364",
+      "ts": "2026-10-10T20:56:01.380Z",
+      "kind": "approval.rejected",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+      "intentHash": "0xe7be25dc68b7e2963b66278673dc856da8a6f86a1e80cdddd0db0c67d2878d51",
+      "approvalId": "apr_81763feb36f50a1e00f50b86",
+      "rail": "mpp",
+      "data": {
+        "approval": {
+          "v": 1,
+          "id": "apr_81763feb36f50a1e00f50b86",
+          "principalId": "org-acme",
+          "intentId": "int_d84e4ef4adcde6e30f51f9e9",
+          "intentHash": "0xe7be25dc68b7e2963b66278673dc856da8a6f86a1e80cdddd0db0c67d2878d51",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "agentId": "research-agent",
+          "amount": "40000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "payee": {
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "url": "http://127.0.0.1:4403/v1/report?symbol=ETH"
+          },
+          "resource": "/v1/report?symbol=ETH",
+          "purpose": "research",
+          "rail": "mpp",
+          "reasons": [
+            "RULE_ESCALATE:escalate-above-3c"
+          ],
+          "status": "rejected",
+          "requestedAt": "2026-10-10T20:56:01.354Z",
+          "expiresAt": "2026-10-10T21:06:01.354Z",
+          "resolvedAt": "2026-10-10T20:56:01.378Z",
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+            "signature": "0x652e1612b63094bf5ef342ca8e5d60983b8916226e63d3fb495ea7bc0a40203516d24e3072f8a028f5eb39749df900cb736171f0bb3e3b5b3aea0f25ae415af21b"
+          },
+          "note": "one report is enough"
+        },
+        "approver": {
+          "id": "cfo",
+          "method": "signature",
+          "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+          "signature": "0x652e1612b63094bf5ef342ca8e5d60983b8916226e63d3fb495ea7bc0a40203516d24e3072f8a028f5eb39749df900cb736171f0bb3e3b5b3aea0f25ae415af21b"
+        },
+        "note": "one report is enough"
+      },
+      "hash": "0x5b6b8fd434606794e80c70b0640a6f23ef4dcc25cbe5e822a42fa4cf3599ff88",
+      "sig": "0x5570a600b6b7ff4d009dcff3ba2414acca2dfad7c4c811157a31194665ae9b511294f9d3a09e1ae02d831497b335d6525fe2ee7d28ba56157822d4d4eeb9c51e1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_2a7d68cf447e74cc98a25b58",
+      "principalId": "org-acme",
+      "seq": 27,
+      "prev": "0x5b6b8fd434606794e80c70b0640a6f23ef4dcc25cbe5e822a42fa4cf3599ff88",
+      "ts": "2026-10-10T20:56:01.392Z",
+      "kind": "payment.denied",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d73994f6053361657530e0c1",
+      "approvalId": "apr_81763feb36f50a1e00f50b86",
+      "data": {
+        "stage": "approval",
+        "reason": "approval apr_81763feb36f50a1e00f50b86 is rejected"
+      },
+      "hash": "0x3374265e1af133263ec6ef451f7f29fe143e3e1bb2b877af799008266ddd32b0",
+      "sig": "0x9c14b38ef7976d6caff51506cf537170fe6a72fa851881950371e4d44ba2353c43edc8be0fbbf8f2d7ed9e2b42b22466b1226ee66d7cbcc7c30fab8162d0ef351b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_51b165f963ad271bd8689d1d",
+      "principalId": "org-acme",
+      "seq": 28,
+      "prev": "0x3374265e1af133263ec6ef451f7f29fe143e3e1bb2b877af799008266ddd32b0",
+      "ts": "2026-10-10T20:56:01.403Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f09e2828d38d10a4873f4487",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.400Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.400Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 70000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 70000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 70000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 70000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 4+1 vs 20 payments, 70000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x48c78ae88c0f0b34a61754ae63c7bc11fb12381eeadd05610a50010eaba45d94",
+      "sig": "0x1830e27d2a587ffad0843444fe8ad4ad6e40c7442de26c0aa0e00e8fe722f02433547286d291179d94b23ba75aaa92ae2308aa609189027418a5bc0f404e47ce1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_0869e8bda47509efee644c0f",
+      "principalId": "org-acme",
+      "seq": 29,
+      "prev": "0x48c78ae88c0f0b34a61754ae63c7bc11fb12381eeadd05610a50010eaba45d94",
+      "ts": "2026-10-10T20:56:01.418Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f09e2828d38d10a4873f4487",
+      "intentHash": "0x46e7ed07e0d54c27532577a0707c702fdd00abb72d719be77efa718058a59ee4",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.413Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.413Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 70000 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 70000 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 70000 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 70000 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 4+1 vs 20 payments, 70000+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x6c63c52d4512e29a16a70dd96e3ec6f4ee7672840ba68b28eb3ed81a7e7e2f3f",
+      "sig": "0xf88e38442d2c62573acd34c0abee0705c60893af74f498725193967c41ed0c243460381dc978c0e5b3a174eb8a3aea5e1b9b9d1e5f6af0ab30b4ca20eac5ce241c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_dc4f2161266910141049e27b",
+      "principalId": "org-acme",
+      "seq": 30,
+      "prev": "0x6c63c52d4512e29a16a70dd96e3ec6f4ee7672840ba68b28eb3ed81a7e7e2f3f",
+      "ts": "2026-10-10T20:56:01.521Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f09e2828d38d10a4873f4487",
+      "intentHash": "0x46e7ed07e0d54c27532577a0707c702fdd00abb72d719be77efa718058a59ee4",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x4546e31295d1893b33921e99dbf05e1a73a5373bf43c533680b5dc55f6261860",
+        "blockNumber": "18",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "approvalTxHash": "0x5219ec675ffe93819283ef294832a4bd3dfae56b4c989eb8ea3c06ab2465b16c",
+        "payloadKind": "standard",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0xbf81497f168ed8439ee78f30b3376ee4fcbff06d13fe196d78c132dad81b36f7",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_d8f98ecff0281ad6a11933fc",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0xeab060844309189e0ee01956c37c2c7c6c7e704d1adb756c8ec4a0864ee03a4a",
+      "sig": "0x7e8a280b7b9d27ffd6edad7fe95a7f271906d54e3852d0a07cf3becc818ccb7c3b35de3ae139ca0e5546b9f886c1584ccc3e4f9fd8f6d849db6f204f3d7cb4dc1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_611d43abd6357691650173f7",
+      "principalId": "org-acme",
+      "seq": 31,
+      "prev": "0xeab060844309189e0ee01956c37c2c7c6c7e704d1adb756c8ec4a0864ee03a4a",
+      "ts": "2026-10-10T20:56:01.609Z",
+      "kind": "preapproval.reclaimed",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_orphan_demo",
+      "rail": "x402",
+      "data": {
+        "digest": "0x902a1b7e0b12297be771e00d970ddaf23caaee986ba826e6e41d70ba8d696f0d",
+        "value": "1000",
+        "approvalTxHash": "0x4cc4bf7046494e9fe402d61de19ec6d632426094d239d3d4db670142e3cdbd95",
+        "reclaimTxHash": "0xe436e095c39f54b7addb8070ed74385dbd5043b64ddafffa5cfd8502b1f836bd",
+        "validBefore": "1791665791"
+      },
+      "hash": "0x90b1437c6c5f988f693f7d7bdedf87649dc2b69b20e62bc2bf3d907713d23780",
+      "sig": "0xcc61da0b07bc5015fa4b7a1708b3f1193928a868ee04d684dabf2e747e1e0a02424ced49727d3349bdb9bcf1f7a7c3977912cd07d089586c1ed4baf9972c1dfe1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_2b54b3c3d766bfd65e0bdfca",
+      "principalId": "org-acme",
+      "seq": 32,
+      "prev": "0x90b1437c6c5f988f693f7d7bdedf87649dc2b69b20e62bc2bf3d907713d23780",
+      "ts": "2026-10-10T20:56:01.633Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_b8934399476279d27034b43a",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.630Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.630Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 80000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 80000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 80000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 80000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 5+1 vs 20 payments, 80000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x4e90df062c4a8c94e6fe414199d79d9e63c7dc2a279ab6ce53dcad9230d41407",
+      "sig": "0x4864ff86a59b108c7a6187a681ca05c803c18f2807806d1706ee7a6177182ee87b8c7f54eaf8be1374a2eb15242181bfd905d1f6bd463ec893c3997ed089f27a1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_2610936e8d0c8e1ca372caf9",
+      "principalId": "org-acme",
+      "seq": 33,
+      "prev": "0x4e90df062c4a8c94e6fe414199d79d9e63c7dc2a279ab6ce53dcad9230d41407",
+      "ts": "2026-10-10T20:56:01.647Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_b8934399476279d27034b43a",
+      "intentHash": "0xd6644c6d71b782852fd9da3dd3e981616b50b45dfa7b9e1affef263f4baf0961",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.640Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:01.640Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 80000 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 80000 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 80000 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 80000 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 5+1 vs 20 payments, 80000+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xf5a38c89cc4c0c2369ba7d313cdd5c400c46d288cdd1ef119143e8769ef25c3c",
+      "sig": "0x86dca417a8f81de69a02611fe8a4e9194d6c95b68882ddee0bf2492978aa453d765a9e45ce7bc10a161653ce11d96e431d7f2960383b9c45156d2a8e584358f91c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_b4af43a68d31882348bd44e1",
+      "principalId": "org-acme",
+      "seq": 34,
+      "prev": "0xf5a38c89cc4c0c2369ba7d313cdd5c400c46d288cdd1ef119143e8769ef25c3c",
+      "ts": "2026-10-10T20:56:01.706Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_b8934399476279d27034b43a",
+      "intentHash": "0xd6644c6d71b782852fd9da3dd3e981616b50b45dfa7b9e1affef263f4baf0961",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "data": {
+        "txHash": "0xf13a55750fc08862f751fe73e748e99ff745c49b6b2f2df0838ae657bd81553f",
+        "blockNumber": "22",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/feed",
+        "nonce": "0x425a06bd32d7b442b8fae09dab6f2d8fdfdc6f13943e8f39f2fad3db59a7d1d1",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_1243085efef70a59ecc0f8d7",
+        "approvalId": null,
+        "subscriptionId": "sub_7554a8310b154466bda7a114"
+      },
+      "hash": "0x8301485af27d9b0f98ff6beb281c297244190f63d190ba240c806c342b4b41ad",
+      "sig": "0x3e3e44b65db8413a28463c66994f538e3f7cf77f70289f2597ea237c349291f32410f0393ab7a7a57dfb365506891f5b023a7d1e5bd594919423d7967e3f2c871c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_58486728e5d00a8e7bca6c4e",
+      "principalId": "org-acme",
+      "seq": 35,
+      "prev": "0x8301485af27d9b0f98ff6beb281c297244190f63d190ba240c806c342b4b41ad",
+      "ts": "2026-10-10T20:56:01.711Z",
+      "kind": "subscription.created",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_b8934399476279d27034b43a",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "data": {
+        "subscription": {
+          "v": 1,
+          "id": "sub_7554a8310b154466bda7a114",
+          "principalId": "org-acme",
+          "agentId": "research-agent",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "payee": {
+            "url": "http://127.0.0.1:4403/v1/feed",
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          },
+          "resource": "/v1/feed",
+          "purpose": "research",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "terms": {
+            "kind": "fixed",
+            "amountPerCharge": "10000",
+            "interval": "1s",
+            "maxCharges": 3,
+            "expiresAt": "2026-11-09T20:56:01.628Z"
+          },
+          "chargeUrl": "http://127.0.0.1:4402/v1/subscriptions/sub_7554a8310b154466bda7a114/charges",
+          "status": "active",
+          "createdAt": "2026-10-10T20:56:01.629Z",
+          "charges": 1,
+          "totalCharged": "10000",
+          "lastChargedAt": "2026-10-10T20:56:01.709Z",
+          "payeeSubscriptionId": "psub_1"
+        },
+        "firstChargeTx": "0xf13a55750fc08862f751fe73e748e99ff745c49b6b2f2df0838ae657bd81553f"
+      },
+      "hash": "0x66d34bdfd1a45926266c6154decbc64b239a6ee48986e76d218dbc44e9390d71",
+      "sig": "0x5b07e890568ebe3b72eb588c4685592001a2514813c107728376a3f290752e503fda55bbb90d4d2e686af819de6349b0adefcc7416df7d81353ddfb653bed4d11c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_d8b9c26fd5a7a5dcd7d4cb3e",
+      "principalId": "org-acme",
+      "seq": 36,
+      "prev": "0x66d34bdfd1a45926266c6154decbc64b239a6ee48986e76d218dbc44e9390d71",
+      "ts": "2026-10-10T20:56:01.741Z",
+      "kind": "subscription.refused",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "data": {
+        "subscriptionId": "sub_7554a8310b154466bda7a114",
+        "reason": "too early",
+        "nextAllowedAt": "2026-10-10T20:56:02.709Z",
+        "status": "active",
+        "refusalsSinceLastReceipt": 1
+      },
+      "hash": "0x00196332097b581129c5d8de62052db86873ce422c30382a1050aca532566874",
+      "sig": "0x3cb30adcd009ad7bc8b77560b4dea3d853ddbe8b797b26f738efed2a7e21d2da1405118b5281df4c11586c43199d79d8989f7c4b82f0b265616d312ec82dcfcc1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_e492564abf21733c2f5e5cda",
+      "principalId": "org-acme",
+      "seq": 37,
+      "prev": "0x00196332097b581129c5d8de62052db86873ce422c30382a1050aca532566874",
+      "ts": "2026-10-10T20:56:02.873Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_62ef747874091b2bd06521d7",
+      "intentHash": "0x4b622c937dff8c2b01cc4d102bc0670efcbf740f6a9f2b9decba8b809efac6db",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "charge",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:02.859Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:02.859Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 90000 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 90000 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 90000 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 90000 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 6+1 vs 20 payments, 90000+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "reference": "cycle-2",
+        "units": null
+      },
+      "hash": "0xf2ab6f7a3083f63ccc1358faffc7f5d984b0fb6d4a1d479cc6916b88d8d42d88",
+      "sig": "0x5c04f710bd5012ce99162c2745639670a15075547572694ad2c4be56f53c7b0b4a617c593889b3ad12d69a40b5227295da21b559af222cebb8ce61cf1b6855a71b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_316b15a8f132fbc8387962a1",
+      "principalId": "org-acme",
+      "seq": 38,
+      "prev": "0xf2ab6f7a3083f63ccc1358faffc7f5d984b0fb6d4a1d479cc6916b88d8d42d88",
+      "ts": "2026-10-10T20:56:03.417Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_62ef747874091b2bd06521d7",
+      "intentHash": "0x4b622c937dff8c2b01cc4d102bc0670efcbf740f6a9f2b9decba8b809efac6db",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0xbcb53f640e596a1efc32ad6ccf2b0900fa645179aab3a755a0e42f910a82d560",
+        "blockNumber": "23",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/feed",
+        "nonce": "0xc3ddd31051bb4cad77a7e72c391ec11b57eada3d135f129bd23121e50b392a34",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_3016b1e9e81196101f7bd0bb",
+        "subscriptionId": "sub_7554a8310b154466bda7a114",
+        "viaCharge": true,
+        "reference": "cycle-2",
+        "units": null
+      },
+      "hash": "0xbd0c76e31578bc81deae22f02612edea0a77bf4b8710d88d992181083d87d17e",
+      "sig": "0x7c387787ea569e25a8ae95f6198db482a2a4ab85e22bb3ec1a9bc696a55fd3ac1c647ac089bd529166b2316487ac7574fa40e7d72076700077940e87c1a5b0751b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_a9fddcd407a90b6b1a06ac78",
+      "principalId": "org-acme",
+      "seq": 39,
+      "prev": "0xbd0c76e31578bc81deae22f02612edea0a77bf4b8710d88d992181083d87d17e",
+      "ts": "2026-10-10T20:56:03.419Z",
+      "kind": "subscription.charged",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_62ef747874091b2bd06521d7",
+      "intentHash": "0x4b622c937dff8c2b01cc4d102bc0670efcbf740f6a9f2b9decba8b809efac6db",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "data": {
+        "subscriptionId": "sub_7554a8310b154466bda7a114",
+        "charges": 2,
+        "totalCharged": "20000",
+        "amount": "10000",
+        "txHash": "0xbcb53f640e596a1efc32ad6ccf2b0900fa645179aab3a755a0e42f910a82d560",
+        "status": "active"
+      },
+      "hash": "0xdd65f0a1c0ac9ab6f0414f158c04acde5504e6d1d8a9b0a3939dbc7ab6eea9c4",
+      "sig": "0xd55e9b3e990bbf800ca40a7a229b97b3715bb34e949bd2b162460ac7bfcabcfb167a13ccb6d5df60c600f64c04d7814e55a57197e7d735a6850299651c56e4451c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_69435aec1efcfaf2f0d1c645",
+      "principalId": "org-acme",
+      "seq": 40,
+      "prev": "0xdd65f0a1c0ac9ab6f0414f158c04acde5504e6d1d8a9b0a3939dbc7ab6eea9c4",
+      "ts": "2026-10-10T20:56:03.425Z",
+      "kind": "subscription.cancelled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "data": {
+        "subscription": {
+          "v": 1,
+          "id": "sub_7554a8310b154466bda7a114",
+          "principalId": "org-acme",
+          "agentId": "research-agent",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "payee": {
+            "url": "http://127.0.0.1:4403/v1/feed",
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          },
+          "resource": "/v1/feed",
+          "purpose": "research",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "terms": {
+            "kind": "fixed",
+            "amountPerCharge": "10000",
+            "interval": "1s",
+            "maxCharges": 3,
+            "expiresAt": "2026-11-09T20:56:01.628Z"
+          },
+          "chargeUrl": "http://127.0.0.1:4402/v1/subscriptions/sub_7554a8310b154466bda7a114/charges",
+          "status": "cancelled",
+          "createdAt": "2026-10-10T20:56:01.629Z",
+          "charges": 2,
+          "totalCharged": "20000",
+          "lastChargedAt": "2026-10-10T20:56:03.415Z",
+          "payeeSubscriptionId": "psub_1",
+          "refusals": 0,
+          "lastRefusedAt": "2026-10-10T20:56:01.739Z",
+          "cancelledAt": "2026-10-10T20:56:03.424Z"
+        }
+      },
+      "hash": "0x8bfce54451b054a754c3e7018ebfff73c663465117e8d906318b075ea5caffcf",
+      "sig": "0x36e00e93eff41bb08ebdeb47e97eef46ab252b25706f40938ae8e4b29de7a9d5192a925c7f818cfb11a98d0f92dfb26e80234163619ddc587a7a63d93020c5a71b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_bfef1509b2fecff4be5b4dab",
+      "principalId": "org-acme",
+      "seq": 41,
+      "prev": "0x8bfce54451b054a754c3e7018ebfff73c663465117e8d906318b075ea5caffcf",
+      "ts": "2026-10-10T20:56:03.432Z",
+      "kind": "subscription.refused",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "subscriptionId": "sub_7554a8310b154466bda7a114",
+      "rail": "mpp",
+      "data": {
+        "subscriptionId": "sub_7554a8310b154466bda7a114",
+        "reason": "subscription is cancelled",
+        "status": "cancelled",
+        "refusalsSinceLastReceipt": 1
+      },
+      "hash": "0x69c689256e90d2d8faaf4a4d444b631ee0c9b22353a49282d3d3261161f33916",
+      "sig": "0x0128ff4040a9e5c815918e00412bae471d44f28616c7f7000e4ec23c6d960ce649edc7837e774c7f58d0011dd37944f58e7f279e94ad07c6c0c5bbc1b8f963971c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_fa7145f3f21739dc874a5c39",
+      "principalId": "org-acme",
+      "seq": 42,
+      "prev": "0x69c689256e90d2d8faaf4a4d444b631ee0c9b22353a49282d3d3261161f33916",
+      "ts": "2026-10-10T20:56:03.448Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_c61fc39d26a87cfe4a871b55",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:03.444Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:03.444Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 100000 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 100000 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 100000 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 100000 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 7+1 vs 20 payments, 100000+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "5000"
+      },
+      "hash": "0x9ac75496dd13ac1a16aaf59efb9cbbfc8a139bbfab0e85b7d39bae172d62a8e6",
+      "sig": "0x1504f5513b5ca9c67344097a84e3fda99ee5efff6fcb16db0ee1c06da8acc481175a71b20a10a4b49382d754c7e7158c939988ac0c8aa06df45b984d891456e31b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_e94cba7bc31de476bbf569a5",
+      "principalId": "org-acme",
+      "seq": 43,
+      "prev": "0x9ac75496dd13ac1a16aaf59efb9cbbfc8a139bbfab0e85b7d39bae172d62a8e6",
+      "ts": "2026-10-10T20:56:03.464Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_c61fc39d26a87cfe4a871b55",
+      "intentHash": "0xf65c2d92ba97224749fc90b2ea4508c46e5cf17006889641e40ca56af040b7d9",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 100 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:03.456Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:03.456Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 100000 + 100 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 100000 + 100 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 100000 + 100 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 100000 + 100 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 7+1 vs 20 payments, 100000+100 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "100",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x68413d75b47ba6dca64e5955e3fb5133d8ec630bdaeb350613f2563f6c63dd8c",
+      "sig": "0x5666bb5f0a234a940b40e08134f58847374cb0953a866d729788c5ed32d9affb6f1766951334c73ae5d57ad7a7028f604ce9b99855cd0e9f8290cc1b44661a181b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_f07a7106ebf5aff2f39729eb",
+      "principalId": "org-acme",
+      "seq": 44,
+      "prev": "0x68413d75b47ba6dca64e5955e3fb5133d8ec630bdaeb350613f2563f6c63dd8c",
+      "ts": "2026-10-10T20:56:03.524Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_c61fc39d26a87cfe4a871b55",
+      "intentHash": "0xf65c2d92ba97224749fc90b2ea4508c46e5cf17006889641e40ca56af040b7d9",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "data": {
+        "txHash": "0x72a4b5085a3830a4bd335060f225c8772289f938e27d2a95453b14bb1825d986",
+        "blockNumber": "24",
+        "amount": "100",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/stream",
+        "nonce": "0xe48482b025707bf95ecee3d715bfa7da51abb828fd5dc32118ca5343e6a6e7ec",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_3ca2630017f5a8acbbb3c064",
+        "approvalId": null,
+        "subscriptionId": "sub_10eed017043ce218d00da4ec"
+      },
+      "hash": "0x4a2c1527f83a3a0a167c018456f6d68e152aa27c0d076697b27eb957c64cbf15",
+      "sig": "0xf61180e9a24af895989546c450c5ab10d276df8ec3130122fcda76fc67721c9c7462985b536e722362c085e485169983c2ef490781c8ab1b090870363cb06bba1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_a90803819f88ae7e915d7408",
+      "principalId": "org-acme",
+      "seq": 45,
+      "prev": "0x4a2c1527f83a3a0a167c018456f6d68e152aa27c0d076697b27eb957c64cbf15",
+      "ts": "2026-10-10T20:56:03.528Z",
+      "kind": "subscription.created",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_c61fc39d26a87cfe4a871b55",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "rail": "mpp",
+      "data": {
+        "subscription": {
+          "v": 1,
+          "id": "sub_10eed017043ce218d00da4ec",
+          "principalId": "org-acme",
+          "agentId": "research-agent",
+          "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+          "payee": {
+            "url": "http://127.0.0.1:4403/v1/stream",
+            "host": "127.0.0.1:4403",
+            "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          },
+          "resource": "/v1/stream",
+          "purpose": "research",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337",
+          "terms": {
+            "kind": "metered",
+            "amountPerCharge": "5000",
+            "interval": "1s",
+            "expiresAt": "2026-11-09T20:56:03.443Z",
+            "unit": "token",
+            "unitPrice": "100"
+          },
+          "chargeUrl": "http://127.0.0.1:4402/v1/subscriptions/sub_10eed017043ce218d00da4ec/charges",
+          "status": "active",
+          "createdAt": "2026-10-10T20:56:03.443Z",
+          "charges": 1,
+          "totalCharged": "100",
+          "lastChargedAt": "2026-10-10T20:56:03.526Z",
+          "payeeSubscriptionId": "psub_2"
+        },
+        "firstChargeTx": "0x72a4b5085a3830a4bd335060f225c8772289f938e27d2a95453b14bb1825d986"
+      },
+      "hash": "0x1b346a63ff557a1e416fd694f07b4e6288c9ffbeb40988ed08b8b2716b90b33c",
+      "sig": "0x994e7c04b8978e1c86feb5911fd245a75d29492406e93dc0fb68061e5b46a9e02a1a2f4014eee641b74871861345dd729e9fc31cb427444e9e827c59d53dd2511b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_635e0b6752d76d86afca09fe",
+      "principalId": "org-acme",
+      "seq": 46,
+      "prev": "0x1b346a63ff557a1e416fd694f07b4e6288c9ffbeb40988ed08b8b2716b90b33c",
+      "ts": "2026-10-10T20:56:04.648Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_46421f79467aff14decba54e",
+      "intentHash": "0xa0e2e0448a9a7f21efd9bb318db9d4520203aca41e36d5803268def721e6af17",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "charge",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 3000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:04.644Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:04.644Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail mpp"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 100100 + 3000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 100100 + 3000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 100100 + 3000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 100100 + 3000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 8+1 vs 20 payments, 100100+3000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "3000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "reference": "30 tokens",
+        "units": 30
+      },
+      "hash": "0x4bc84767bdbba6fc9099028f4eb748b7b05e4cc6f0292c5d09ffbfe7a21bbe0f",
+      "sig": "0xd5402b91e85898218dc6e4b3820325bd9a77fe85b9149aad8ead2f0a070fa4771d913c1fe1ed9eef5716820730d98a8da52e6490bf1af2bcfad05df76c96cb8d1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_07094a6f697af81dbd72fc2b",
+      "principalId": "org-acme",
+      "seq": 47,
+      "prev": "0x4bc84767bdbba6fc9099028f4eb748b7b05e4cc6f0292c5d09ffbfe7a21bbe0f",
+      "ts": "2026-10-10T20:56:05.200Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_46421f79467aff14decba54e",
+      "intentHash": "0xa0e2e0448a9a7f21efd9bb318db9d4520203aca41e36d5803268def721e6af17",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "rail": "mpp",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x645ea30c959ac9fc4f9683671f788637138fa2e02919934bfde52c9174401d0d",
+        "blockNumber": "25",
+        "amount": "3000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/stream",
+        "nonce": "0x327fb506a7e00bbc37ca35fcad338ea11c872eb82a8d6450d7dd3bc2d1d4f59b",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_4b2cfd6ce794ea0a6ac81b92",
+        "subscriptionId": "sub_10eed017043ce218d00da4ec",
+        "viaCharge": true,
+        "reference": "30 tokens",
+        "units": 30
+      },
+      "hash": "0x9e19ef0f79d874a170aed103f49b758e2cf8c2d4cb60fa5a763ea8b017a6c553",
+      "sig": "0x51730f03419e41ddb70c3beeb4e83aa7199d0cdc3e582327089df8c8b15ac3dd261f79d60a20fc765d2d881aa079996bfc67633ed99816eafb4d285dabd402181c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_d98f91ba545c39f54ff7af33",
+      "principalId": "org-acme",
+      "seq": 48,
+      "prev": "0x9e19ef0f79d874a170aed103f49b758e2cf8c2d4cb60fa5a763ea8b017a6c553",
+      "ts": "2026-10-10T20:56:05.223Z",
+      "kind": "subscription.charged",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_46421f79467aff14decba54e",
+      "intentHash": "0xa0e2e0448a9a7f21efd9bb318db9d4520203aca41e36d5803268def721e6af17",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "rail": "mpp",
+      "data": {
+        "subscriptionId": "sub_10eed017043ce218d00da4ec",
+        "charges": 2,
+        "totalCharged": "3100",
+        "amount": "3000",
+        "txHash": "0x645ea30c959ac9fc4f9683671f788637138fa2e02919934bfde52c9174401d0d",
+        "status": "active"
+      },
+      "hash": "0x1985b133e9b4d3b1bea62a807cca7e5c9e37900bf340933c4759e7a8e23ebfd8",
+      "sig": "0x044d100c9058c622f9e9cbecb3a37b46c8f665af1db63baa4616df25f66f1b7a386ce871e28b5a22cb9db269f568765f28d13722a3a42f0da43fbd816d74b9a61b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_3be78a304d2bb3b4a009fd59",
+      "principalId": "org-acme",
+      "seq": 49,
+      "prev": "0x1985b133e9b4d3b1bea62a807cca7e5c9e37900bf340933c4759e7a8e23ebfd8",
+      "ts": "2026-10-10T20:56:06.356Z",
+      "kind": "subscription.refused",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "subscriptionId": "sub_10eed017043ce218d00da4ec",
+      "rail": "mpp",
+      "data": {
+        "subscriptionId": "sub_10eed017043ce218d00da4ec",
+        "reason": "charge exceeds amountPerCharge",
+        "amount": "6000",
+        "status": "active",
+        "refusalsSinceLastReceipt": 1
+      },
+      "hash": "0x34ce77f4a27fdd39363d5d58707ff1b973fa01f5f10b29b5fa5f8e1a6fb7e190",
+      "sig": "0xd67f2d973a8db82dbcca6501ca7ed018ac3b1ba7803ff079f7a93633a4456a23244bb934a71d925c77960c573aace07e47e39e514f048109d2b3e4b1e2e4797e1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_d5d38ef053afdcace3e812ca",
+      "principalId": "org-acme",
+      "seq": 50,
+      "prev": "0x34ce77f4a27fdd39363d5d58707ff1b973fa01f5f10b29b5fa5f8e1a6fb7e190",
+      "ts": "2026-10-10T20:56:06.374Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f00e3e1af5fb282f86830259",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.368Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.368Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 103100 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 103100 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 103100 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 103100 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 9+1 vs 20 payments, 103100+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "10000"
+      },
+      "hash": "0x7b190be78836e684b575f72c8a1a65dac05960a14a6a7de546ca608ea39c1b23",
+      "sig": "0xe4dcf7ae63bcbf0805639ab145d119b67c53495e722acfe35b84b159836a3c843dd4b9f1d4329b0838c066c846fc53a854093e6c334cfc9c4af5aaa36149f7741c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_3745bc9deecce822faf45f43",
+      "principalId": "org-acme",
+      "seq": 51,
+      "prev": "0x7b190be78836e684b575f72c8a1a65dac05960a14a6a7de546ca608ea39c1b23",
+      "ts": "2026-10-10T20:56:06.388Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f00e3e1af5fb282f86830259",
+      "intentHash": "0xe545fb6d58ce446cc0e2375ff61bc32c4eaa43b7a22094bfab604a745f1cfe0a",
+      "rail": "l402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 6250 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.384Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.384Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail l402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 103100 + 6250 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 103100 + 6250 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 103100 + 6250 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 103100 + 6250 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 9+1 vs 20 payments, 103100+6250 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "6250",
+        "onchain": {
+          "ok": true,
+          "reason": "not applicable (lightning)"
+        },
+        "quote": {
+          "payTo": "0x0000000000000000000000000000000000000000",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "lightning",
+          "amountSats": "10",
+          "satsPerUsdc": 1600
+        }
+      },
+      "hash": "0x0d4bcacc5a65447d9e46fe25c629b0e05e84a023efc18a804744c8f211349208",
+      "sig": "0xb23fc078fcfc34d07f93aa4acccf8754c9669f10f724eafac73bbbf2a1b444e00138246632f9f15a2204b24e52ce750522ed51779ebf41c6641f5e9042abe2ad1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_9a3199dfa70804adb7869a98",
+      "principalId": "org-acme",
+      "seq": 52,
+      "prev": "0x0d4bcacc5a65447d9e46fe25c629b0e05e84a023efc18a804744c8f211349208",
+      "ts": "2026-10-10T20:56:06.399Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_f00e3e1af5fb282f86830259",
+      "intentHash": "0xe545fb6d58ce446cc0e2375ff61bc32c4eaa43b7a22094bfab604a745f1cfe0a",
+      "rail": "l402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0xce5c28177dff710fa379a3d066ec00e91a814202c92cf85a620a2c9fa68b3763",
+        "blockNumber": "0",
+        "amount": "6250",
+        "payee": "0x0000000000000000000000000000000000000000",
+        "lightning": {
+          "preimage": "c61a4d2db6af2f698b48dc3ec7e858f6b0888d0fbd824ab1cab41b6ac128d934",
+          "paymentHash": "ce5c28177dff710fa379a3d066ec00e91a814202c92cf85a620a2c9fa68b3763",
+          "amountSats": "10",
+          "satsPerUsdc": 1600,
+          "delivered": true
+        },
+        "payloadKind": "l402",
+        "resource": "/v1/lightning-quote",
+        "ledgerEntryId": "led_8773b9a03de83689ff560171",
+        "delivered": true,
+        "payeeStatus": 200
+      },
+      "hash": "0x28a2eb09a05ec72dfe6ef0c3e7c1f89e8e7b0ba911b57d7757be79757638e82e",
+      "sig": "0xa4244d05cfb63ee2f2d036b3b12556fe8b6a1eb1815d7a3495f451853eab37a563eb1ad9372a42a4c9ba1e3b778af24eaac6161f6840dd34919c43be25e798c71c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_141d4644b4f0d53bb3297e75",
+      "principalId": "org-acme",
+      "seq": 53,
+      "prev": "0x28a2eb09a05ec72dfe6ef0c3e7c1f89e8e7b0ba911b57d7757be79757638e82e",
+      "ts": "2026-10-10T20:56:06.408Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_a6d00acb7f3152f9148acf7c",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.405Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.405Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 109350 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 109350 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 109350 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 109350 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 10+1 vs 20 payments, 109350+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0xc8b17dbe5e89aa9baf0a24c593311bac1726ba5491a7c9ee16bf3eef2e28d867",
+      "sig": "0xee1dfbb751474762cda13fb4034cf23491e8a631b7bfcfa67b41a83114687d831c159df31bbd5759decd94b3b414664691d424c293360c9a604b3178877f71701b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_a022574aa0a587ce743f8f59",
+      "principalId": "org-acme",
+      "seq": 54,
+      "prev": "0xc8b17dbe5e89aa9baf0a24c593311bac1726ba5491a7c9ee16bf3eef2e28d867",
+      "ts": "2026-10-10T20:56:06.422Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_a6d00acb7f3152f9148acf7c",
+      "intentHash": "0xce38bb7d2626e79b85225a6fff4af1791761dd28c04a4ae158ea458b8191a8af",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.413Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:06.413Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 109350 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 109350 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 109350 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 109350 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 10+1 vs 20 payments, 109350+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xd6d291d8c501ed68778d1befefd19e5840af2a8fcdcc4d97bedff4fec8a3fa0a",
+      "sig": "0x220a4c7951a4db337b938befb5cfc103670fbe23f459a4075f07ca7b016ba6866eb913970ca71f6ab672a217d0fc82110423725acdbeb3c02e8e137dd00cfcd11c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_0648234ad93b6296570f69d0",
+      "principalId": "org-acme",
+      "seq": 55,
+      "prev": "0xd6d291d8c501ed68778d1befefd19e5840af2a8fcdcc4d97bedff4fec8a3fa0a",
+      "ts": "2026-10-10T20:56:07.012Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_a6d00acb7f3152f9148acf7c",
+      "intentHash": "0xce38bb7d2626e79b85225a6fff4af1791761dd28c04a4ae158ea458b8191a8af",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x5535d31ab5fde516e527c1c918830f5e92712dc5ca10c09fb58d4de66ca48707",
+        "blockNumber": "26",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x83815c4588688346ae3ab9bc9dd8e3305acfe38762b943aa34dfb97396d82c13",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_cf5c1a31aaa1fbb5a956e629",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x50322c8aa888fa1a9f1fef51f4d496affc9b602a45edaad21735845605d39b1c",
+      "sig": "0x59411fd0c2cd1647194f61312c145e88c98b6e600f4ac6480755d0af810a35c2253cda694852e3efc8b6d5ae5894b7d50ca868924d00e3a089ca0e6a63a1f0b31c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_76cff65277b7a60b20fd9cd0",
+      "principalId": "org-acme",
+      "seq": 56,
+      "prev": "0x50322c8aa888fa1a9f1fef51f4d496affc9b602a45edaad21735845605d39b1c",
+      "ts": "2026-10-10T20:56:07.039Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_cb66cc043566dfbf61e0b4a1",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.030Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.030Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 119350 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 119350 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 119350 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 119350 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 11+1 vs 20 payments, 119350+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0xde0c82bf9f5e05b7999154eb08d0f3344cb282f33b84ae78c3e8884a39b05e23",
+      "sig": "0xb42ad98b3474941931f8a325bc3652ebe11feca0efbbd6044b7eb9da93c22a03738fe2ced8f4dc704e24dfa0067ccab6790b0171fab5c9361d4e7fd0057f65291b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_bcf85e5566cf0dac1e68bb29",
+      "principalId": "org-acme",
+      "seq": 57,
+      "prev": "0xde0c82bf9f5e05b7999154eb08d0f3344cb282f33b84ae78c3e8884a39b05e23",
+      "ts": "2026-10-10T20:56:07.071Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_cb66cc043566dfbf61e0b4a1",
+      "intentHash": "0xe20cd63e2940591cbe4cd64b0d6d3fb675add1c62663b22223bd241a373d61d7",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.055Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.055Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 119350 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 119350 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 119350 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 119350 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 11+1 vs 20 payments, 119350+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0x3723a2b59d92c043fabab5f1dfd1010c4f6283a047292b5e49eaa5988bb0fc07",
+      "sig": "0x3c0b9d3256eb77090d6c4439c11db10b3fafa854f2f8c39c2f30b646951811963f1b5d72d928efb6aa9adfa00931f7c344d8597fbe63df63e836bfb83bf73a191b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_dc58095631f654dc7c950874",
+      "principalId": "org-acme",
+      "seq": 58,
+      "prev": "0x3723a2b59d92c043fabab5f1dfd1010c4f6283a047292b5e49eaa5988bb0fc07",
+      "ts": "2026-10-10T20:56:07.195Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_cb66cc043566dfbf61e0b4a1",
+      "intentHash": "0xe20cd63e2940591cbe4cd64b0d6d3fb675add1c62663b22223bd241a373d61d7",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0x7b1243d4e2f0f01f9883849fcdf9f631c879cd8daf664614d9024e7e163fc6d2",
+        "blockNumber": "27",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x462e548e066e54a2b57a128b6bdde332da9d82254a5a978b0e52e665408353b6",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_7df701cb8c20f8a8dc8989ff",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x89d5ba73390a445b4b7a21d7f4bf706be9151f2a2fd8dd69e4d0069c94afdeed",
+      "sig": "0x9346dc0f5316767e175b659433bbcc0029c83eb0cdc1d7af07cd07a1e7e1cbd73c2a65e0ac452ec9bbe96172b331b1d8674d7a931bd10ff3a6e8f8c9caa364c71b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_82986a5a40f40d3450e0e13e",
+      "principalId": "org-acme",
+      "seq": 59,
+      "prev": "0x89d5ba73390a445b4b7a21d7f4bf706be9151f2a2fd8dd69e4d0069c94afdeed",
+      "ts": "2026-10-10T20:56:07.203Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_53e0e21b549544fa2c070b78",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.201Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.201Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 129350 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 129350 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 129350 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 129350 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 12+1 vs 20 payments, 129350+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x5003afdb444f0223c0b919be86bf953f25ae2487b7640d61a1f38850a5b85b57",
+      "sig": "0x3bfde0a189269b4d142788301f94669e3cee28ee59a312850cce32c06330bd4e61859e9fefd758a6df37f3c71996b1696acf2545fe45098621d15043fcca58b21b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_0c3da5ac6002f5559dcb10cc",
+      "principalId": "org-acme",
+      "seq": 60,
+      "prev": "0x5003afdb444f0223c0b919be86bf953f25ae2487b7640d61a1f38850a5b85b57",
+      "ts": "2026-10-10T20:56:07.218Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_53e0e21b549544fa2c070b78",
+      "intentHash": "0x609b16ee42ad4663deefaa6f940f69b8eed7dba044966fb902530f8a55cc19bf",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.211Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.211Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 129350 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 129350 + 10000 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 129350 + 10000 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 129350 + 10000 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 12+1 vs 20 payments, 129350+10000 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xa62df53cd069fe63f2b880209a0eecbd1413be586bef14ca5cb069b29428e890",
+      "sig": "0xe67a38a6f6435b5e04356732e3f46588da2773965dc0939b35cd19c4b5889a2d1ea7a47f6a4802e9967eba077171d21b847182c0c1fcaa28e7cf761753008f071c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_f03cea7fa0066ef5514362a6",
+      "principalId": "org-acme",
+      "seq": 61,
+      "prev": "0xa62df53cd069fe63f2b880209a0eecbd1413be586bef14ca5cb069b29428e890",
+      "ts": "2026-10-10T20:56:07.814Z",
+      "kind": "payment.settled",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_53e0e21b549544fa2c070b78",
+      "intentHash": "0x609b16ee42ad4663deefaa6f940f69b8eed7dba044966fb902530f8a55cc19bf",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "txHash": "0xb0e2c82147b4367f25b314948aa910d64de94173aab26b05163e1b1f0ad7e91b",
+        "blockNumber": "28",
+        "amount": "10000",
+        "payee": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "payloadKind": "agent-account",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chain": "eip155:31337",
+        "resource": "/v1/quote?symbol=ETH",
+        "nonce": "0x04c8e1b60fda35a1d3e1da5f3af245a5c98797cf320611bcdf14d61d32128aee",
+        "budgets": [
+          "research-daily",
+          "research",
+          "org"
+        ],
+        "lineage": [
+          "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9"
+        ],
+        "ledgerEntryId": "led_416bbb12713b0b265ec729b0",
+        "approvalId": null,
+        "subscriptionId": null
+      },
+      "hash": "0x95a9601a85abb9aba6bcd67627482f5807a3fe455111617f46372b1fb4ea2c1d",
+      "sig": "0x2c885fa48cef520a4d1835d3578128cc767bcbc42e2ec233357249547267fa4f5c871d283440097db98d2011b2e36b779c48ca08c91e6b36ac274be5f89102901c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_072ba81eeb7dddaa5f114495",
+      "principalId": "org-acme",
+      "seq": 62,
+      "prev": "0x95a9601a85abb9aba6bcd67627482f5807a3fe455111617f46372b1fb4ea2c1d",
+      "ts": "2026-10-10T20:56:07.836Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d9e312699660c315b41703b5",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "precheck",
+        "effect": "allow",
+        "reasons": [],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 0 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.832Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.832Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail auto"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 139350 + 0 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": true,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 139350 + 0 vs cap 140000"
+          },
+          {
+            "check": "budget:research",
+            "ok": true,
+            "detail": "monthly from 2026-10-01T00:00:00.000Z: spent 139350 + 0 vs cap 2000000"
+          },
+          {
+            "check": "budget:org",
+            "ok": true,
+            "detail": "lifetime: spent 139350 + 0 vs cap 5000000"
+          },
+          {
+            "check": "velocity:principal-burst",
+            "ok": true,
+            "detail": "principal org-acme in 10m: 13+1 vs 20 payments, 139350+0 vs ∞"
+          },
+          {
+            "check": "rule:allow-research-data",
+            "ok": true,
+            "detail": "Research purchases over any rail, including Lightning"
+          }
+        ],
+        "matchedRules": [
+          "allow-research-data"
+        ],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x8c8788d7cf03265e2cd54a491e1e1a8b873dc2abc4344fda5dafe6918f64b01f",
+      "sig": "0x22f155ff80f10ca3a564fcea3292d89c5a156f3b8d17707255eec8ebfb8a6bac6a8ad8b527397b23e3266db2096334dce89ade61e52dfae417ed89949e9f7bfc1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_186cbb3e89a9a135f8dcb8e9",
+      "principalId": "org-acme",
+      "seq": 63,
+      "prev": "0x8c8788d7cf03265e2cd54a491e1e1a8b873dc2abc4344fda5dafe6918f64b01f",
+      "ts": "2026-10-10T20:56:07.852Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d9e312699660c315b41703b5",
+      "intentHash": "0x99af3d799e2ae647a40ec4fb6e8e7674ce0429a5b77f2a91eedb6fb939a229c3",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "deny",
+        "reasons": [
+          "BUDGET:research-daily"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "caveat:per_tx_max",
+            "ok": true,
+            "detail": "amount 10000 vs max 300000"
+          },
+          {
+            "check": "caveat:expires_at",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.843Z vs 2026-10-11T20:55:55.709Z"
+          },
+          {
+            "check": "caveat:not_before",
+            "ok": true,
+            "detail": "now 2026-10-10T20:56:07.843Z vs undefined"
+          },
+          {
+            "check": "caveat:allowed_payees",
+            "ok": true,
+            "detail": "payee 127.0.0.1:4403/0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+          },
+          {
+            "check": "caveat:allowed_rails",
+            "ok": true,
+            "detail": "rail x402"
+          },
+          {
+            "check": "caveat:purposes",
+            "ok": true,
+            "detail": "purpose research"
+          },
+          {
+            "check": "caveat:chains",
+            "ok": true,
+            "detail": "chain eip155:31337"
+          },
+          {
+            "check": "lineage_cap:cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+            "ok": true,
+            "detail": "spent 139350 + 10000 vs cap 1000000"
+          },
+          {
+            "check": "budget:research-daily",
+            "ok": false,
+            "detail": "daily from 2026-10-10T00:00:00.000Z: spent 139350 + 10000 vs cap 140000"
+          }
+        ],
+        "matchedRules": [],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "chain": "eip155:31337"
+        }
+      },
+      "hash": "0xb2183e1bb33fb5ab40bb78ebea76fab42b9d1e8461386c307f041170e0579a67",
+      "sig": "0x4e56695de7e08458a05adf49326edb68ea3087773268bc2e252a11dd5e96ce0675a97b843e5670377c01d4cb4f119fa7bbf950f2c6d637c6948f54b3e7203e761c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_7f836bfc1a575c2e2e85ea13",
+      "principalId": "org-acme",
+      "seq": 64,
+      "prev": "0xb2183e1bb33fb5ab40bb78ebea76fab42b9d1e8461386c307f041170e0579a67",
+      "ts": "2026-10-10T20:56:07.857Z",
+      "kind": "payment.denied",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_d9e312699660c315b41703b5",
+      "intentHash": "0x99af3d799e2ae647a40ec4fb6e8e7674ce0429a5b77f2a91eedb6fb939a229c3",
+      "rail": "x402",
+      "policyHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+      "data": {
+        "stage": "quote",
+        "effect": "deny",
+        "reasons": [
+          "BUDGET:research-daily"
+        ],
+        "amount": "10000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        }
+      },
+      "hash": "0xf9c500334eeeace14749964d4f699d28498f976f1bbab397648d02627c03a79c",
+      "sig": "0x53168f025d981cc332878d0b82a652696949559d94c3b00a16fe112652164c8a44c811b8f7b06bd31d93a41699dd814ffdfc1c6f1a594f5caa429a8b52837deb1b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_121607b93c8b1f56fe17f315",
+      "principalId": "org-acme",
+      "seq": 65,
+      "prev": "0xf9c500334eeeace14749964d4f699d28498f976f1bbab397648d02627c03a79c",
+      "ts": "2026-10-10T20:56:07.904Z",
+      "kind": "policy.updated",
+      "policyHash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+      "data": {
+        "version": 2,
+        "prevHash": "0x66250b3e3ef531ce9f05cb1ebed0cd36377767f610ac3dda32a26ad55280442c",
+        "hash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+        "activatedBy": "alice@org-acme",
+        "diff": {
+          "budgets": [],
+          "agents": [],
+          "rules": [
+            "~escalate-above-3c",
+            "+deny-full-reports"
+          ],
+          "velocity": []
+        },
+        "impact": [
+          {
+            "intentId": "int_4c9ec9d01dd912e752c8e376",
+            "resource": "/v1/report?symbol=ETH",
+            "amount": "40000",
+            "wasEffect": "allow",
+            "nowEffect": "deny",
+            "reasons": [
+              "RULE_DENY:deny-full-reports"
+            ]
+          }
+        ]
+      },
+      "hash": "0x25e4c197fc03d64025b95db4fa1291588b40ae0811ae6bf7929fa53de806c898",
+      "sig": "0xc17fe906ca729727752ac3303d88f73b47c40e692f8fabdd192807fe01c3039655f7e7f6d1d4704ab5f9f1a36fbbbd07dff5283f92bfe49da165c2f6b00e81321b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_f6b085264531917f589586fe",
+      "principalId": "org-acme",
+      "seq": 66,
+      "prev": "0x25e4c197fc03d64025b95db4fa1291588b40ae0811ae6bf7929fa53de806c898",
+      "ts": "2026-10-10T20:56:07.921Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_2a27ad27e8601dfb91e421b5",
+      "intentHash": "0x716c4dd384c0dfe70757ed363d46ec02961c138b776024d687aa40d236e13840",
+      "policyHash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+      "rail": "x402",
+      "data": {
+        "stage": "simulate",
+        "effect": "deny",
+        "reasons": [
+          "RULE_DENY:deny-full-reports"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": true
+          },
+          {
+            "check": "rule:deny-full-reports",
+            "ok": false,
+            "detail": "Reports were pulled from the research budget on 8 Oct 2026"
+          }
+        ],
+        "matchedRules": [
+          "deny-full-reports"
+        ],
+        "amount": "40000",
+        "onchain": {
+          "ok": true,
+          "reason": null
+        },
+        "quote": {
+          "quoted": true,
+          "amount": "40000",
+          "payTo": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "rail": "x402",
+          "exceedsMax": false
+        }
+      },
+      "hash": "0xc0055965ff377f2d026b23295a3ba6351f74f66c964cadc9d84dad1e17c33ea5",
+      "sig": "0xf6d9ebbbc6013b0750d3cb84ea561e6b26e3b703adf675908db3c60a5a1da71513f450cf9b29c0df15abb28d7148b5f00ebc684565046fb37267c4a3cacc40ee1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_68d73c0ad47918615d6b622d",
+      "principalId": "org-acme",
+      "seq": 67,
+      "prev": "0xc0055965ff377f2d026b23295a3ba6351f74f66c964cadc9d84dad1e17c33ea5",
+      "ts": "2026-10-10T20:56:08.459Z",
+      "kind": "killswitch",
+      "data": {
+        "on": true,
+        "reason": "demo: suspected compromise",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "txHash": "0xf31264298f6d4680df3b9fd7c31a60d504065da41ac5a88ce263fa15c53332e0",
+        "onchain": "paused"
+      },
+      "hash": "0x2461c3877db4187caacdbf0cf0cdf6edbb34e3fd5e3c2893025dba7723baf001",
+      "sig": "0xbbeb8b82ccba559dd2fdaa747d0e50cacaef9e9314e40c0cd0b5733c233079e57e95ad35bd9a821785dd6ba4e6862eb808dbbde94f71f37680ca2e6ee4bf780f1c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_e6a59d88b07171e4a5c8a277",
+      "principalId": "org-acme",
+      "seq": 68,
+      "prev": "0x2461c3877db4187caacdbf0cf0cdf6edbb34e3fd5e3c2893025dba7723baf001",
+      "ts": "2026-10-10T20:56:08.489Z",
+      "kind": "decision",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_75d494cfe6cb9041a2e857e9",
+      "policyHash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+      "data": {
+        "stage": "precheck",
+        "effect": "deny",
+        "reasons": [
+          "KILL_SWITCH"
+        ],
+        "checks": [
+          {
+            "check": "kill_switch",
+            "ok": false,
+            "detail": "principal kill switch engaged"
+          }
+        ],
+        "matchedRules": [],
+        "amount": "0",
+        "ceiling": "20000"
+      },
+      "hash": "0x18c658a4e22c8dcfc29a8d0830a1d14b92e2beb2bb8c3cdad787e58834674a96",
+      "sig": "0xbe420907fc22f460466acd778a2106a8f99bd0a01272015ae9ae14705df69cd275b91f491ad4d2aa35be7fa41141f384e3004f0f2d3ea697fde7c506d9d347f21b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_46bf3cda43f326a89517d2f1",
+      "principalId": "org-acme",
+      "seq": 69,
+      "prev": "0x18c658a4e22c8dcfc29a8d0830a1d14b92e2beb2bb8c3cdad787e58834674a96",
+      "ts": "2026-10-10T20:56:08.496Z",
+      "kind": "payment.denied",
+      "agentId": "research-agent",
+      "credentialId": "cred_3ddcbf9379a9621dde6de0af:8753de6245f3f7f9",
+      "intentId": "int_75d494cfe6cb9041a2e857e9",
+      "policyHash": "0x1c79c3f47c2fd9be53cd32e7032486cc10e5421558bc9166012db17496e9304c",
+      "data": {
+        "stage": "precheck",
+        "effect": "deny",
+        "reasons": [
+          "KILL_SWITCH"
+        ]
+      },
+      "hash": "0x7e80475ab357669f7aae32e9ca6edb0db390629599e557b8bf7b8baf420c78d4",
+      "sig": "0x125126eef15d39cedb14361e47654610f09c4dc371a532eeab5f0936b2a4214e115f25f48c24f0eed6b7f59d5ce496a401a3c2833c72c027e0da9c55432aa9911b"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_0146d38a6f64e4581df34edc",
+      "principalId": "org-acme",
+      "seq": 70,
+      "prev": "0x7e80475ab357669f7aae32e9ca6edb0db390629599e557b8bf7b8baf420c78d4",
+      "ts": "2026-10-10T20:56:08.529Z",
+      "kind": "killswitch",
+      "data": {
+        "on": false,
+        "reason": "demo: cleared by gateway (will not unpause chain)",
+        "account": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "txHash": null,
+        "onchain": "owner-required: NotOwner(…)"
+      },
+      "hash": "0x92dd45f84ca7fda01fd99eb1abbcb4fe5b7a80521ba549e1a6b122f2c90172d4",
+      "sig": "0xa93924ef1c095d8f3bb308adfbf2a532048eb00261ff4472737ba593029b16dd640371d86b5491e0b96280f304150c2006ab7ca62feb73e3aac1b0c73e2095561c"
+    },
+    {
+      "v": 1,
+      "id": "rcpt_317d67aab9d6147fb7b63beb",
+      "principalId": "org-acme",
+      "seq": 71,
+      "prev": "0x92dd45f84ca7fda01fd99eb1abbcb4fe5b7a80521ba549e1a6b122f2c90172d4",
+      "ts": "2026-10-10T20:56:09.130Z",
+      "kind": "evidence.anchored",
+      "data": {
+        "head": "0x92dd45f84ca7fda01fd99eb1abbcb4fe5b7a80521ba549e1a6b122f2c90172d4",
+        "count": 71,
+        "txHash": "0x42b900696e33a102fe9213d17526978282491eb1356e67a8664385d0a78f4ff7",
+        "blockNumber": "31",
+        "registry": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+      },
+      "hash": "0x415c70dcb7fc52e696b957263f8890514f3f1955a62b6220fce8dcbc8dcfd2d8",
+      "sig": "0x316e54f8de41381f6146de552f38e5841ef66c7768d56d815aa19152b900612a3c8d527c31769d25129bcda2b6c5433550c664251b1cc99de151d5b219c4dd8e1c"
+    }
+  ],
+  "anchors": [
+    {
+      "head": "0x92dd45f84ca7fda01fd99eb1abbcb4fe5b7a80521ba549e1a6b122f2c90172d4",
+      "count": 71,
+      "txHash": "0x42b900696e33a102fe9213d17526978282491eb1356e67a8664385d0a78f4ff7",
+      "blockNumber": "31",
+      "registry": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import {
   credentialId,
   agentIdOf,
   lineage,
+  lineageSegments,
   parentOf,
   toPublic,
   encodeCredential,
@@ -35,6 +36,10 @@ const caveatArb: fc.Arbitrary<Exclude<Caveat, { type: "delegate" }>> = fc.oneof(
   list(["x402", "mpp"] as const).map((value) => ({ type: "allowed_rails" as const, value: [...value] })),
   list(["research", "ops", "infra"]).map((value) => ({ type: "purposes" as const, value })),
   list(["eip155:1", "eip155:8453", "eip155:31337"]).map((value) => ({ type: "chains" as const, value })),
+  fc
+    .record({ window: fc.constantFrom("30s", "10m", "1h", "1d"), max_count: fc.option(fc.integer({ min: 1, max: 100 }), { nil: undefined }), max_amount: fc.option(bigStr, { nil: undefined }) })
+    .map((r) => ({ type: "rate_limit" as const, ...Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined)) }) as Extract<Caveat, { type: "rate_limit" }>),
+  fc.constantFrom("A", "B", "C").map((x) => ({ type: "holder_key" as const, jwk: { kty: "OKP" as const, crv: "Ed25519" as const, x: `key-${x}` } })),
 );
 
 describe("credential chain", () => {
@@ -62,6 +67,16 @@ describe("credential chain", () => {
     expect(decodeCredential(encodeCredential(child))).toEqual(child);
   });
 
+  it("splits the chain into per-node segments", () => {
+    const c = root([{ type: "rate_limit", window: "1h", max_count: 5 }]);
+    const child = attenuate(c, [{ type: "per_tx_max", value: "1" }, { type: "rate_limit", window: "10m", max_count: 2 }], { agentId: "sub", nonce: "n1" });
+    const segs = lineageSegments(child);
+    expect(segs.map((s) => s.agentId)).toEqual(["treasury", "sub"]);
+    expect(segs[0]!.segment.map((x) => x.type)).toEqual(["delegate", "rate_limit"]);
+    expect(segs[1]!.segment.map((x) => x.type)).toEqual(["delegate", "per_tx_max", "rate_limit"]);
+    expect(effectiveLimits(child.caveats).rateLimits).toHaveLength(2);
+  });
+
   it("PROPERTY: attenuation is monotonic — a child's effective limits are always a subset of its parent's", () => {
     fc.assert(
       fc.property(fc.array(caveatArb, { maxLength: 6 }), fc.array(caveatArb, { maxLength: 6 }), (parentCaveats, added) => {
@@ -75,24 +90,34 @@ describe("credential chain", () => {
     );
   });
 
-  it("PROPERTY: effective limits are order-insensitive and idempotent under repetition", () => {
+  it("PROPERTY: effective limits are order-insensitive (except the positional holder binding) and idempotent under repetition", () => {
     fc.assert(
       fc.property(fc.array(caveatArb, { maxLength: 6 }), (cs) => {
         const a = effectiveLimits(cs);
         const b = effectiveLimits([...cs].reverse());
         const c = effectiveLimits([...cs, ...cs]);
-        const norm = (e: ReturnType<typeof effectiveLimits>) => JSON.stringify(e, (_k, v) => (v instanceof Set ? [...v].sort() : typeof v === "bigint" ? v.toString() : v));
+        const norm = (e: ReturnType<typeof effectiveLimits>) => JSON.stringify({ ...e, holderKey: undefined }, (_k, v) => (v instanceof Set ? [...v].sort() : typeof v === "bigint" ? v.toString() : v));
         expect(norm(a)).toBe(norm(b));
         expect(norm(a)).toBe(norm(c));
+        expect(c.holderKey).toEqual(a.holderKey); // repetition keeps the last binding
       }),
     );
   });
 
+  it("holder binding can be replaced by delegation but never removed", () => {
+    const bound = root([{ type: "holder_key", jwk: { kty: "OKP", crv: "Ed25519", x: "parent-key" } }]);
+    const rebound = attenuate(bound, [{ type: "holder_key", jwk: { kty: "OKP", crv: "Ed25519", x: "child-key" } }], { agentId: "sub", nonce: "n" });
+    expect(effectiveLimits(rebound.caveats).holderKey?.x).toBe("child-key");
+    expect(isSubsetOf(effectiveLimits(rebound.caveats), effectiveLimits(bound.caveats)).ok).toBe(true);
+    const unbound = effectiveLimits([{ type: "spend_cap", value: "1" }]);
+    expect(isSubsetOf(unbound, effectiveLimits(bound.caveats)).violations).toContain("holderKey");
+  });
+
   it("isSubsetOf detects a wider child (sanity for the verifier)", () => {
-    const parent = effectiveLimits([{ type: "spend_cap", value: "100" }, { type: "allowed_payees", value: ["a"] }]);
+    const parent = effectiveLimits([{ type: "spend_cap", value: "100" }, { type: "allowed_payees", value: ["a"] }, { type: "rate_limit", window: "1h", max_count: 1 }]);
     const wider = effectiveLimits([{ type: "spend_cap", value: "200" }]);
     const r = isSubsetOf(wider, parent);
     expect(r.ok).toBe(false);
-    expect(r.violations).toEqual(["spendCap", "allowedPayees"]);
+    expect(r.violations).toEqual(["spendCap", "allowedPayees", "rateLimits"]);
   });
 });

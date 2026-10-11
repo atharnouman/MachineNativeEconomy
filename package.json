@@ -18,6 +18,7 @@
     "contracts:build": "pnpm --filter @apgw/contracts run build",
     "contracts:test": "pnpm --filter @apgw/contracts run test",
     "demo": "pnpm --filter @apgw/example-thin-slice run demo",
+    "demo:phase1": "pnpm --filter @apgw/example-phase1 run demo",
     "gateway": "pnpm --filter @apgw/gateway run start",
     "payee": "pnpm --filter @apgw/payee run start"
   },
