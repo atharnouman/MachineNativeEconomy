@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { formatUnits, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { connectChain, deployCore, delegateEoaToAccount, grantRootSession, readSession, usdcBalance, type CoreContracts } from "@spendmarshal/devnet";
+import { connectChain, deployCore, delegateEoaToAccount, grantRootSession, readSession, usdcBalance, walletFor, type CoreContracts } from "@spendmarshal/devnet";
 import { buildGateway, type Gateway } from "@spendmarshal/gateway";
 import { buildPayee } from "@spendmarshal/payee";
 import { SpendMarshalAdmin, type PayResponse } from "@spendmarshal/sdk";
@@ -26,6 +26,7 @@ const REPO = join(HERE, "..", "..", "..");
 const LOCAL = join(REPO, "local");
 const CHAIN_ID = 84532;
 const RPC = process.env.SPENDMARSHAL_TESTNET_RPC ?? "https://sepolia.base.org";
+/** "bundled" uses the gateway's own facilitator on the same chain (the fallback if the public one refuses ERC-1271 payers). */
 const FACILITATOR = process.env.SPENDMARSHAL_TESTNET_FACILITATOR ?? "https://x402.org/facilitator";
 const USDC: Address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Circle USDC on Base Sepolia (FiatToken v2, "USDC"/"2")
 const txLink = (h: string) => `https://sepolia.basescan.org/tx/${h}`;
@@ -57,9 +58,24 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   const owner = privateKeyToAccount(ownerKey);
   const gatewayAccount = privateKeyToAccount(gatewayKey);
   const cfo = privateKeyToAccount(generatePrivateKey()); // signs approvals only; needs no funds
-  const treasury = privateKeyToAccount(generatePrivateKey()).address; // the payee's receiving address for this run
 
   const net = connectChain({ rpcUrl: RPC, chainId: CHAIN_ID });
+  // a retired gateway key (renamed testnet-gateway-old.key) hands its ETH to the new one, minus gas
+  const oldKeyFile = join(LOCAL, "testnet-gateway-old.key");
+  if (existsSync(oldKeyFile)) {
+    const oldKey = readFileSync(oldKeyFile, "utf8").trim() as Hex;
+    if (/^0x[0-9a-fA-F]{64}$/.test(oldKey) && privateKeyToAccount(oldKey).address !== gatewayAccount.address) {
+      const oldAccount = privateKeyToAccount(oldKey);
+      const bal = await net.pub.getBalance({ address: oldAccount.address });
+      const gasPrice = await net.pub.getGasPrice();
+      const fee = 21_000n * gasPrice * 2n;
+      if (bal > fee * 2n) {
+        const h = await walletFor(net, oldKey).sendTransaction({ to: gatewayAccount.address, value: bal - fee });
+        await net.pub.waitForTransactionReceipt({ hash: h });
+        log(`swept ${formatUnits(bal - fee, 18)} ETH from the retired gateway key ${oldAccount.address} to the new one: ${txLink(h)}`);
+      }
+    }
+  }
   const chainId = await net.pub.getChainId();
   if (chainId !== CHAIN_ID) throw new Error(`RPC ${RPC} is chain ${chainId}, expected ${CHAIN_ID}`);
   log(`Base Sepolia via ${RPC}; owner ${owner.address} (${addrLink(owner.address)}); gateway ${gatewayAccount.address}`);
@@ -67,23 +83,39 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   // ── 0. funding gate ──────────────────────────────────────────────────────────
   const [ownerEth, gatewayEth, ownerUsdc] = await Promise.all([net.pub.getBalance({ address: owner.address }), net.pub.getBalance({ address: gatewayAccount.address }), usdcBalance(net, USDC, owner.address)]);
   log(`balances: owner ${formatUnits(ownerEth, 18)} ETH / ${toHuman(ownerUsdc)} USDC; gateway ${formatUnits(gatewayEth, 18)} ETH`);
-  if (ownerEth === 0n || gatewayEth === 0n || ownerUsdc < 60_000n) {
+  // one faucet claim is enough: if only the gateway holds ETH, it tops up the owner with a quarter of it
+  if (ownerEth === 0n && gatewayEth > 0n) {
+    const share = gatewayEth / 4n;
+    const w = walletFor(net, gatewayKey);
+    const h = await w.sendTransaction({ to: owner.address, value: share });
+    await net.pub.waitForTransactionReceipt({ hash: h });
+    log(`gateway topped up the owner with ${formatUnits(share, 18)} ETH: ${txLink(h)}`);
+    // public RPC endpoints are load-balanced; a node can lag the receipt by a few seconds
+    for (let i = 0; i < 30 && (await net.pub.getBalance({ address: owner.address })) === 0n; i++) await new Promise((r) => setTimeout(r, 2_000));
+  }
+  const [ownerEth2, gatewayEth2] = await Promise.all([net.pub.getBalance({ address: owner.address }), net.pub.getBalance({ address: gatewayAccount.address })]);
+  if (ownerEth2 === 0n || gatewayEth2 === 0n || ownerUsdc < 60_000n) {
     log("Fund the keys first: Base Sepolia ETH on both addresses (a faucet), at least 0.06 test USDC on the owner (https://faucet.circle.com, Base Sepolia). Then run again.");
-    step("keys funded", false, `owner ETH ${formatUnits(ownerEth, 18)}, gateway ETH ${formatUnits(gatewayEth, 18)}, owner USDC ${toHuman(ownerUsdc)}`);
+    step("keys funded", false, `owner ETH ${formatUnits(ownerEth2, 18)}, gateway ETH ${formatUnits(gatewayEth2, 18)}, owner USDC ${toHuman(ownerUsdc)}`);
     return { steps, verification: null };
   }
-  step("keys funded", true, `owner ${formatUnits(ownerEth, 18)} ETH + ${toHuman(ownerUsdc)} USDC, gateway ${formatUnits(gatewayEth, 18)} ETH`);
+  step("keys funded", true, `owner ${formatUnits(ownerEth2, 18)} ETH + ${toHuman(ownerUsdc)} USDC, gateway ${formatUnits(gatewayEth2, 18)} ETH`);
 
   // ── 1. contracts (deployed once per chain, cached) ───────────────────────────
   mkdirSync(LOCAL, { recursive: true });
   const deployFile = join(LOCAL, "testnet-deploy.json");
   let core: CoreContracts;
+  let treasury: Address; // the payee's receiving address; stable across runs because the root session's allowlist names it
   if (existsSync(deployFile)) {
-    core = JSON.parse(readFileSync(deployFile, "utf8")) as CoreContracts;
+    const cached = JSON.parse(readFileSync(deployFile, "utf8")) as CoreContracts & { treasury?: Address };
+    core = cached;
+    treasury = cached.treasury ?? privateKeyToAccount(generatePrivateKey()).address;
+    if (!cached.treasury) writeFileSync(deployFile, JSON.stringify({ ...core, treasury }, null, 2));
     step("contracts", true, `reusing ${deployFile.replace(REPO, ".")}: AgentAccount impl ${core.agentAccountImpl}`);
   } else {
     core = await deployCore(net, gatewayKey, { usdc: USDC });
-    writeFileSync(deployFile, JSON.stringify(core, null, 2));
+    treasury = privateKeyToAccount(generatePrivateKey()).address;
+    writeFileSync(deployFile, JSON.stringify({ ...core, treasury }, null, 2));
     step("contracts deployed", true, `AgentAccount impl ${addrLink(core.agentAccountImpl)}, ReceiptRegistry ${core.receiptRegistry}, enforcers x3`);
   }
 
@@ -91,7 +123,16 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   const code = await net.pub.getCode({ address: owner.address });
   if (code && code.toLowerCase().startsWith("0xef0100")) {
     const current = await net.pub.readContract({ address: owner.address, abi: AgentAccountAbi, functionName: "owner" });
-    step("EIP-7702 delegation", current.toLowerCase() === owner.address.toLowerCase(), `already delegated; owner() = ${current}`);
+    // a previous run may have delegated but died before setting the enforcers; without them no cap is enforced on-chain
+    const hasEnforcers = await net.pub.readContract({ address: owner.address, abi: AgentAccountAbi, functionName: "enforcers", args: [0n] }).then(() => true).catch(() => false);
+    let enforcersNote = "enforcers already set";
+    if (!hasEnforcers) {
+      const w = walletFor(net, ownerKey);
+      const h = await w.writeContract({ address: owner.address, abi: AgentAccountAbi, functionName: "setEnforcers", args: [[core.enforcers.spendLimit, core.enforcers.timeWindow, core.enforcers.allowedTargets]] });
+      await net.pub.waitForTransactionReceipt({ hash: h });
+      enforcersNote = `enforcers set now: ${txLink(h)}`;
+    }
+    step("EIP-7702 delegation", current.toLowerCase() === owner.address.toLowerCase(), `already delegated (${addrLink(owner.address)} carries the designator); owner() = ${current}; ${enforcersNote}`);
   } else {
     const d = await delegateEoaToAccount(net, ownerKey, core);
     const after = await usdcBalance(net, USDC, owner.address);
@@ -101,10 +142,19 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   // ── 3. the owner grants the gateway a bounded root session ───────────────────
   const now = BigInt(Math.floor(Date.now() / 1000));
   const existing = await readSession(net, owner.address, gatewayAccount.address);
-  if (existing.active && existing.validUntil > now + 3600n) {
+  const sessionKnown = existing.key.toLowerCase() === gatewayAccount.address.toLowerCase();
+  const headroom = existing.active ? existing.spendCap - existing.spent : 0n;
+  if (existing.active && existing.validUntil > now + 3600n && headroom >= 60_000n) {
     step("gateway root session", true, `already granted: cap ${toHuman(existing.spendCap)} spent ${toHuman(existing.spent)}`);
+  } else if (sessionKnown) {
+    // a session key is single-use on-chain: once granted it can only be revoked, never re-granted or widened
+    const why = existing.active ? `only ${toHuman(headroom)} USDC of headroom left` : "revoked";
+    log(`The gateway key's root session is ${why}. Retire the key: rename local/testnet-gateway.key to local/testnet-gateway-old.key, write a fresh local/testnet-gateway.key, and run again (the runner sweeps the ETH across).`);
+    step("gateway root session", false, why);
+    return { steps, verification: null };
   } else {
     const h = await grantRootSession(net, ownerKey, owner.address, { key: gatewayAccount.address, spendCap: 100_000n, perTxMax: 50_000n, validUntil: now + 86_400n, anyTarget: false, targets: [treasury], tokens: [USDC] });
+    for (let i = 0; i < 30 && !(await readSession(net, owner.address, gatewayAccount.address)).active; i++) await new Promise((r) => setTimeout(r, 2_000)); // RPC lag
     step("gateway root session", true, `cap 0.10 USDC, per-tx 0.05, payee allowlist, 24 h: ${txLink(h)}`);
   }
 
@@ -130,7 +180,7 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
       contracts: { usdc: USDC, receiptRegistry: core.receiptRegistry, enforcers: core.enforcers },
       principals: { "org-acme": { account: owner.address, ownerIsGateway: false } },
       asset: { symbol: "USDC", decimals: 6 },
-      facilitator: { enabled: false },
+      facilitator: { enabled: FACILITATOR === "bundled" },
       x402Mode: "standard",
       authorizationTtlSeconds: 900,
       approvers: { cfo: cfo.address },
@@ -139,19 +189,20 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
       outbound: { allowLoopback: true },
     });
     const gatewayUrl = await gw.listen();
+    const facilitatorUrl = FACILITATOR === "bundled" ? `${gatewayUrl}/facilitator` : FACILITATOR;
     payee = buildPayee({
       host: "127.0.0.1",
       port: 14603,
       token: USDC,
       chainId: CHAIN_ID,
-      pricing: { rails: ["x402"], payTo: treasury, facilitatorUrl: FACILITATOR, agentAuth: { require: true, allowedAgents: [gatewayUrl] } },
+      pricing: { rails: ["x402"], payTo: treasury, facilitatorUrl, agentAuth: { require: true, allowedAgents: [gatewayUrl] } },
       eip712: { name: "USDC", version: "2" },
     });
     const payeeUrl = await payee.listen();
     const payeeHost = new URL(payeeUrl).host;
     const admin = new SpendMarshalAdmin(gatewayUrl, adminToken);
     const health = await admin.health();
-    step("services", health.ok === true, `gateway ${gatewayUrl} (standard x402, facilitator ${FACILITATOR}), payee ${payeeUrl}, treasury ${addrLink(treasury)}`);
+    step("services", health.ok === true, `gateway ${gatewayUrl} (standard x402, facilitator ${facilitatorUrl}), payee ${payeeUrl}, treasury ${addrLink(treasury)}`);
 
     const agent = await admin.issueCredential({
       principalId: "org-acme",

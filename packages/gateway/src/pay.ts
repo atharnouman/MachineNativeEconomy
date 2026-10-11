@@ -432,7 +432,7 @@ export class PaymentService {
     }
 
     const headers: Record<string, string> = { ...baseHeaders };
-    if (quote.rail === "x402") headers[X402_HEADERS.signature] = encodeX402({ x402Version: 2, scheme: "exact", network: quote.x402!.network, payload });
+    if (quote.rail === "x402") headers[X402_HEADERS.signature] = encodeX402({ x402Version: 2, resource: { url: req.url }, accepted: quote.x402!.accept, payload });
     else headers[MPP_HEADERS.credential] = encodeMppCredentialHeader({ challengeId: quote.mpp!.challengeId, method: "evm-agent-account", payload: payload as AuthorizationPayload, ...(internal.subscription ? { subscription: internal.subscription } : {}) });
 
     // Note for the standard path: the on-chain pre-approval already charged the session's spend. If the payee or

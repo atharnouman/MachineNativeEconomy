@@ -19,3 +19,13 @@ Rejected: holding funds in a plain EOA signed by the gateway (loses the on-chain
 * Any x402 facilitator can settle against an AgentAccount or a delegated EOA. Interop costs one extra transaction per payment, paid by the gateway, and gas-free for the agent.
 * The spend is charged at approval time. If the facilitator never settles, funds stay put but the session's `spent` is not reclaimed until a future `reclaim` function (tracked in the roadmap); the gateway's denial receipt records the orphaned approval.
 * `x402Mode` is configurable per gateway and overridable per payment, so a deployment can use the cheap path with its own facilitator and the standard path elsewhere.
+
+## Addendum (11 Oct 2026): x402 v2 wire shape, checked against the public facilitator
+
+The live Base Sepolia run against https://x402.org/facilitator showed that the client payload must follow the v2
+specification literally: `{ x402Version: 2, resource?, accepted: <the PaymentRequirements the client chose>, payload }`,
+with `scheme` and `network` inside `accepted` rather than at the top level, and `resource` at the top level of the
+402 body rather than inside each entry of `accepts`. Facilitator calls are `POST <facilitatorUrl>/verify` and
+`/settle` with `{ x402Version: 2, paymentPayload, paymentRequirements }`; the bundled facilitator lives at
+`<gatewayUrl>/facilitator` so the same convention applies to both. `core/rails.ts`, the gateway's paid retry, the
+bundled facilitator and the payee middleware were aligned; the facilitator's own HTTP errors are surfaced as a 402 reason.

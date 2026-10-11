@@ -67,6 +67,9 @@ describe("CredentialService.register", () => {
         await new Promise((r) => setTimeout(r, 30));
         return `0x${"1".repeat(64)}` as const;
       },
+      async readSession(_account, key) {
+        return session(key);
+      },
     });
     const c = cred("3");
     const [a, b] = await Promise.all([svc.register(c), svc.register(c)]);

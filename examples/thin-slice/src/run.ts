@@ -134,7 +134,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
       port: payeePort,
       token: usdc,
       chainId,
-      pricing: { rails: ["x402", "mpp"], payTo: payeeTreasury, facilitatorUrl: gatewayUrl, mpp: { rpcUrl, relayerPrivateKey: KEYS.payeeRelayer } },
+      pricing: { rails: ["x402", "mpp"], payTo: payeeTreasury, facilitatorUrl: `${gatewayUrl}/facilitator`, mpp: { rpcUrl, relayerPrivateKey: KEYS.payeeRelayer } },
     });
     const payeeUrl = await payee.listen();
     step("services", true, `gateway ${gatewayUrl} (signer ${gw.signer.address}), payee ${payeeUrl} (treasury ${payeeTreasury})`);

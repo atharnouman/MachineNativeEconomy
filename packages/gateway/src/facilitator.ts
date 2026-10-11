@@ -34,7 +34,7 @@ export function registerFacilitator(app: FastifyInstance, cfg: GatewayConfig, ch
     const b = Body.safeParse(req.body);
     if (!b.success) return reply.code(400).send({ isValid: false, invalidReason: "bad request" });
     const { paymentPayload: p, paymentRequirements: r } = b.data;
-    if (p.network !== network || r.network !== network) return { isValid: false, invalidReason: "unsupported network" };
+    if (p.accepted.network !== network || r.network !== network) return { isValid: false, invalidReason: "unsupported network" };
     const requirements = { chainId: cfg.chainId, token: r.asset as Address, payTo: r.payTo as Address, minAmount: BigInt(r.amount) };
     if (isAgentAccountPayload(p.payload)) {
       const v = await verifyAgentAccountPayload(chain.pub, p.payload, requirements);

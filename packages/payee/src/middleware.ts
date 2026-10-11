@@ -124,6 +124,7 @@ export function paid(cfg: PaidConfig) {
 
   const x402Requirements = (req: FastifyRequest): X402Required => ({
     x402Version: 2,
+    resource: { url: resourceUrl(req), description: cfg.description },
     accepts: [
       {
         scheme: "exact",
@@ -132,7 +133,6 @@ export function paid(cfg: PaidConfig) {
         asset: cfg.price.token,
         payTo: cfg.payTo,
         maxTimeoutSeconds: timeout,
-        resource: { url: resourceUrl(req), description: cfg.description },
         ...(cfg.price.eip712 ? { extra: { name: cfg.price.eip712.name, version: cfg.price.eip712.version } } : {}),
       },
     ],
@@ -221,10 +221,12 @@ export function paid(cfg: PaidConfig) {
       const payment = decodeX402(X402SignatureSchema, xs);
       if (!payment) return challenge402(req, reply, "malformed PAYMENT-SIGNATURE");
       const requirements = x402Requirements(req).accepts[0]!;
-      const verify = await postJson(`${cfg.facilitatorUrl}/facilitator/verify`, { paymentPayload: payment, paymentRequirements: requirements });
-      if (!verify.isValid) return challenge402(req, reply, `invalid payment: ${verify.invalidReason}`);
-      const settle = await postJson(`${cfg.facilitatorUrl}/facilitator/settle`, { paymentPayload: payment, paymentRequirements: requirements });
-      if (!settle.success) return challenge402(req, reply, `settlement failed: ${settle.errorReason}`);
+      // x402 convention: the facilitator URL is the base, endpoints are /verify, /settle, /supported
+      const facilitator = cfg.facilitatorUrl.replace(/\/$/, "");
+      const verify = await postJson(`${facilitator}/verify`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
+      if (!verify.isValid) return challenge402(req, reply, `invalid payment: ${verify.invalidReason ?? verify.error ?? "facilitator refused"}`);
+      const settle = await postJson(`${facilitator}/settle`, { x402Version: 2, paymentPayload: payment, paymentRequirements: requirements });
+      if (!settle.success) return challenge402(req, reply, `settlement failed: ${settle.errorReason ?? settle.error ?? "facilitator refused"}`);
       reply.header(X402_HEADERS.response, encodeX402({ success: true, transaction: settle.transaction, network, payer: settle.payer }));
       cfg.onSettled?.({ rail: "x402", txHash: settle.transaction as Hex, payer: settle.payer as Address, amount: cfg.price.amount, unit: "base", resource: req.url, agent });
       return; // fall through to the route handler
@@ -270,7 +272,18 @@ export function paid(cfg: PaidConfig) {
   };
 }
 
+/** A facilitator call. Any HTTP error or non-JSON body becomes `{ error }` so the caller answers 402 with the reason, never 500. */
 async function postJson(url: string, body: unknown): Promise<Record<string, string | boolean | undefined>> {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
-  return (await r.json()) as Record<string, string | boolean | undefined>;
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
+    const text = await r.text();
+    try {
+      const json = JSON.parse(text) as Record<string, string | boolean | undefined>;
+      return r.ok ? json : { error: `facilitator ${r.status}: ${json.error ?? json.invalidReason ?? json.errorReason ?? text.slice(0, 200)}` };
+    } catch {
+      return { error: `facilitator ${r.status}: ${text.slice(0, 200)}` };
+    }
+  } catch (err) {
+    return { error: `facilitator unreachable: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}` };
+  }
 }

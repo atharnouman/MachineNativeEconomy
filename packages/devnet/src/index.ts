@@ -142,7 +142,12 @@ export async function delegateEoaToAccount(net: Devnet, eoaKey: Hex, core: CoreC
   });
   const r1 = await net.pub.waitForTransactionReceipt({ hash: delegationTx });
   if (r1.status !== "success") throw new Error("delegation transaction reverted");
-  const code = await net.pub.getCode({ address: eoa });
+  // a public, load-balanced RPC can serve a lagging node right after the receipt: poll briefly before concluding
+  let code = await net.pub.getCode({ address: eoa });
+  for (let i = 0; i < 15 && !(code && code.toLowerCase().startsWith("0xef0100")); i++) {
+    await new Promise((r) => setTimeout(r, 2_000));
+    code = await net.pub.getCode({ address: eoa });
+  }
   if (!code || !code.toLowerCase().startsWith("0xef0100")) throw new Error("EOA does not carry a 7702 delegation designator");
   const enforcersTx = await w.writeContract({
     address: eoa,

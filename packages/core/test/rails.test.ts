@@ -51,7 +51,8 @@ describe("rail wire formats", () => {
   it("round-trips an x402 PAYMENT-REQUIRED header", () => {
     const req = {
       x402Version: 2 as const,
-      accepts: [{ scheme: "exact" as const, network: "eip155:31337", amount: "10000", asset: "0x01", payTo: "0x02", maxTimeoutSeconds: 60, resource: { url: "http://x/y" } }],
+      resource: { url: "http://x/y" },
+      accepts: [{ scheme: "exact" as const, network: "eip155:31337", amount: "10000", asset: "0x01", payTo: "0x02", maxTimeoutSeconds: 60 }],
     };
     expect(decodeX402(X402RequiredSchema, encodeX402(req))).toEqual(req);
     expect(decodeX402(X402RequiredSchema, "garbage")).toBeNull();

@@ -122,11 +122,19 @@ export class CredentialService {
       txHash = await grant(() => this.chain.grantChildSession(account, parentReg.sessionKey as Address, key, onchain));
     } else if (principal.ownerIsGateway === false) {
       // bounded operator: the gateway's own root session is the parent; the chain re-checks the bounds
-      const gatewaySession = await this.chain.readSession(account, this.signer.address);
+      let gatewaySession = await this.chain.readSession(account, this.signer.address);
+      for (let i = 0; i < 10 && !gatewaySession.active; i++) {
+        await new Promise((r) => setTimeout(r, 2_000)); // a public, load-balanced RPC can lag a fresh grant by a few seconds
+        gatewaySession = await this.chain.readSession(account, this.signer.address);
+      }
       if (!gatewaySession.active) throw new Error(`gateway ${this.signer.address} has no active root session on ${account}`);
-      if (onchain.spendCap === MAX_UINT256) onchain.spendCap = gatewaySession.spendCap - gatewaySession.spent;
-      if (onchain.perTxMax === MAX_UINT256) onchain.perTxMax = gatewaySession.perTxMax;
-      if (onchain.validUntil === FAR_FUTURE) onchain.validUntil = gatewaySession.validUntil;
+      // a child session can never be wider than the gateway's own: clamp caps and window to the parent's (the
+      // credential's own caveats stay enforced off-chain; on-chain is the backstop)
+      const parentRemaining = gatewaySession.spendCap - gatewaySession.spent;
+      if (onchain.spendCap > parentRemaining) onchain.spendCap = parentRemaining;
+      if (onchain.perTxMax > gatewaySession.perTxMax) onchain.perTxMax = gatewaySession.perTxMax;
+      if (onchain.validUntil > gatewaySession.validUntil) onchain.validUntil = gatewaySession.validUntil;
+      if (onchain.validAfter < gatewaySession.validAfter) onchain.validAfter = gatewaySession.validAfter;
       if (onchain.anyTarget && !gatewaySession.anyTarget) throw new Error("credential must restrict payees to addresses when the gateway session has a target allowlist");
       parentSessionKey = this.signer.address;
       txHash = await grant(() => this.chain.grantChildSession(account, this.signer.address, key, onchain));
@@ -135,6 +143,10 @@ export class CredentialService {
     }
     const adopted = txHash === null;
     if (txHash === null) txHash = `0x${"0".repeat(64)}`; // no transaction of ours: the session was already on-chain
+    // public, load-balanced RPCs can lag a fresh grant by a few seconds: wait until the session is readable
+    for (let i = 0; i < 30 && (await this.chain.readSession(account, key)).key === "0x0000000000000000000000000000000000000000"; i++) {
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
 
     const reg: RegisteredCredential = { ...toPublic(c), sessionKey: key, parentSessionKey, registeredAt: nowIso(), txHash };
     this.store.putCredential(reg);

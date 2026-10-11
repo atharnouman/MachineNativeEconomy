@@ -84,23 +84,26 @@ export const X402AcceptSchema = z.object({
   asset: z.string(), // token address
   payTo: z.string(),
   maxTimeoutSeconds: z.number().int().positive(),
-  resource: z.object({ url: z.string(), description: z.string().optional() }),
   /** Standard x402 carries the token's EIP-712 domain here: `{ name, version }`. */
   extra: z.record(z.unknown()).optional(),
 });
 export type X402Accept = z.infer<typeof X402AcceptSchema>;
+export const X402ResourceSchema = z.object({ url: z.string(), description: z.string().optional(), mimeType: z.string().optional() });
 export const X402RequiredSchema = z.object({
   x402Version: z.literal(2),
+  resource: X402ResourceSchema.optional(),
   accepts: z.array(X402AcceptSchema).min(1),
   error: z.string().optional(),
 });
 export type X402Required = z.infer<typeof X402RequiredSchema>;
 
+/** x402 v2 PaymentPayload: the requirement the client accepted travels with the payload (spec: `accepted`). */
 export const X402SignatureSchema = z.object({
   x402Version: z.literal(2),
-  scheme: z.literal("exact"),
-  network: z.string(),
+  resource: X402ResourceSchema.optional(),
+  accepted: X402AcceptSchema,
   payload: PaymentPayloadSchema,
+  extensions: z.record(z.unknown()).optional(),
 });
 export type X402Signature = z.infer<typeof X402SignatureSchema>;
 

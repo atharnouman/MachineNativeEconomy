@@ -130,7 +130,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
       port: payeePort,
       token: core.usdc,
       chainId: net.chainId,
-      pricing: { rails: ["x402", "mpp"], payTo: payeeTreasury, facilitatorUrl: gatewayUrl, mpp: { rpcUrl: net.rpcUrl, relayerPrivateKey: KEYS.payeeRelayer }, agentAuth: { require: true, allowedAgents: [gatewayUrl] } },
+      pricing: { rails: ["x402", "mpp"], payTo: payeeTreasury, facilitatorUrl: `${gatewayUrl}/facilitator`, mpp: { rpcUrl: net.rpcUrl, relayerPrivateKey: KEYS.payeeRelayer }, agentAuth: { require: true, allowedAgents: [gatewayUrl] } },
       eip712: { name: "USD Coin (mock)", version: "2" },
       lightning: { node: lightning, macaroonSecret: "payee-macaroon-secret" },
       feedInterval: "1s",
