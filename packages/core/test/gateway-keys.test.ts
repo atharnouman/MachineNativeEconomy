@@ -7,6 +7,7 @@ import {
   policyHash,
   receiptHash,
   receiptSigner,
+  gatewayKeyAt,
   gatewayKeyHandoverMessage,
   gatewayKeyHistory,
   type EvidenceBundle,
@@ -92,6 +93,10 @@ const generations = (): Promise<Receipt[]> =>
     { by: k3 },
   ]);
 
+/** The `gateway.trusted` check of a chain's bundle, with the given keys pinned (none: the default report). */
+const trustCheck = async (receipts: Receipt[], keys?: string[]) => check(await verifyBundle(bundle(receipts), keys ? { trustedGatewayKeys: keys } : {}), "gateway.trusted");
+const unlinked = (from: number, to: number, key: Key) => `receipts #${from}–#${to} were signed by ${short(key.address)}, which is neither trusted nor linked to a trusted key by handovers`;
+
 describe("gateway key history", () => {
   it("verifies each receipt against the key in force at its position", async () => {
     const receipts = await generations();
@@ -102,9 +107,15 @@ describe("gateway key history", () => {
       { address: k3.address, prevAddress: k2.address, seq: 4, effectiveFrom: receipts[4]!.ts, receiptId: "r4", handedOver: false },
     ]);
     const report = await verifyBundle(JSON.parse(JSON.stringify(bundle(receipts))));
-    expect(report.ok, JSON.stringify(report.checks)).toBe(true);
+    expect(check(report, "receipts.chain")?.ok).toBe(true);
     expect(check(report, "gateway.keys")?.detail).toBe(`${short(k1.address)} from #0; ${short(k2.address)} from #2 (handed over); ${short(k3.address)} from #4 (no handover)`);
-    expect(check(report, "gateway.trusted")).toBeUndefined(); // only with pinned keys
+    // the rotation at #4 has no handover, so without pinned keys the bundle does not verify (ADR-0022)
+    expect(report.ok).toBe(false);
+    expect(check(report, "gateway.trusted")).toEqual({ check: "gateway.trusted", ok: false, detail: `rotation without a handover at #4 (${short(k2.address)} → ${short(k3.address)}): pin the gateway keys you trust` });
+    // handovers alone need no pin, and add no check
+    const handedOver = await verifyBundle(bundle(await chain([{ by: k1 }, { rotate: { from: k1, to: k2, handover: k1 } }, { by: k2 }])));
+    expect(handedOver.ok, JSON.stringify(handedOver.checks)).toBe(true);
+    expect(check(handedOver, "gateway.trusted")).toBeUndefined();
   });
 
   it("fails the same keys without rotation receipts, as the live run did before key history", async () => {
@@ -122,35 +133,60 @@ describe("gateway key history", () => {
     expect(check(report, "receipts.chain")?.detail).toBe("2 receipts");
   });
 
-  it("trusts the final key directly, or through handovers from a pinned key, never across a rotation without one", async () => {
+  it("trusts a chain only when every key that signed it is pinned or linked to a pinned key by handovers", async () => {
+    // a handover links the keys on both sides, whichever of them is pinned
     const handedOver = await chain([{ by: k1 }, { rotate: { from: k1, to: k2, handover: k1 } }, { by: k2 }]);
-    const viaHandover = await verifyBundle(bundle(handedOver), { trustedGatewayKeys: [k1.address.toLowerCase()] });
-    expect(check(viaHandover, "gateway.trusted")).toEqual({ check: "gateway.trusted", ok: true, detail: `${short(k2.address)} was handed over from trusted ${short(k1.address)}` });
+    expect(await trustCheck(handedOver, [k1.address.toLowerCase()])).toEqual({ check: "gateway.trusted", ok: true, detail: `trusted ${short(k1.address)}; handed over ${short(k2.address)}` });
+    expect(await trustCheck(handedOver, [k2.address])).toEqual({ check: "gateway.trusted", ok: true, detail: `trusted ${short(k2.address)}; handed over ${short(k1.address)}` });
 
+    // a rotation without a handover links neither side: both have to be pinned
     const receipts = await generations();
-    const pinnedFirst = await verifyBundle(bundle(receipts), { trustedGatewayKeys: [k1.address] });
-    expect(pinnedFirst.ok).toBe(false);
-    expect(check(pinnedFirst, "gateway.trusted")?.detail).toBe(`${short(k3.address)} is neither trusted nor handed over from a trusted key (no handover at #4)`);
-    expect((await verifyBundle(bundle(receipts), { trustedGatewayKeys: [k2.address] })).ok).toBe(false);
-    const pinnedLast = await verifyBundle(bundle(receipts), { trustedGatewayKeys: [k1.address, k3.address] });
-    expect(check(pinnedLast, "gateway.trusted")).toEqual({ check: "gateway.trusted", ok: true, detail: `${short(k3.address)} is trusted` });
+    expect((await trustCheck(receipts, [k1.address]))?.detail).toBe(unlinked(4, 5, k3));
+    expect((await trustCheck(receipts, [k2.address]))?.detail).toBe(unlinked(4, 5, k3));
+    expect((await trustCheck(receipts, [k3.address]))?.detail).toBe(unlinked(0, 1, k1));
+    expect(await trustCheck(receipts, [k1.address, k3.address])).toEqual({ check: "gateway.trusted", ok: true, detail: `trusted ${short(k1.address)}, ${short(k3.address)}; handed over ${short(k2.address)}` });
 
     // a chain without rotations: the pin is the old manual comparison with the gateway address
-    const single = bundle(await chain([{ by: k1 }]));
-    expect(check(await verifyBundle(single, { trustedGatewayKeys: [k1.address] }), "gateway.trusted")?.ok).toBe(true);
-    expect(check(await verifyBundle(single, { trustedGatewayKeys: [k2.address] }), "gateway.trusted")?.detail).toBe(`${short(k1.address)} is neither trusted nor handed over from a trusted key`);
+    const single = await chain([{ by: k1 }, { by: k1 }]);
+    expect((await trustCheck(single, [k1.address]))?.ok).toBe(true);
+    expect((await trustCheck(single, [k2.address]))?.detail).toBe(unlinked(0, 1, k1));
   });
 
-  it("lets anyone append a rotation without a handover, and shows it: a pinned key exposes it", async () => {
+  it("fails a chain someone extended under a key of their own, unpinned or pinned to the gateway's key", async () => {
     // someone with a copy of the store but no gateway key continues the chain under their own key
     const honest = await chain([{ by: k1 }, { by: k1 }]);
     const forged = await chain([{ by: k1 }, { by: k1 }, { rotate: { from: k1, to: mallory, handover: null } }, { by: mallory, kind: "payment.settled", data: {} }]);
     expect(forged.slice(0, 2)).toEqual(honest);
     const unpinned = await verifyBundle(bundle(forged));
     expect(check(unpinned, "receipts.chain")?.ok).toBe(true); // consistent on its own terms, as a chain under any one key always was
-    expect(check(unpinned, "gateway.keys")?.detail).toContain(`${short(mallory.address)} from #2 (no handover)`);
-    const pinned = await verifyBundle(bundle(forged), { trustedGatewayKeys: [k1.address] });
-    expect(check(pinned, "gateway.trusted")?.ok).toBe(false);
+    expect(unpinned.ok).toBe(false);
+    expect(check(unpinned, "gateway.trusted")?.detail).toBe(`rotation without a handover at #2 (${short(k1.address)} → ${short(mallory.address)}): pin the gateway keys you trust`);
+    expect((await trustCheck(forged, [k1.address]))?.detail).toBe(unlinked(2, 3, mallory));
+  });
+
+  it("does not let a pinned key that took over a foreign head cover the receipts before it (the review's attack on ADR-0020)", async () => {
+    // an attacker's receipts in the middle, then a gateway that continued the chain without checking its head
+    const laundered = await chain([
+      { by: k1 },
+      { by: k1 },
+      { rotate: { from: k1, to: mallory, handover: null } },
+      { by: mallory },
+      { by: mallory, kind: "payment.settled", data: {} },
+      { rotate: { from: mallory, to: k1, handover: null } },
+      { by: k1 },
+    ]);
+    expect(await trustCheck(laundered, [k1.address])).toEqual({ check: "gateway.trusted", ok: false, detail: unlinked(2, 4, mallory) });
+    expect((await trustCheck(laundered))?.ok).toBe(false);
+    expect((await trustCheck(laundered, [k1.address, mallory.address]))?.ok).toBe(true); // only an auditor who trusts both keys accepts it
+    // the same when the attacker's receipts open the chain
+    const adopted = await chain([{ by: mallory }, { by: mallory }, { rotate: { from: mallory, to: k1, handover: null } }, { by: k1 }]);
+    expect((await trustCheck(adopted, [k1.address]))?.detail).toBe(unlinked(0, 1, mallory));
+  });
+
+  it("carries trust through every handover a pinned key signs, whoever receives it", async () => {
+    // a stolen key can hand over to its thief: rotate away from a key, with a handover, as soon as it may have leaked
+    const handedToThief = await chain([{ by: k1 }, { rotate: { from: k1, to: mallory, handover: k1 } }, { by: mallory }]);
+    expect(await trustCheck(handedToThief, [k1.address])).toEqual({ check: "gateway.trusted", ok: true, detail: `trusted ${short(k1.address)}; handed over ${short(mallory.address)}` });
   });
 
   it("rejects rotations that misname the key in force, forge or replay a handover, or keep signing with the old key", async () => {
@@ -193,6 +229,12 @@ describe("gateway key history", () => {
     expect(check(ok, "anchors.match")).toEqual({ check: "anchors.match", ok: true, detail: "4 anchors" });
     const wrong = await verifyBundle(bundle(receipts, { anchors: [anchor(4, k1.address)] }));
     expect(check(wrong, "anchors.match")?.detail).toBe(`anchor ${receipts[3]!.hash.slice(0, 10)} was sent by ${k1.address}, not by the key that signed receipt #4`);
+  });
+
+  it("names the key that signed any position, which is the sender of an anchor that records none", async () => {
+    const keys = gatewayKeyHistory(await generations());
+    expect([0, 1, 2, 3, 4, 5].map((seq) => gatewayKeyAt(keys, k3.address, seq))).toEqual([k1, k1, k2, k2, k3, k3].map((k) => k.address));
+    expect(gatewayKeyAt([], k1.address, 7)).toBe(k1.address);
   });
 
   it("recovers a receipt's signer synchronously", async () => {

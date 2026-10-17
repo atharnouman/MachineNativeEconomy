@@ -31,6 +31,12 @@ export interface GatewayConfig {
    * receipt. Remove them once the chains that matter have been handed over.
    */
   previousGatewayKeys?: Hex[];
+  /**
+   * Earlier gateway addresses whose keys are gone (lost, destroyed, a fresh key per run): chains they signed are
+   * continued with a rotation that has no handover, which a verifier accepts only when it trusts both keys. A chain
+   * signed by any key that is neither held nor listed here is refused (ADR-0022).
+   */
+  previousGatewayAddresses?: Address[];
   /** Secret from which per-credential session keys are derived (HMAC). Never leaves the gateway. */
   sessionSecret: string;
   /** Root key for credential HMAC chains. */
@@ -97,6 +103,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     chainId: Number(env.SPENDMARSHAL_CHAIN_ID ?? 31337),
     gatewayPrivateKey: need("SPENDMARSHAL_GATEWAY_PRIVATE_KEY") as Hex,
     previousGatewayKeys: env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS ? (env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS.split(",").map((s) => s.trim()).filter(Boolean) as Hex[]) : undefined,
+    previousGatewayAddresses: env.SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES ? (env.SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES.split(",").map((s) => s.trim()).filter(Boolean) as Address[]) : undefined,
     sessionSecret: need("SPENDMARSHAL_SESSION_SECRET"),
     credentialRootKey: need("SPENDMARSHAL_CREDENTIAL_ROOT_KEY"),
     adminToken: need("SPENDMARSHAL_ADMIN_TOKEN"),

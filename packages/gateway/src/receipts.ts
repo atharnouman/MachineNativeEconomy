@@ -6,24 +6,40 @@ import type { Metrics } from "./metrics.js";
 
 type ReceiptMeta = Partial<Pick<Receipt, "agentId" | "credentialId" | "intentId" | "intentHash" | "approvalId" | "subscriptionId" | "rail" | "policyHash">>;
 
+export interface ReceiptLogOptions {
+  /**
+   * Earlier gateway addresses the operator vouches for without holding their keys (a lost key). A chain whose head one of
+   * them signed is continued with a rotation that has no handover (ADR-0022).
+   */
+  previousGatewayAddresses?: readonly string[];
+  /** Where key rotations and refused chains are reported; the gateway passes its logger. */
+  log?: { info(obj: object, msg: string): void; warn(obj: object, msg: string): void };
+}
+
 /**
  * Append-only, hash-chained, gateway-signed receipt log. One chain per principal.
  *
  * Every receipt is signed by the gateway key in force at its position (ADR-0020). When another key signed a chain's head,
- * the first thing this log writes into that chain is a `gateway.key.rotated` receipt, signed by this gateway's key and
- * carrying the earlier key's handover signature when the signer still holds that key.
+ * the first thing this log writes into that chain is a `gateway.key.rotated` receipt, signed by this gateway's key. It
+ * carries the earlier key's handover signature when the signer holds that key; without one, the earlier address must be
+ * one the operator declared. A chain signed by any other key is refused: continuing it would put this gateway's signature
+ * over receipts nobody here wrote (ADR-0022).
  */
 export class ReceiptLog {
   /** one append queue per principal: chains never race, and principals never wait for each other */
   private readonly chains = new Map<string, Promise<void>>();
   /** chain head per principal, seeded from the store once; an append never reads the chain. `key` signed the head. */
   private readonly heads = new Map<string, { seq: number; hash: string; key: Address }>();
+  private readonly declared: Set<string>;
 
   constructor(
     private readonly store: Store,
     private readonly signer: Signer,
     private readonly metrics?: Metrics,
-  ) {}
+    private readonly opts: ReceiptLogOptions = {},
+  ) {
+    this.declared = new Set((opts.previousGatewayAddresses ?? []).map((a) => a.toLowerCase()));
+  }
 
   append(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta = {}): Promise<Receipt> {
     return this.enqueue(principalId, async () => {
@@ -34,7 +50,8 @@ export class ReceiptLog {
 
   /**
    * Hands the principal's chain over to this gateway's key if another key signed its head; returns the rotation receipt,
-   * or null when nothing changed. Every append does this first; startup and anchoring call it on their own.
+   * or null when nothing changed. Rejects (409) when the head's key is neither held nor declared. Every append does this
+   * first; startup, anchoring and the reclaim job call it on their own, before anything happens on-chain.
    */
   handOver(principalId: string): Promise<Receipt | null> {
     return this.enqueue(principalId, () => this.adoptKey(principalId));
@@ -71,8 +88,21 @@ export class ReceiptLog {
     if (!head || head.key.toLowerCase() === this.signer.address.toLowerCase()) return null;
     const message = gatewayKeyHandoverMessage({ principalId, seq: head.seq + 1, prev: head.hash, prevAddress: head.key, address: this.signer.address });
     const handover = (await this.signer.signKeyHandover?.(head.key, message)) ?? null;
+    const facts = { principalId, seq: head.seq, signer: head.key, gateway: this.signer.address };
+    if (handover === null && !this.declared.has(head.key.toLowerCase())) {
+      this.metrics?.chainRefusals.inc();
+      this.opts.log?.warn(facts, "refused to continue a receipt chain whose head an unknown key signed");
+      throw Object.assign(
+        new Error(`the receipt chain of ${principalId} ends with #${head.seq}, signed by ${head.key}: not this gateway's key, a previous key it holds, or a declared previous address (previousGatewayAddresses); refusing to continue it`),
+        { statusCode: 409 },
+      );
+    }
     const data: GatewayKeyRotatedData = { prevAddress: head.key, address: this.signer.address, handover };
-    return this.write(principalId, "gateway.key.rotated", { ...data }, {});
+    const rotation = await this.write(principalId, "gateway.key.rotated", { ...data }, {});
+    this.metrics?.gatewayKeyRotations.inc({ handover: handover ? "yes" : "no" });
+    if (handover) this.opts.log?.info(facts, "receipt chain handed over to this gateway's key, signed by the previous key");
+    else this.opts.log?.warn(facts, "receipt chain continued from a declared previous gateway address without a handover");
+    return rotation;
   }
 
   private async write(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta): Promise<Receipt> {

@@ -16,7 +16,7 @@ contract ReceiptRegistry {
 
     /// anchoring party (the gateway key) => receipt chain (hash of its first receipt) => latest anchor of that chain
     mapping(address => mapping(bytes32 => Anchor)) public latest;
-    mapping(address => mapping(bytes32 => uint256)) public anchoredAt; // party => head => block
+    mapping(address => mapping(bytes32 => uint256)) public anchoredAt; // party => head => block it was first anchored in
 
     event Anchored(address indexed party, bytes32 indexed chain, bytes32 indexed head, bytes32 prevHead, uint256 count);
 
@@ -34,7 +34,7 @@ contract ReceiptRegistry {
         a.head = head;
         a.count = count;
         a.blockNumber = block.number;
-        anchoredAt[msg.sender][head] = block.number;
+        if (anchoredAt[msg.sender][head] == 0) anchoredAt[msg.sender][head] = block.number; // keep the earliest proof (ADR-0022)
         emit Anchored(msg.sender, chain, head, prevHead, count);
     }
 }

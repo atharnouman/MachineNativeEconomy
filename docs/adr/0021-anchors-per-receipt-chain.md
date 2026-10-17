@@ -1,6 +1,6 @@
 # ADR-0021: Anchors per receipt chain
 
-Date: 17 October 2026. Status: proposed.
+Date: 17 October 2026. Status: proposed; decision 3 amended by ADR-0022 (`anchoredAt` keeps a head's first block).
 
 ## Context
 

@@ -16,10 +16,10 @@ import { randomBytes } from "node:crypto";
 import { formatUnits, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { connectChain, deployCore, deployReceiptRegistry, delegateEoaToAccount, grantRootSession, readSession, registryAnchorsPerChain, usdcBalance, walletFor, type CoreContracts } from "@spendmarshal/devnet";
-import { buildGateway, type Gateway } from "@spendmarshal/gateway";
+import { buildGateway, openStore, type Gateway } from "@spendmarshal/gateway";
 import { buildPayee } from "@spendmarshal/payee";
 import { SpendMarshalAdmin, type PayResponse } from "@spendmarshal/sdk";
-import { AgentAccountAbi, verifyBundle, toHuman, waitForInclusion, type EvidenceBundle } from "@spendmarshal/core";
+import { AgentAccountAbi, receiptSigner, verifyBundle, toHuman, waitForInclusion, type EvidenceBundle } from "@spendmarshal/core";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..");
@@ -159,6 +159,25 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
 
   // ── 4. gateway + payee (payee settles through the public facilitator) ───────
   const dataDir = join(LOCAL, "testnet-data"); // kept across runs: the next run reclaims what a failed run left pre-approved
+  // The runner is the only writer of this store and uses a fresh session key per run, so it declares the keys that signed
+  // its earlier runs' chains: the reclaim step continues those chains with a rotation that has no handover. A gateway
+  // refuses a chain whose head an undeclared key signed (ADR-0022); a stable evidence key would end these rotations.
+  const earlierKeys = await (async () => {
+    const s = await openStore({ driver: "sqlite", dataDir });
+    try {
+      const signers = s.principalsWithPolicies().flatMap((p) => {
+        const head = s.lastReceipt(p);
+        try {
+          return head ? [receiptSigner(head)] : [];
+        } catch {
+          return []; // an unreadable head stays refused
+        }
+      });
+      return [...new Set(signers)];
+    } finally {
+      s.close();
+    }
+  })();
   const adminToken = secrets.adminToken;
   let gw: Gateway | undefined;
   let payee: ReturnType<typeof buildPayee> | undefined;
@@ -175,6 +194,7 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
       rpcUrl: RPC,
       chainId: CHAIN_ID,
       gatewayPrivateKey: gatewayKey,
+      previousGatewayAddresses: earlierKeys,
       sessionSecret: secrets.sessionSecret,
       credentialRootKey: secrets.credentialRootKey,
       adminToken,

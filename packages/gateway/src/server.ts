@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { Hex } from "viem";
+import { isAddress, type Hex } from "viem";
 import {
   CaveatSchema,
   CredentialSchema,
@@ -84,10 +84,11 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   const publicUrl = (cfg.publicUrl ?? `http://${cfg.host}:${cfg.port}`).replace(/\/$/, "");
   const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
+  for (const a of cfg.previousGatewayAddresses ?? []) if (!isAddress(a, { strict: false })) throw new Error(`previous gateway address ${a} is not an address`);
   const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys);
   const chain = new ChainClient(cfg);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
-  const receipts = new ReceiptLog(store, signer, metrics);
+  const receipts = new ReceiptLog(store, signer, metrics, { previousGatewayAddresses: cfg.previousGatewayAddresses, log: app.log });
   const approverKeys = new ApproverKeys(cfg, store, receipts); // checks the approver addresses before anything is receipted
   const policies = new PolicyService(store, receipts, { yaml: cfg.policyYaml, by: "config" });
   const approvals = new ApprovalService(cfg, store, receipts, metrics, approverKeys);

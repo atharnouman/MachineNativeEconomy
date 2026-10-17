@@ -10,7 +10,7 @@ const USAGE = `spendmarshal <command>
 
   export-evidence --gateway URL --admin-token TOKEN --principal ID --out FILE
   verify FILE [--rpc URL]             offline verification of an evidence bundle (+ on-chain anchors with --rpc)
-        [--gateway-key ADDRESS]...    gateway keys you trust: the chain must end with one, or with a key handed over from one
+        [--gateway-key ADDRESS]...    gateway keys you trust: every key that signed the chain must be one, or linked to one by handovers
   policy lint FILE                    parse a policy file and print its hash
 `;
 

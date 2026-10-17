@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Address, Hex } from "viem";
 import { canonicalize } from "./canonical.js";
 import { PolicySchema, policyHash } from "./policy.js";
-import { GatewayKeyChangeSchema, ReceiptSchema, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
+import { GatewayKeyChangeSchema, ReceiptSchema, gatewayKeyAt, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
 import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
 
@@ -101,9 +101,9 @@ export interface VerifyReport {
 
 export interface BundleVerifyOptions {
   /**
-   * Gateway keys the auditor already trusts: published by the operator, or pinned from an earlier bundle. When given,
-   * the `gateway.trusted` check requires the key the chain ends with to be one of them, or to descend from one of them
-   * through handovers signed by each previous key (ADR-0020).
+   * Gateway keys the auditor already trusts: published by the operator, or pinned from an earlier bundle. When given, the
+   * `gateway.trusted` check requires every key that signed part of the chain to be one of them, or linked to one of them
+   * by handovers (ADR-0022). Without it, a rotation without a handover fails that check.
    */
   trustedGatewayKeys?: readonly string[];
 }
@@ -146,8 +146,13 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
     push("gateway.keys", matches, matches ? describeKeys(chain.keys) : "gatewayKeyHistory does not match the receipts");
   }
   if (opts.trustedGatewayKeys) {
-    const t = trustOf(chain, bundle.gateway.address, opts.trustedGatewayKeys);
+    const t = trustOf(chain, bundle.gateway.address, bundle.receipts.length, opts.trustedGatewayKeys);
     push("gateway.trusted", t.ok, t.detail);
+  } else {
+    // Without pinned keys, a rotation that no handover vouches for fails: the chain is consistent, but nothing shows that
+    // the keys on both sides belong to one gateway (ADR-0022). Handovers alone keep the report as it was.
+    const gap = chain.keys.find((k) => !k.handedOver);
+    if (gap) push("gateway.trusted", false, `rotation without a handover at #${gap.seq} (${short(gap.prevAddress)} → ${short(gap.address)}): pin the gateway keys you trust`);
   }
 
   // every receipt that cites a policy hash cites the version that was active at its timestamp
@@ -291,31 +296,32 @@ function describeKeys(keys: GatewayKeyChange[]): string {
   return [...first, ...keys.map((k) => `${short(k.address)} from #${k.seq} (${k.handedOver ? "handed over" : "no handover"})`)].join("; ");
 }
 
-/** The gateway key that signed the receipt at `seq`: the last rotation at or before it, else the chain's first key. */
-function gatewayKeyAt(keys: GatewayKeyChange[], gatewayAddress: string, seq: number): string {
-  let key = keys[0]?.prevAddress ?? gatewayAddress;
-  for (const k of keys) if (k.seq <= seq) key = k.address;
-  return key;
-}
-
 /**
- * Whether the key the chain ends with is trusted, or descends from a trusted key through handovers. A rotation without a
- * handover cuts the descent: from there on only a key the auditor trusts directly counts. Every earlier receipt is covered
- * by the final key's signatures through the hash links, so the final key is the one that has to be trusted.
+ * Whether every key that signed part of the chain is trusted, or linked to a trusted key by an unbroken run of handovers in
+ * either direction (ADR-0022). A handover is the old key's signature and its rotation receipt the new key's, so a valid
+ * handover next to a trusted key vouches for the key on its other side; a rotation without a handover vouches for neither.
+ * Trusting only the key the chain ends with is not enough: a gateway that continued a chain without checking its head
+ * would have signed over receipts it never wrote.
  */
-function trustOf(chain: { ok: boolean; keys: GatewayKeyChange[] }, gatewayAddress: string, trustedKeys: readonly string[]): { ok: boolean; detail: string } {
+function trustOf(chain: { ok: boolean; keys: GatewayKeyChange[] }, gatewayAddress: string, receiptCount: number, trustedKeys: readonly string[]): { ok: boolean; detail: string } {
   if (!chain.ok) return { ok: false, detail: "the receipt chain does not verify" };
+  if (receiptCount === 0) return { ok: true, detail: "no receipts" };
   const trusted = new Set(trustedKeys.map((a) => a.toLowerCase()));
-  const first = chain.keys[0]?.prevAddress ?? gatewayAddress;
-  let root: string | null = trusted.has(first.toLowerCase()) ? first : null; // the trusted key the key in force descends from
-  let lastGap: number | null = null;
-  for (const k of chain.keys) {
-    if (!k.handedOver) lastGap = k.seq;
-    if (trusted.has(k.address.toLowerCase())) root = k.address;
-    else if (!k.handedOver) root = null;
+  // one segment per key in force: the first key from #0, then each rotation's key from its own position
+  const segments = [{ key: chain.keys[0]?.prevAddress ?? gatewayAddress, from: 0 }, ...chain.keys.map((k) => ({ key: k.address, from: k.seq }))];
+  const linked = (i: number) => chain.keys[i - 1]?.handedOver === true; // segment i was handed over from segment i - 1
+  const vouched = segments.map((s) => trusted.has(s.key.toLowerCase()));
+  for (let i = 1; i < segments.length; i++) if (!vouched[i] && vouched[i - 1] && linked(i)) vouched[i] = true;
+  for (let i = segments.length - 2; i >= 0; i--) if (!vouched[i] && vouched[i + 1] && linked(i + 1)) vouched[i] = true;
+  const bad = vouched.indexOf(false);
+  if (bad >= 0) {
+    const s = segments[bad]!;
+    const to = (segments[bad + 1]?.from ?? receiptCount) - 1;
+    return { ok: false, detail: `receipts #${s.from}–#${to} were signed by ${short(s.key)}, which is neither trusted nor linked to a trusted key by handovers` };
   }
-  if (root === null) return { ok: false, detail: `${short(gatewayAddress)} is neither trusted nor handed over from a trusted key${lastGap === null ? "" : ` (no handover at #${lastGap})`}` };
-  return { ok: true, detail: sameAddress(root, gatewayAddress) ? `${short(gatewayAddress)} is trusted` : `${short(gatewayAddress)} was handed over from trusted ${short(root)}` };
+  const names = (pinned: boolean) => [...new Set(segments.filter((s) => trusted.has(s.key.toLowerCase()) === pinned).map((s) => short(s.key)))];
+  const handed = names(false);
+  return { ok: true, detail: `trusted ${names(true).join(", ")}${handed.length ? `; handed over ${handed.join(", ")}` : ""}` };
 }
 
 export type { CredentialPublic, Receipt };

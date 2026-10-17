@@ -1,6 +1,6 @@
 # ADR-0020: Gateway key history in the receipt chain
 
-Date: 17 October 2026. Status: proposed.
+Date: 17 October 2026. Status: proposed; decisions 2, 3, 7 and 8 amended by ADR-0022.
 
 ## Context
 

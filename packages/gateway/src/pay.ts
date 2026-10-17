@@ -764,6 +764,13 @@ export class PaymentService {
     const out: Array<{ digest: string; ok: boolean; txHash?: Hex; reason?: string; value: string }> = [];
     for (const p of this.store.pendingPreApprovals(principalId)) {
       if (BigInt(p.validBefore) >= now) continue;
+      // the principal's receipt chain must accept this gateway's key before anything happens on-chain (ADR-0022)
+      try {
+        await this.receipts.handOver(p.principalId);
+      } catch (err) {
+        out.push({ digest: p.digest, ok: false, reason: (err as Error).message, value: p.value });
+        continue;
+      }
       const r = await this.chain.reclaimApproval(p.account as Address, p.digest as Hex);
       if (r.ok) {
         this.store.putPreApproval({ ...p, state: "reclaimed", reclaimTxHash: r.txHash });

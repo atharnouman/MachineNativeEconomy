@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Address, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { ReceiptRegistryAbi } from "@spendmarshal/core";
+import { ReceiptRegistryAbi, type EvidenceBundle } from "@spendmarshal/core";
 import { ANVIL_KEYS, deployCore, registryAnchorsPerChain, startAnvil } from "@spendmarshal/devnet";
 import { buildGateway, type Gateway, type GatewayConfig } from "@spendmarshal/gateway";
 import { verifyEvidence } from "@spendmarshal/cli";
@@ -70,6 +70,61 @@ describe("anchoring several principals from one gateway key", () => {
         expect(report.ok, JSON.stringify(report.checks)).toBe(true);
         expect(report.checks.find((c) => c.check === "anchors.onchain")?.ok).toBe(true);
       }
+    } finally {
+      await gw?.close();
+      net.stop();
+    }
+  });
+
+  it("finds an anchor that records no sender under the key that sent it, after the gateway key changed", async () => {
+    const net = await startAnvil({ port: 18548 });
+    let gw: Gateway | undefined;
+    try {
+      const core = await deployCore(net, KEY);
+      const dir = mkdtempSync(join(tmpdir(), "spendmarshal-anchors-legacy-"));
+      // keys the first test never sent from: viem's nonce manager is process-wide, keyed by address and chain id, and this
+      // anvil starts from nonce 0 again
+      const [OLD_KEY, NEW_KEY] = [ANVIL_KEYS[2]!, ANVIL_KEYS[3]!];
+      const [oldAddress, newAddress] = [privateKeyToAccount(OLD_KEY).address, privateKeyToAccount(NEW_KEY).address];
+      const config = (key: Hex, previousGatewayAddresses?: Address[]): GatewayConfig => ({
+        host: "127.0.0.1",
+        port: 0,
+        rpcUrl: net.rpcUrl,
+        chainId: net.chainId,
+        gatewayPrivateKey: key,
+        previousGatewayAddresses,
+        sessionSecret: "session-secret",
+        credentialRootKey: "credential-root-key",
+        adminToken: "admin",
+        dataDir: dir,
+        policyYaml: policy("acme"),
+        contracts: { usdc: core.usdc, receiptRegistry: core.receiptRegistry, enforcers: core.enforcers },
+        principals: { acme: { account: ZERO } },
+        asset: { symbol: "USDC", decimals: 6 },
+        facilitator: { enabled: false },
+        authorizationTtlSeconds: 120,
+      });
+
+      // the old key anchors; then its key is gone, the operator declares it, and the new key anchors too
+      gw = await buildGateway(config(OLD_KEY));
+      await gw.ready;
+      await gw.anchor("acme");
+      await gw.close();
+      gw = await buildGateway(config(NEW_KEY, [oldAddress]));
+      await gw.ready;
+      await gw.anchor("acme");
+
+      // a bundle whose first anchor was recorded before anchors named their sender
+      const bundle = JSON.parse(JSON.stringify(gw.exportEvidence("acme"))) as EvidenceBundle;
+      expect(bundle.gateway.address).toBe(newAddress);
+      delete bundle.anchors[0]!.party;
+      const report = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl, trustedGatewayKeys: [oldAddress, newAddress] });
+      expect(report.ok, JSON.stringify(report.checks)).toBe(true);
+      expect(report.checks.find((c) => c.check === "anchors.onchain")?.detail).toMatch(/^0x[0-9a-f]{8} @ block \d+; 0x[0-9a-f]{8} @ block \d+$/);
+      // without pins the rotation (no handover) fails the trust check, while the anchors are still found on-chain
+      const unpinned = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl });
+      expect(unpinned.checks.find((c) => c.check === "gateway.trusted")?.ok).toBe(false);
+      expect(unpinned.checks.find((c) => c.check === "anchors.onchain")?.ok).toBe(true);
     } finally {
       await gw?.close();
       net.stop();

@@ -83,6 +83,19 @@ contract ReceiptRegistryTest is Test {
         assertGt(reg.anchoredAt(rotated, keccak256("acme 12")), 0);
     }
 
+    /// Anchoring a head again, here or under another chain id, never moves its first block (ADR-0022).
+    function test_ReAnchoringKeepsTheFirstBlock() public {
+        bytes32 h = keccak256("r1");
+        reg.anchor(ACME, h, bytes32(0), 1);
+        uint256 first = reg.anchoredAt(address(this), h);
+        vm.roll(block.number + 5);
+        reg.anchor(ACME, h, h, 1); // same head, same count: allowed, and only the latest anchor moves
+        reg.anchor(GLOBEX, h, bytes32(0), 1); // the sender names the chain; the registry cannot tell
+        assertEq(reg.anchoredAt(address(this), h), first);
+        (, , uint256 latestBlock) = reg.latest(address(this), ACME);
+        assertEq(latestBlock, first + 5);
+    }
+
     function test_EmitsTheChain() public {
         vm.expectEmit(true, true, true, true, address(reg));
         emit ReceiptRegistry.Anchored(address(this), ACME, keccak256("r1"), bytes32(0), 1);

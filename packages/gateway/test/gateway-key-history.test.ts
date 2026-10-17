@@ -27,7 +27,7 @@ const [A1, A2, A3] = [K1, K2, K3].map((k) => privateKeyToAccount(k).address) as 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 /** A gateway on an existing store. The chain is never contacted: anchoring goes to the fake registry in `start`. */
-function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous?: Hex[]; policyFor?: string; principals?: Record<string, PrincipalConfig> } = {}): GatewayConfig {
+function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous?: Hex[]; addresses?: Address[]; policyFor?: string; principals?: Record<string, PrincipalConfig> } = {}): GatewayConfig {
   return {
     host: "127.0.0.1",
     port: 0,
@@ -35,6 +35,7 @@ function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous
     chainId: 31337,
     gatewayPrivateKey: key,
     previousGatewayKeys: opts.previous,
+    previousGatewayAddresses: opts.addresses,
     sessionSecret: "session-secret",
     credentialRootKey: "credential-root-key",
     adminToken: "admin",
@@ -49,18 +50,25 @@ function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous
   };
 }
 
-async function start(cfg: GatewayConfig): Promise<Gateway> {
+/** A gateway whose startup may still be running (or failing): `start` waits for it. */
+async function build(cfg: GatewayConfig): Promise<Gateway> {
   const gw = await buildGateway(cfg);
-  await gw.ready;
   // a registry where the sender has no earlier anchor and every anchor lands in block 1
   gw.chain.latestAnchorHead = async () => `0x${"0".repeat(64)}` as Hex;
   gw.chain.anchor = async () => ({ txHash: `0x${"1".repeat(64)}` as Hex, blockNumber: 1n });
   return gw;
 }
 
+async function start(cfg: GatewayConfig): Promise<Gateway> {
+  const gw = await build(cfg);
+  await gw.ready;
+  return gw;
+}
+
 const kinds = (gw: Gateway, p: string) => gw.store.receiptsFor(p).map((r) => r.kind);
 const verify = (gw: Gateway, p: string, trustedGatewayKeys?: string[]) => verifyBundle(JSON.parse(JSON.stringify(gw.exportEvidence(p))) as EvidenceBundle, { trustedGatewayKeys });
 const check = (r: Awaited<ReturnType<typeof verifyBundle>>, name: string) => r.checks.find((c) => c.check === name);
+const external = (gw: Gateway, principalId: string) => gw.app.inject({ method: "POST", url: "/v1/receipts/external", headers: { "x-admin-token": "admin" }, payload: { principalId, source: "test", data: { note: "late" } } });
 
 for (const driver of ["json", "sqlite"] as StoreDriver[]) {
   describe(`gateway key history [${driver}]`, () => {
@@ -89,7 +97,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       report = await verify(gw, "org", [A1]);
       expect(report.ok, JSON.stringify(report.checks)).toBe(true);
       expect(check(report, "gateway.keys")?.detail).toBe(`${short(A1)} from #0; ${short(A2)} from #2 (handed over)`);
-      expect(check(report, "gateway.trusted")?.detail).toBe(`${short(A2)} was handed over from trusted ${short(A1)}`);
+      expect(check(report, "gateway.trusted")?.detail).toBe(`trusted ${short(A1)}; handed over ${short(A2)}`);
       // a principal this gateway does not serve keeps its chain as it was, and its bundle names the key that signed it
       expect(kinds(gw, "dormant")).toEqual(["policy.updated"]);
       expect(gw.exportEvidence("dormant").gateway.address).toBe(A1);
@@ -101,32 +109,50 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       expect(kinds(gw, "org")).toHaveLength(3);
       await gw.close();
 
-      // run 3, key K3, and K2 is gone: the rotation is receipted without a handover. The chain verifies, and a pin on the
-      // first key no longer covers it.
-      gw = await start(config(dir, driver, K3));
+      // run 3, key K3, and K2 is gone, but nobody told the gateway: it refuses to continue the chain K2 signed (ADR-0022).
+      // Startup fails and writes nothing; an operator's receipt for an unserved chain and the reclaim job are refused too.
+      gw = await build(config(dir, driver, K3));
+      await expect(gw.ready).rejects.toThrow(`the receipt chain of org ends with #2, signed by ${A2}`);
+      expect(kinds(gw, "org")).toHaveLength(3);
+      expect((await external(gw, "dormant")).statusCode).toBe(409);
+      expect(kinds(gw, "dormant")).toEqual(["policy.updated"]);
+      const sent: string[] = [];
+      gw.chain.now = async () => 2_000_000_000n;
+      gw.chain.reclaimApproval = async (_account, digest) => {
+        sent.push(digest);
+        return { ok: true, txHash: `0x${"2".repeat(64)}` as Hex };
+      };
+      gw.store.putPreApproval({ digest: `0x${"d".repeat(64)}`, principalId: "dormant", account: ZERO, credentialId: "cred_x", intentId: "int_x", value: "1", validBefore: "1", approvalTxHash: `0x${"3".repeat(64)}`, createdAt: new Date().toISOString(), state: "pending" });
+      expect(await gw.payments.reclaimExpiredPreApprovals()).toMatchObject([{ ok: false, reason: expect.stringContaining("refusing to continue it") }]);
+      expect(sent).toEqual([]); // the chain refused first, so nothing was sent on-chain
+      expect(await gw.metrics.text()).toContain("spendmarshal_receipt_chain_refusals_total 3");
+      await gw.close();
+
+      // run 3 again, with K2 and K1 declared as previous addresses whose keys are gone: the rotation is receipted without a
+      // handover. The chain is consistent, but nothing vouches for the change, so it verifies only with both sides pinned.
+      gw = await start(config(dir, driver, K3, { addresses: [A2, A1] }));
       expect(gw.store.receiptsFor("org")[3]).toMatchObject({ kind: "gateway.key.rotated", data: { prevAddress: A2, address: A3, handover: null } });
       report = await verify(gw, "org");
-      expect(report.ok, JSON.stringify(report.checks)).toBe(true);
+      expect(check(report, "receipts.chain")?.ok).toBe(true);
       expect(check(report, "gateway.keys")?.detail).toBe(`${short(A1)} from #0; ${short(A2)} from #2 (handed over); ${short(A3)} from #3 (no handover)`);
-      const pinnedFirst = await verify(gw, "org", [A1]);
-      expect(pinnedFirst.ok).toBe(false);
-      expect(check(pinnedFirst, "gateway.trusted")?.detail).toBe(`${short(A3)} is neither trusted nor handed over from a trusted key (no handover at #3)`);
-      expect((await verify(gw, "org", [A3])).ok).toBe(true);
+      expect(check(report, "gateway.trusted")).toEqual({ check: "gateway.trusted", ok: false, detail: `rotation without a handover at #3 (${short(A2)} → ${short(A3)}): pin the gateway keys you trust` });
+      expect(check(await verify(gw, "org", [A1]), "gateway.trusted")?.detail).toBe(`receipts #3–#3 were signed by ${short(A3)}, which is neither trusted nor linked to a trusted key by handovers`);
+      expect((await verify(gw, "org", [A1, A3])).ok).toBe(true);
 
       // the dormant chain is handed over by its next receipt, here an operator's external receipt
-      const res = await gw.app.inject({ method: "POST", url: "/v1/receipts/external", headers: { "x-admin-token": "admin" }, payload: { principalId: "dormant", source: "test", data: { note: "late" } } });
-      expect(res.statusCode).toBe(200);
+      expect((await external(gw, "dormant")).statusCode).toBe(200);
       expect(kinds(gw, "dormant")).toEqual(["policy.updated", "gateway.key.rotated", "external"]);
       expect(gw.store.receiptsFor("dormant")[1]!.data).toEqual({ prevAddress: A1, address: A3, handover: null });
-      expect((await verify(gw, "dormant")).ok).toBe(true);
+      expect((await verify(gw, "dormant", [A1, A3])).ok).toBe(true);
 
       // anchoring a chain that was not handed over yet hands it over first: the key that sends the anchor signed its head
       const anchored = await gw.anchor("idle");
       expect(kinds(gw, "idle")).toEqual(["policy.updated", "gateway.key.rotated", "evidence.anchored"]);
       expect(anchored).toMatchObject({ count: 2, head: gw.store.receiptsFor("idle")[1]!.hash, party: A3 });
-      const idle = await verify(gw, "idle");
+      const idle = await verify(gw, "idle", [A1, A3]);
       expect(idle.ok, JSON.stringify(idle.checks)).toBe(true);
       expect(check(idle, "anchors.match")?.detail).toBe("1 anchors");
+      expect(await gw.metrics.text()).toContain('spendmarshal_gateway_key_rotations_total{handover="no"} 3');
       await gw.close();
     });
 
@@ -142,6 +168,28 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       expect(v.ok, v.problems.join("; ")).toBe(true);
       expect(v.keys).toMatchObject([{ prevAddress: A1, address: A2, seq: 3, handedOver: true }]);
       expect(await log.handOver("p")).toBeNull(); // nothing left to hand over
+      store.close();
+    });
+
+    it("refuses to continue a chain an unknown key signed, and writes nothing, until that key is declared", async () => {
+      const store = await openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-refuse-${driver}-`)) });
+      await new ReceiptLog(store, new LocalSigner(K1, "secret")).append("p", "external", { by: "K1" });
+      const strict = new ReceiptLog(store, new LocalSigner(K2, "secret"));
+      await expect(strict.append("p", "external", { by: "K2" })).rejects.toMatchObject({ statusCode: 409 });
+      await expect(strict.handOver("p")).rejects.toThrow("refusing to continue it");
+      expect(store.receiptsFor("p")).toHaveLength(1);
+      const declared = new ReceiptLog(store, new LocalSigner(K2, "secret"), undefined, { previousGatewayAddresses: [A1.toLowerCase()] });
+      expect((await declared.handOver("p"))?.data).toEqual({ prevAddress: A1, address: A2, handover: null });
+      await declared.append("p", "external", { by: "K2" });
+      expect((await verifyChain(store.receiptsFor("p"), A2)).ok).toBe(true);
+      store.close();
+    });
+
+    it("refuses a previous gateway address that is not an address, before anything is receipted", async () => {
+      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-badaddr-${driver}-`));
+      await expect(buildGateway(config(dir, driver, K2, { addresses: ["0x1234" as Address] }))).rejects.toThrow("previous gateway address 0x1234 is not an address");
+      const store = await openStore({ driver, dataDir: dir });
+      expect(store.lastReceipt("org")).toBeUndefined();
       store.close();
     });
 

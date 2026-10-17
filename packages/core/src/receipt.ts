@@ -126,6 +126,16 @@ export function gatewayKeyHistory(receipts: readonly Receipt[]): GatewayKeyChang
   return out;
 }
 
+/**
+ * The gateway key that signed the receipt at `seq`, given the chain's rotations: the last rotation at or before it, else
+ * the chain's first key (`gatewayAddress` when it has no rotation). An anchor that records no sender was sent by it.
+ */
+export function gatewayKeyAt(keys: readonly GatewayKeyChange[], gatewayAddress: string, seq: number): string {
+  let key = keys[0]?.prevAddress ?? gatewayAddress;
+  for (const k of keys) if (k.seq <= seq) key = k.address;
+  return key;
+}
+
 function rotationOf(r: Receipt): GatewayKeyRotatedData | null {
   if (r.kind !== "gateway.key.rotated") return null;
   const d = r.data as { prevAddress?: unknown; address?: unknown; handover?: unknown };
