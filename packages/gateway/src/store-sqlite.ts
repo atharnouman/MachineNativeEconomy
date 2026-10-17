@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
+import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
 import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
 const SCHEMA = `
@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS receipts (
   UNIQUE (principal_id, seq)
 );
 CREATE INDEX IF NOT EXISTS receipts_principal ON receipts (principal_id, seq);
+CREATE INDEX IF NOT EXISTS receipts_principal_kind ON receipts (principal_id, kind, seq);
 CREATE TABLE IF NOT EXISTS credentials (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, json TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS credentials_principal ON credentials (principal_id);
 CREATE TABLE IF NOT EXISTS ledger (
@@ -67,6 +68,11 @@ export class SqliteStore implements Store {
   lastReceipt(principalId: string): Receipt | undefined {
     const r = this.row<{ json: string }>("SELECT json FROM receipts WHERE principal_id = ? ORDER BY seq DESC LIMIT 1", principalId);
     return r ? (JSON.parse(r.json) as Receipt) : undefined;
+  }
+  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[] {
+    if (!kinds.length) return [];
+    const sql = `SELECT json FROM receipts WHERE principal_id = ? AND kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY seq`;
+    return this.rows<{ json: string }>(sql, principalId, ...kinds).map((x) => JSON.parse(x.json) as Receipt);
   }
 
   getIdempotent(scope: string, key: string): IdempotentRecord | undefined {

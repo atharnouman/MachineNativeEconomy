@@ -53,7 +53,7 @@ Full positioning: [`context/positioning.md`](context/positioning.md). Landscape 
 ✔ L402 over Lightning: 10 sats at 1600 sats/USDC = 0.00625 USDC against policy; preimage matches invoice hash
 ✔ orphaned pre-approval reclaimed after expiry: charge +0.001 at approval; after expiry → 1 reclaimed, session spent back
 ✔ metrics + OpenAPI: /metrics has spendmarshal_payments_total; /openapi.json is OpenAPI 3.1.0 with 29 paths
-VERIFIED: 11/11 checks
+VERIFIED: 12/12 checks
 PHASE 1 PASSED: 31/31 steps
 ```
 

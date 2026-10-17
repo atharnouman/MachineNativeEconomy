@@ -71,6 +71,7 @@ function bundle(receipts: Receipt[], over: Partial<EvidenceBundle> = {}): Eviden
     policy: { hash: policyHash(policy), document: policy },
     policyVersions: [],
     approvers: {},
+    approverHistory: {},
     credentials: [],
     receipts,
     anchors: [],
@@ -113,10 +114,11 @@ describe("gateway key history", () => {
     expect(v.problems).toEqual([`r0: signer ${k1.address} is not gateway`, `r1: signer ${k1.address} is not gateway`]);
   });
 
-  it("reports a bundle without rotations exactly as before key history", async () => {
+  it("reports a bundle without rotations exactly as before gateway key history", async () => {
     const report = await verifyBundle(bundle(await chain([{ by: k1 }, { by: k1 }])));
     expect(report.ok).toBe(true);
-    expect(report.checks.map((c) => c.check)).toEqual(["schema", "policy.hash", "policy.versions", "receipts.chain", "receipts.policyHash", "credentials.ids", "credentials.monotonic", "anchors.match", "settlements.have_allow_decision", "approvals"]);
+    // no gateway.keys check: the list is the one from before ADR-0020 (approvers.history comes from ADR-0019)
+    expect(report.checks.map((c) => c.check)).toEqual(["schema", "policy.hash", "policy.versions", "receipts.chain", "receipts.policyHash", "credentials.ids", "credentials.monotonic", "anchors.match", "settlements.have_allow_decision", "approvers.history", "approvals"]);
     expect(check(report, "receipts.chain")?.detail).toBe("2 receipts");
   });
 

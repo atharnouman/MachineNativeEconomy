@@ -14,6 +14,7 @@ import {
   DIRECTORY_CONTENT_TYPE,
   gatewayKeyHistory,
   receiptSigner,
+  approverKeyHistory,
   type Credential,
   type EvidenceBundle,
   type Receipt,
@@ -27,6 +28,7 @@ import { CredentialService } from "./credentials.js";
 import { PaymentService } from "./pay.js";
 import { PolicyService } from "./policies.js";
 import { ApprovalService } from "./approvals.js";
+import { ApproverKeys } from "./approvers.js";
 import { registerFacilitator } from "./facilitator.js";
 import { Metrics } from "./metrics.js";
 import { buildOpenApi, PayBodySchema } from "./openapi.js";
@@ -48,7 +50,10 @@ export interface Gateway {
   approvals: ApprovalService;
   metrics: Metrics;
   publicUrl: string;
-  /** Resolves once seed receipts are written: policy version 1, and the handover of every configured principal's chain to this gateway's key. `listen()` awaits it. */
+  /**
+   * Resolves once seed receipts are written: policy version 1 and, for every configured principal, the handover of
+   * its chain to this gateway's key and the approver keys in force. `listen()` awaits it.
+   */
   ready: Promise<void>;
   exportEvidence(principalId: string): EvidenceBundle;
   anchor(principalId: string): Promise<{ head: Hex; count: number; txHash: Hex; blockNumber: string }>;
@@ -83,13 +88,14 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   const chain = new ChainClient(cfg);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
   const receipts = new ReceiptLog(store, signer, metrics);
+  const approverKeys = new ApproverKeys(cfg, store, receipts); // checks the approver addresses before anything is receipted
   const policies = new PolicyService(store, receipts, { yaml: cfg.policyYaml, by: "config" });
-  const approvals = new ApprovalService(cfg, store, receipts, metrics);
+  const approvals = new ApprovalService(cfg, store, receipts, metrics, approverKeys);
   const credentials = new CredentialService(cfg, store, signer, chain, receipts);
   const payments = new PaymentService(cfg, store, signer, chain, receipts, policies, approvals, { metrics, publicUrl });
-  // every configured principal's chain is handed over to this gateway's key before it serves (ADR-0020); any other chain
-  // is handed over by its next receipt
-  const ready = policies.ready.then(() => Promise.all(Object.keys(cfg.principals).map((p) => receipts.handOver(p)))).then(() => undefined);
+  // Before the gateway serves, every configured principal's chain is handed over to this gateway's key (ADR-0020), then
+  // records the approver keys in force (ADR-0019). Any other chain is handed over by its next receipt.
+  const ready = policies.ready.then(() => Promise.all(Object.keys(cfg.principals).map((p) => receipts.handOver(p).then(() => approverKeys.sync(p))))).then(() => undefined);
 
   app.addHook("onResponse", (req, reply, done) => {
     metrics.httpRequests.inc({ route: req.routeOptions?.url ?? "unmatched", status: String(reply.statusCode) });
@@ -336,6 +342,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       policy: { hash: active.hash, document: active.document },
       policyVersions: policies.versions(principalId),
       approvers: cfg.approvers ?? {},
+      approverHistory: approverKeyHistory(rs),
       credentials: store.credentialsFor(principalId).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
       receipts: rs,
       anchors: store.anchorsList(principalId).map(({ principalId: _owner, ...a }) => a),

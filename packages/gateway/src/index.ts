@@ -7,6 +7,7 @@ export { JsonStore } from "./store-json.js";
 export { SqliteStore } from "./store-sqlite.js";
 export { PolicyService, type PolicyUpdateResult } from "./policies.js";
 export { ApprovalService } from "./approvals.js";
+export { ApproverKeys } from "./approvers.js";
 export { Metrics } from "./metrics.js";
 export { buildOpenApi, PayBodySchema } from "./openapi.js";
 export { checkHolder } from "./httpauth.js";

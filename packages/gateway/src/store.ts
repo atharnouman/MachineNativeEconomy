@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Receipt, CredentialPublic, SpendLedgerView, Approval, PaymentIntent, PolicyVersion, Subscription } from "@spendmarshal/core";
+import type { Receipt, ReceiptKind, CredentialPublic, SpendLedgerView, Approval, PaymentIntent, PolicyVersion, Subscription } from "@spendmarshal/core";
 
 export interface RegisteredCredential extends CredentialPublic {
   sessionKey: string;
@@ -82,6 +82,8 @@ export interface Store {
   receiptsFor(principalId: string): Receipt[];
   /** The chain head for a principal (indexed; never loads the chain). */
   lastReceipt(principalId: string): Receipt | undefined;
+  /** A principal's receipts of the given kinds, in chain order (indexed; never loads the rest of the chain). */
+  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[];
   // idempotency: final outcomes kept for IDEMPOTENCY_TTL_MS
   getIdempotent(scope: string, key: string): IdempotentRecord | undefined;
   putIdempotent(rec: IdempotentRecord): void;

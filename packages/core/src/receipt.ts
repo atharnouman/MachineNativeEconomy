@@ -25,6 +25,8 @@ export const ReceiptKindSchema = z.enum([
   "approval.rejected",
   "approval.expired",
   "approval.consumed",
+  "approver.registered", // an approver's key comes into force in this chain (first key, or a rotation)
+  "approver.removed", // the approver left the configuration: no key from here on
   "policy.updated",
   "subscription.created",
   "subscription.charged",
