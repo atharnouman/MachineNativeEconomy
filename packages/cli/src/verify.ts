@@ -1,12 +1,15 @@
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import { verifyBundle, EvidenceBundleSchema, ReceiptRegistryAbi, chainFor, type EvidenceBundle, type VerifyReport } from "@spendmarshal/core";
 
-/** Offline verification plus, when an RPC is given, confirmation that each anchor exists on-chain. */
-export async function verifyEvidence(bundle: unknown, opts: { rpcUrl?: string } = {}): Promise<VerifyReport & { bundle: EvidenceBundle | null }> {
+/**
+ * Offline verification plus, when an RPC is given, confirmation that each anchor exists on-chain. `trustedGatewayKeys`
+ * pins the gateway keys the auditor trusts (ADR-0020).
+ */
+export async function verifyEvidence(bundle: unknown, opts: { rpcUrl?: string; trustedGatewayKeys?: string[] } = {}): Promise<VerifyReport & { bundle: EvidenceBundle | null }> {
   const parsed = EvidenceBundleSchema.safeParse(bundle);
   if (!parsed.success) return { ok: false, checks: [{ check: "schema", ok: false, detail: parsed.error.issues[0]?.message }], bundle: null };
   const b = parsed.data;
-  const report = await verifyBundle(b);
+  const report = await verifyBundle(b, { trustedGatewayKeys: opts.trustedGatewayKeys });
   if (opts.rpcUrl && b.anchors.length) {
     const chainId = Number(b.gateway.chain.split(":")[1]);
     const client = createPublicClient({ chain: chainFor(chainId, opts.rpcUrl), transport: http(opts.rpcUrl) });
@@ -14,7 +17,9 @@ export async function verifyEvidence(bundle: unknown, opts: { rpcUrl?: string } 
     const detail: string[] = [];
     for (const a of b.anchors) {
       try {
-        const blk = await client.readContract({ address: a.registry as Address, abi: ReceiptRegistryAbi, functionName: "anchoredAt", args: [b.gateway.address as Address, a.head as Hex] });
+        // the registry keeps each anchor under the address that sent it; older bundles do not name it, and were all sent by the gateway's one key
+        const party = (a.party ?? b.gateway.address) as Address;
+        const blk = await client.readContract({ address: a.registry as Address, abi: ReceiptRegistryAbi, functionName: "anchoredAt", args: [party, a.head as Hex] });
         if (blk === 0n) {
           ok = false;
           detail.push(`${a.head.slice(0, 10)} not anchored`);

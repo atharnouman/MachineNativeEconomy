@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { formatUnits, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { connectChain, deployCore, delegateEoaToAccount, grantRootSession, readSession, usdcBalance, walletFor, type CoreContracts } from "@spendmarshal/devnet";
+import { connectChain, deployCore, deployReceiptRegistry, delegateEoaToAccount, grantRootSession, readSession, registryAnchorsPerChain, usdcBalance, walletFor, type CoreContracts } from "@spendmarshal/devnet";
 import { buildGateway, type Gateway } from "@spendmarshal/gateway";
 import { buildPayee } from "@spendmarshal/payee";
 import { SpendMarshalAdmin, type PayResponse } from "@spendmarshal/sdk";
@@ -60,7 +60,10 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
     log(`${ok ? "✔" : "✘"} ${name}: ${detail}`);
   };
 
-  const principalId = `org-acme-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`; // one principal per run
+  // One principal per run: the run's budget and approver key belong to it. The gateway key is new every run as well; when
+  // the reclaim step writes into an earlier run's principal, that chain records the change as a rotation without a
+  // handover (the earlier session key is gone) and its bundle still verifies (ADR-0020).
+  const principalId = `org-acme-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
   const ownerKey = readKey("SPENDMARSHAL_TESTNET_OWNER_KEY_FILE", "testnet-owner.key");
   const operatorKey = readKey("SPENDMARSHAL_TESTNET_GATEWAY_KEY_FILE", "testnet-gateway.key"); // deploys once, funds each run
   const owner = privateKeyToAccount(ownerKey);
@@ -110,7 +113,16 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
     treasury = cached.treasury ?? privateKeyToAccount(generatePrivateKey()).address;
     secrets = cached.secrets ?? newSecrets();
     if (!cached.treasury || !cached.secrets) writeFileSync(deployFile, JSON.stringify({ ...core, treasury, secrets }, null, 2));
-    step("contracts", true, `reusing ${deployFile.replace(REPO, ".")}: AgentAccount impl ${core.agentAccountImpl}`);
+    // A registry from before per-chain anchors (ADR-0021) cannot take this run's anchor, so the operator replaces it once
+    // and the cache keeps the new one. Bundles anchored in the old one still verify: each anchor names its registry.
+    let registryNote = "";
+    if (!(await registryAnchorsPerChain(net, core.receiptRegistry))) {
+      const old = core.receiptRegistry;
+      core = { ...core, receiptRegistry: await deployReceiptRegistry(net, operatorKey) };
+      writeFileSync(deployFile, JSON.stringify({ ...core, treasury, secrets }, null, 2));
+      registryNote = `; ReceiptRegistry ${old} predates per-chain anchors, replaced by ${addrLink(core.receiptRegistry)}`;
+    }
+    step("contracts", true, `reusing ${deployFile.replace(REPO, ".")}: AgentAccount impl ${core.agentAccountImpl}${registryNote}`);
   } else {
     core = await deployCore(net, operatorKey, { usdc: USDC });
     treasury = privateKeyToAccount(generatePrivateKey()).address;
@@ -151,7 +163,8 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   let gw: Gateway | undefined;
   let payee: ReturnType<typeof buildPayee> | undefined;
   try {
-    const fund = operatorEth2 > 16_000_000_000_000n ? 15_000_000_000_000n : (operatorEth2 * 9n) / 10n; // gas for about ten transactions; the rest returns at the end
+    const operatorEth = await net.pub.getBalance({ address: operator.address }); // after any deployment above
+    const fund = operatorEth > 16_000_000_000_000n ? 15_000_000_000_000n : (operatorEth * 9n) / 10n; // gas for about ten transactions; the rest returns at the end
     const fh = await walletFor(net, operatorKey).sendTransaction({ to: gatewayAccount.address, value: fund });
     await waitForInclusion(net.pub, fh);
     for (let i = 0; i < 15 && (await net.pub.getBalance({ address: gatewayAccount.address })) === 0n; i++) await new Promise((r) => setTimeout(r, 2_000));

@@ -21,6 +21,8 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). In one line: the model never s
 
 Rotating the session-key secret invalidates every on-chain session (keys change); re-register credentials.
 
+Rotating the gateway key: start the gateway with the new key and the old one in `SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS`. Before it serves, every configured principal's receipt chain records the change, with the old key's handover signature; any other chain records it with its next receipt. Then remove the old key from the configuration and destroy it. Without the old key the change is still recorded, without a handover, and auditors must pin the new key themselves (ADR-0020). The new key also needs its own root session from each account owner (in dev mode, ownership).
+
 ## Operating modes
 * **Dev (`ownerIsGateway: true`)**: the gateway key owns the account. Convenient, and the gateway can lose everything in the account.
 * **Bounded operator (`ownerIsGateway: false`)**: the owner grants the gateway a root session with a cap, per-transaction limit, payee allowlist and expiry. Every credential the gateway registers is a child of that session. A compromised gateway is limited to that session's remaining cap and cannot unpause the account. Use this for anything beyond a demo.

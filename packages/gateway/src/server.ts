@@ -12,8 +12,11 @@ import {
   signMessage,
   DIRECTORY_PATH,
   DIRECTORY_CONTENT_TYPE,
+  gatewayKeyHistory,
+  receiptSigner,
   type Credential,
   type EvidenceBundle,
+  type Receipt,
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import { openStore, type Store } from "./store.js";
@@ -45,7 +48,7 @@ export interface Gateway {
   approvals: ApprovalService;
   metrics: Metrics;
   publicUrl: string;
-  /** Resolves once seed receipts (policy version 1) are written. `listen()` awaits it. */
+  /** Resolves once seed receipts are written: policy version 1, and the handover of every configured principal's chain to this gateway's key. `listen()` awaits it. */
   ready: Promise<void>;
   exportEvidence(principalId: string): EvidenceBundle;
   anchor(principalId: string): Promise<{ head: Hex; count: number; txHash: Hex; blockNumber: string }>;
@@ -76,7 +79,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   const publicUrl = (cfg.publicUrl ?? `http://${cfg.host}:${cfg.port}`).replace(/\/$/, "");
   const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
-  const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret);
+  const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys);
   const chain = new ChainClient(cfg);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
   const receipts = new ReceiptLog(store, signer, metrics);
@@ -84,6 +87,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   const approvals = new ApprovalService(cfg, store, receipts, metrics);
   const credentials = new CredentialService(cfg, store, signer, chain, receipts);
   const payments = new PaymentService(cfg, store, signer, chain, receipts, policies, approvals, { metrics, publicUrl });
+  // every configured principal's chain is handed over to this gateway's key before it serves (ADR-0020); any other chain
+  // is handed over by its next receipt
+  const ready = policies.ready.then(() => Promise.all(Object.keys(cfg.principals).map((p) => receipts.handOver(p)))).then(() => undefined);
 
   app.addHook("onResponse", (req, reply, done) => {
     metrics.httpRequests.inc({ route: req.routeOptions?.url ?? "unmatched", status: String(reply.statusCode) });
@@ -300,13 +306,27 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     return { receipt: r };
   });
 
+  // The bundle names the gateway key the chain ends with, read from its head: this gateway's key, unless the chain has not
+  // been written since the key changed. Its rotations are exported as `gatewayKeyHistory` (ADR-0020).
+  const keyAtHead = (rs: Receipt[]): string => {
+    const head = rs[rs.length - 1];
+    if (!head) return signer.address;
+    try {
+      return receiptSigner(head);
+    } catch {
+      return signer.address; // a malformed head signature: the verifier reports that receipt
+    }
+  };
+
   const exportEvidence = (principalId: string): EvidenceBundle => {
     const active = policies.activeVersion(principalId);
+    const rs = store.receiptsFor(principalId);
     return {
       v: 1,
       principalId,
       exportedAt: nowIso(),
-      gateway: { address: signer.address, chain: `eip155:${cfg.chainId}` },
+      gateway: { address: keyAtHead(rs), chain: `eip155:${cfg.chainId}` },
+      gatewayKeyHistory: gatewayKeyHistory(rs),
       contracts: {
         agentAccount: cfg.principals[principalId]?.account ?? "",
         usdc: cfg.contracts.usdc,
@@ -317,7 +337,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       policyVersions: policies.versions(principalId),
       approvers: cfg.approvers ?? {},
       credentials: store.credentialsFor(principalId).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
-      receipts: store.receiptsFor(principalId),
+      receipts: rs,
       anchors: store.anchorsList(principalId).map(({ principalId: _owner, ...a }) => a),
     };
   };
@@ -327,17 +347,22 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     return exportEvidence((req.params as { principalId: string }).principalId);
   });
 
-  // The registry chains anchors per sending key, so the previous head comes from the registry (a rotated relayer key or
-  // a fresh store would otherwise send a stale one), and anchors go one at a time so two never claim the same head.
+  // The registry chains anchors per sending key and receipt chain, and names a principal's chain by the hash of its first
+  // receipt (ADR-0021), so principals never constrain each other's anchors. The previous head comes from the registry (a
+  // rotated relayer key or a fresh store would otherwise send a stale one), and anchors go one at a time so two never
+  // claim the same head. The chain is handed over to this gateway's key first, so the key that sends the anchor signed
+  // the head it anchors, and the record names that sender (ADR-0020).
   let anchoring: Promise<unknown> = Promise.resolve();
   const anchor = (principalId: string) => {
     const run = anchoring.then(async () => {
+      await receipts.handOver(principalId);
       const rs = store.receiptsFor(principalId);
       const head = rs[rs.length - 1]?.hash as Hex | undefined;
       if (!head) throw new Error("nothing to anchor");
-      const prev = await chain.latestAnchorHead(cfg.contracts.receiptRegistry);
-      const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, head, prev, BigInt(rs.length));
-      const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry };
+      const receiptChain = rs[0]!.hash as Hex;
+      const prev = await chain.latestAnchorHead(cfg.contracts.receiptRegistry, receiptChain);
+      const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, receiptChain, head, prev, BigInt(rs.length));
+      const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry, party: chain.wallet.account.address };
       store.addAnchor({ principalId, ...rec });
       await receipts.append(principalId, "evidence.anchored", rec);
       return rec;
@@ -397,11 +422,11 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     approvals,
     metrics,
     publicUrl,
-    ready: policies.ready,
+    ready,
     exportEvidence,
     anchor,
     listen: async () => {
-      await policies.ready;
+      await ready;
       return app.listen({ host: cfg.host, port: cfg.port });
     },
     close: async () => {

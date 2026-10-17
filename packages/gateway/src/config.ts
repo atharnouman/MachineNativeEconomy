@@ -25,6 +25,12 @@ export interface GatewayConfig {
   chainId: number;
   /** Signs receipts, submits sessions/anchors, relays settlements. Dev: also owns the AgentAccount. */
   gatewayPrivateKey: Hex;
+  /**
+   * Earlier gateway keys, kept only while rotating: each one signs the handover of the receipt chains it signed to
+   * `gatewayPrivateKey` (ADR-0020). Configured principals are handed over at startup, any other chain on its next
+   * receipt. Remove them once the chains that matter have been handed over.
+   */
+  previousGatewayKeys?: Hex[];
   /** Secret from which per-credential session keys are derived (HMAC). Never leaves the gateway. */
   sessionSecret: string;
   /** Root key for credential HMAC chains. */
@@ -90,6 +96,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     rpcUrl: env.SPENDMARSHAL_RPC_URL ?? "http://127.0.0.1:8545",
     chainId: Number(env.SPENDMARSHAL_CHAIN_ID ?? 31337),
     gatewayPrivateKey: need("SPENDMARSHAL_GATEWAY_PRIVATE_KEY") as Hex,
+    previousGatewayKeys: env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS ? (env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS.split(",").map((s) => s.trim()).filter(Boolean) as Hex[]) : undefined,
     sessionSecret: need("SPENDMARSHAL_SESSION_SECRET"),
     credentialRootKey: need("SPENDMARSHAL_CREDENTIAL_ROOT_KEY"),
     adminToken: need("SPENDMARSHAL_ADMIN_TOKEN"),

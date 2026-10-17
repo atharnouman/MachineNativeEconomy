@@ -17,6 +17,8 @@ export interface AnchorRecord {
   txHash: string;
   blockNumber: string;
   registry: string;
+  /** the address that sent the anchor; the registry chains anchors per sender (absent on records from before ADR-0020) */
+  party?: string;
 }
 
 /** One payment's charge against the ledger. Reserved while in flight, settled on confirmation, released on failure. */

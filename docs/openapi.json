@@ -857,6 +857,7 @@
               "subscription.cancelled",
               "killswitch",
               "evidence.anchored",
+              "gateway.key.rotated",
               "external"
             ]
           },
@@ -947,6 +948,47 @@
               "chain"
             ],
             "additionalProperties": false
+          },
+          "gatewayKeyHistory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{40}$"
+                },
+                "prevAddress": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{40}$"
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "receiptId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "handedOver": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "address",
+                "prevAddress",
+                "seq",
+                "effectiveFrom",
+                "receiptId",
+                "handedOver"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
           },
           "contracts": {
             "type": "object",
@@ -1800,6 +1842,7 @@
                     "subscription.cancelled",
                     "killswitch",
                     "evidence.anchored",
+                    "gateway.key.rotated",
                     "external"
                   ]
                 },
@@ -1880,6 +1923,9 @@
                   "type": "string"
                 },
                 "registry": {
+                  "type": "string"
+                },
+                "party": {
                   "type": "string"
                 }
               },

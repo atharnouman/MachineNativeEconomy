@@ -1,16 +1,20 @@
 import { z } from "zod";
 import type { Address, Hex } from "viem";
+import { canonicalize } from "./canonical.js";
 import { PolicySchema, policyHash } from "./policy.js";
-import { ReceiptSchema, verifyChain, type Receipt } from "./receipt.js";
+import { GatewayKeyChangeSchema, ReceiptSchema, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
 import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
 
 /**
  * An evidence bundle is everything an auditor needs to re-verify a principal's payment history offline:
  * every policy version (with hashes and activation times), the public view of every credential, the registered
- * approver keys, the signed receipt chain, and the on-chain anchors. It deliberately omits credential
- * signatures (bearer secrets) and session private keys.
+ * approver keys, the signed receipt chain with every change of the gateway key in it, and the on-chain anchors.
+ * It deliberately omits credential signatures (bearer secrets) and session private keys.
  */
+
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const sameAddress = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 export const CredentialPublicSchema = z.object({
   v: z.literal(1),
@@ -36,7 +40,8 @@ export const EvidenceBundleSchema = z.object({
   v: z.literal(1),
   principalId: z.string(),
   exportedAt: z.string().datetime(),
-  gateway: z.object({ address: z.string(), chain: z.string() }),
+  gateway: z.object({ address: z.string(), chain: z.string() }), // address: the key in force at the end of the chain
+  gatewayKeyHistory: z.array(GatewayKeyChangeSchema).default([]), // every change of the gateway key in this chain (ADR-0020)
   contracts: z.record(z.string()),
   policy: z.object({ hash: z.string(), document: PolicySchema }), // the active version
   policyVersions: z.array(PolicyVersionSchema).default([]),
@@ -44,7 +49,8 @@ export const EvidenceBundleSchema = z.object({
   credentials: z.array(CredentialPublicSchema),
   receipts: z.array(ReceiptSchema),
   anchors: z.array(
-    z.object({ head: z.string(), count: z.number().int(), txHash: z.string(), blockNumber: z.string(), registry: z.string() }),
+    // party: the address that sent the anchor, under which the registry keeps it (absent on anchors from before ADR-0020)
+    z.object({ head: z.string(), count: z.number().int(), txHash: z.string(), blockNumber: z.string(), registry: z.string(), party: z.string().optional() }),
   ),
 });
 export type EvidenceBundle = z.infer<typeof EvidenceBundleSchema>;
@@ -54,8 +60,17 @@ export interface VerifyReport {
   checks: Array<{ check: string; ok: boolean; detail?: string }>;
 }
 
+export interface BundleVerifyOptions {
+  /**
+   * Gateway keys the auditor already trusts: published by the operator, or pinned from an earlier bundle. When given,
+   * the `gateway.trusted` check requires the key the chain ends with to be one of them, or to descend from one of them
+   * through handovers signed by each previous key (ADR-0020).
+   */
+  trustedGatewayKeys?: readonly string[];
+}
+
 /** Offline verification. Needs no RPC. (Anchor existence on-chain is checked separately with an RPC.) */
-export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport> {
+export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOptions = {}): Promise<VerifyReport> {
   const checks: VerifyReport["checks"] = [];
   const push = (check: string, ok: boolean, detail?: string) => checks.push({ check, ok, detail });
 
@@ -81,9 +96,20 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   if (versions.length && versions[versions.length - 1]!.hash !== bundle.policy.hash) vProblems.push("active policy is not the latest version");
   push("policy.versions", vProblems.length === 0, vProblems.join("; ") || `${versions.length} versions`);
 
-  // receipts chain + signatures
+  // receipts chain + signatures, each against the gateway key in force at its position
   const chain = await verifyChain(bundle.receipts, bundle.gateway.address);
   push("receipts.chain", chain.ok, chain.problems.slice(0, 5).join("; ") || `${bundle.receipts.length} receipts`);
+
+  // gateway key history (ADR-0020): the export must match the rotations in the receipts. Reported only when there is a
+  // rotation or an exported change, so a bundle without either gets exactly the report it got before key history.
+  if (chain.keys.length > 0 || bundle.gatewayKeyHistory.length > 0) {
+    const matches = canonicalize(bundle.gatewayKeyHistory) === canonicalize(chain.keys);
+    push("gateway.keys", matches, matches ? describeKeys(chain.keys) : "gatewayKeyHistory does not match the receipts");
+  }
+  if (opts.trustedGatewayKeys) {
+    const t = trustOf(chain, bundle.gateway.address, opts.trustedGatewayKeys);
+    push("gateway.trusted", t.ok, t.detail);
+  }
 
   // every receipt that cites a policy hash cites the version that was active at its timestamp
   const activeAt = (ts: string): string | null => {
@@ -125,7 +151,8 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   push("credentials.ids", idOk);
   push("credentials.monotonic", monoOk, monoDetail.join("; ") || `${bundle.credentials.length} credentials`);
 
-  // anchors reference receipts that exist in the chain at the stated count
+  // anchors reference receipts that exist in the chain at the stated count; an anchor that names its sender was sent by
+  // the gateway key that signed the receipt it anchors (the gateway hands a chain over before it anchors it)
   let anchorsOk = true;
   const anchorDetail: string[] = [];
   for (const a of bundle.anchors) {
@@ -133,6 +160,9 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
     if (!r || r.hash !== a.head) {
       anchorsOk = false;
       anchorDetail.push(`anchor ${a.head.slice(0, 10)} does not match receipt #${a.count}`);
+    } else if (a.party !== undefined && !sameAddress(a.party, keyAt(chain.keys, bundle.gateway.address, r.seq))) {
+      anchorsOk = false;
+      anchorDetail.push(`anchor ${a.head.slice(0, 10)} was sent by ${a.party}, not by the key that signed receipt #${a.count}`);
     }
   }
   push("anchors.match", anchorsOk, anchorDetail.join("; ") || `${bundle.anchors.length} anchors`);
@@ -171,6 +201,39 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   push("approvals", approvalProblems.length === 0, approvalProblems.join("; ") || `${granted.size} granted, ${signedCount} signature-verified`);
 
   return { ok: checks.every((c) => c.ok), checks };
+}
+
+/** "0xf39F…2266 from #0; 0x7099…79C8 from #4 (handed over)": every key that signed the chain, from where. */
+function describeKeys(keys: GatewayKeyChange[]): string {
+  const first = keys[0] ? [`${short(keys[0].prevAddress)} from #0`] : [];
+  return [...first, ...keys.map((k) => `${short(k.address)} from #${k.seq} (${k.handedOver ? "handed over" : "no handover"})`)].join("; ");
+}
+
+/** The gateway key that signed the receipt at `seq`: the last rotation at or before it, else the chain's first key. */
+function keyAt(keys: GatewayKeyChange[], gatewayAddress: string, seq: number): string {
+  let key = keys[0]?.prevAddress ?? gatewayAddress;
+  for (const k of keys) if (k.seq <= seq) key = k.address;
+  return key;
+}
+
+/**
+ * Whether the key the chain ends with is trusted, or descends from a trusted key through handovers. A rotation without a
+ * handover cuts the descent: from there on only a key the auditor trusts directly counts. Every earlier receipt is covered
+ * by the final key's signatures through the hash links, so the final key is the one that has to be trusted.
+ */
+function trustOf(chain: { ok: boolean; keys: GatewayKeyChange[] }, gatewayAddress: string, trustedKeys: readonly string[]): { ok: boolean; detail: string } {
+  if (!chain.ok) return { ok: false, detail: "the receipt chain does not verify" };
+  const trusted = new Set(trustedKeys.map((a) => a.toLowerCase()));
+  const first = chain.keys[0]?.prevAddress ?? gatewayAddress;
+  let root: string | null = trusted.has(first.toLowerCase()) ? first : null; // the trusted key the key in force descends from
+  let lastGap: number | null = null;
+  for (const k of chain.keys) {
+    if (!k.handedOver) lastGap = k.seq;
+    if (trusted.has(k.address.toLowerCase())) root = k.address;
+    else if (!k.handedOver) root = null;
+  }
+  if (root === null) return { ok: false, detail: `${short(gatewayAddress)} is neither trusted nor handed over from a trusted key${lastGap === null ? "" : ` (no handover at #${lastGap})`}` };
+  return { ok: true, detail: sameAddress(root, gatewayAddress) ? `${short(gatewayAddress)} is trusted` : `${short(gatewayAddress)} was handed over from trusted ${short(root)}` };
 }
 
 export type { CredentialPublic, Receipt };

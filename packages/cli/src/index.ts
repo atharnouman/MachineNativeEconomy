@@ -10,6 +10,7 @@ const USAGE = `spendmarshal <command>
 
   export-evidence --gateway URL --admin-token TOKEN --principal ID --out FILE
   verify FILE [--rpc URL]             offline verification of an evidence bundle (+ on-chain anchors with --rpc)
+        [--gateway-key ADDRESS]...    gateway keys you trust: the chain must end with one, or with a key handed over from one
   policy lint FILE                    parse a policy file and print its hash
 `;
 
@@ -30,10 +31,10 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
   if (cmd === "verify") {
-    const { values, positionals } = parseArgs({ args: rest, options: { rpc: { type: "string" } }, allowPositionals: true });
+    const { values, positionals } = parseArgs({ args: rest, options: { rpc: { type: "string" }, "gateway-key": { type: "string", multiple: true } }, allowPositionals: true });
     const file = positionals[0];
     if (!file) return usage();
-    const report = await verifyEvidence(JSON.parse(readFileSync(file, "utf8")), { rpcUrl: values.rpc });
+    const report = await verifyEvidence(JSON.parse(readFileSync(file, "utf8")), { rpcUrl: values.rpc, trustedGatewayKeys: values["gateway-key"] });
     console.log(formatReport(report));
     return report.ok ? 0 : 2;
   }

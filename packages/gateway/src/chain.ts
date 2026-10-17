@@ -154,14 +154,17 @@ export class ChainClient {
     return hit ? { ok: true, blockNumber: r.blockNumber } : { ok: false, reason: "no matching PaymentExecuted event" };
   }
 
-  /** The head this relayer last anchored in the registry (zero before its first anchor): the next anchor's prevHead. */
-  async latestAnchorHead(registry: Address): Promise<Hex> {
-    const [head] = await this.pub.readContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "latest", args: [this.wallet.account!.address] });
+  /**
+   * The head this relayer last anchored for one receipt chain (zero before its first anchor of it): the next anchor's
+   * prevHead. A receipt chain is named by the hash of its first receipt (ADR-0021).
+   */
+  async latestAnchorHead(registry: Address, receiptChain: Hex): Promise<Hex> {
+    const [head] = await this.pub.readContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "latest", args: [this.wallet.account!.address, receiptChain] });
     return head;
   }
 
-  async anchor(registry: Address, head: Hex, prevHead: Hex, count: bigint): Promise<{ txHash: Hex; blockNumber: bigint }> {
-    const hash = await this.wallet.writeContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "anchor", args: [head, prevHead, count] });
+  async anchor(registry: Address, receiptChain: Hex, head: Hex, prevHead: Hex, count: bigint): Promise<{ txHash: Hex; blockNumber: bigint }> {
+    const hash = await this.wallet.writeContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "anchor", args: [receiptChain, head, prevHead, count] });
     const r = await waitForInclusion(this.pub, hash);
     if (r.status !== "success") throw new Error("anchor reverted");
     return { txHash: hash, blockNumber: r.blockNumber };

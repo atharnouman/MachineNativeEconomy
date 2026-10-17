@@ -106,6 +106,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@noble/curves':
+        specifier: ^1.9.1
+        version: 1.9.1
       viem:
         specifier: ^2.21.54
         version: 2.57.3(typescript@5.9.3)(zod@3.25.76)

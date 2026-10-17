@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createPublicClient, createWalletClient, http, encodeFunctionData, type Address, type Hex, type PublicClient, type WalletClient, type Chain, type Account } from "viem";
+import { createPublicClient, createWalletClient, http, encodeFunctionData, toFunctionSelector, type Address, type Hex, type PublicClient, type WalletClient, type Chain, type Account } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   AgentAccountAbi,
@@ -111,6 +111,24 @@ export async function deployCore(net: Devnet, deployerKey: Hex, opts: { usdc?: A
   const allowedTargets = await deploy("AllowedTargetsEnforcer", AllowedTargetsEnforcerBytecode);
   const agentAccountImpl = await deploy("AgentAccount(impl)", AgentAccountBytecode, AgentAccountAbi, ["0x0000000000000000000000000000000000000000"]);
   return { usdc, receiptRegistry, enforcers: { spendLimit, timeWindow, allowedTargets }, agentAccountImpl };
+}
+
+/** Deploy a ReceiptRegistry on its own, for example to replace one that predates per-chain anchors (ADR-0021). */
+export async function deployReceiptRegistry(net: Devnet, deployerKey: Hex): Promise<Address> {
+  const hash = await walletFor(net, deployerKey).deployContract({ abi: [], bytecode: ReceiptRegistryBytecode });
+  const r = await waitForInclusion(net.pub, hash);
+  if (!r.contractAddress) throw new Error("deploy ReceiptRegistry failed");
+  return r.contractAddress;
+}
+
+/**
+ * Whether the registry at `address` keeps anchors per receipt chain (ADR-0021). One deployed before that has no
+ * `latest(address, bytes32)`, so the gateway cannot anchor in it. Read from the dispatcher in the deployed code (PUSH4 of
+ * the selector), which needs no call that could fail for reasons other than a missing function.
+ */
+export async function registryAnchorsPerChain(net: Pick<Devnet, "pub">, address: Address): Promise<boolean> {
+  const code = (await net.pub.getCode({ address })) ?? "0x";
+  return code.toLowerCase().includes(`63${toFunctionSelector("latest(address,bytes32)").slice(2)}`);
 }
 
 /** Deploy a standalone AgentAccount owned by `owner`, with the enforcers set (owner key must be `ownerKey`). */

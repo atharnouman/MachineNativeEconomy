@@ -26,6 +26,11 @@ export interface Signer {
   signTokenAuthorization(credentialId: string, account: Address, chainId: number, auth: TokenAuthorizationStruct): Promise<Hex>;
   /** Ed25519 key used to sign outbound HTTP requests (RFC 9421 / Web Bot Auth) and the key directory. */
   readonly agentKey: AgentSigningKey;
+  /**
+   * Gateway key history (ADR-0020): sign a receipt chain's handover to `address` with the earlier gateway key `from`.
+   * Null when this signer no longer holds that key; the rotation is then receipted without a handover.
+   */
+  signKeyHandover?(from: Address, message: string): Promise<Hex | null>;
   /** Dev-only escape hatch used by the demo's "key exfiltration" attack. Not exposed over HTTP. */
   _unsafeSessionPrivateKey(credentialId: string): Hex;
 }
@@ -35,12 +40,24 @@ export class LocalSigner implements Signer {
   readonly address: Address;
   readonly agentKey: AgentSigningKey;
   private readonly cache = new Map<string, PrivateKeyAccount>();
+  /** earlier gateway keys, by lowercase address: they sign handovers and nothing else */
+  private readonly previous = new Map<string, PrivateKeyAccount>();
 
-  constructor(gatewayPrivateKey: Hex, private readonly sessionSecret: string) {
+  constructor(gatewayPrivateKey: Hex, private readonly sessionSecret: string, previousGatewayKeys: readonly Hex[] = []) {
     this.gateway = privateKeyToAccount(gatewayPrivateKey);
     this.address = this.gateway.address;
     const k = ed25519FromSecret(sessionSecret, "httpsig-ed25519");
     this.agentKey = { privateKey: k.privateKey, publicKey: k.publicKey, publicJwk: k.publicJwk, keyid: k.keyid };
+    for (const key of previousGatewayKeys) {
+      if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("previous gateway key is not a 32-byte hex private key"); // never echo the key
+      const a = privateKeyToAccount(key);
+      if (a.address !== this.address) this.previous.set(a.address.toLowerCase(), a);
+    }
+  }
+
+  async signKeyHandover(from: Address, message: string): Promise<Hex | null> {
+    const a = this.previous.get(from.toLowerCase());
+    return a ? a.signMessage({ message }) : null;
   }
 
   private sessionAccount(credentialId: string): PrivateKeyAccount {
