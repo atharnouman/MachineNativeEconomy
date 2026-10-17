@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Address, Hex } from "viem";
+import { canonicalize } from "./canonical.js";
 import { PolicySchema, policyHash } from "./policy.js";
 import { ReceiptSchema, verifyChain, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
@@ -7,10 +8,50 @@ import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
 
 /**
  * An evidence bundle is everything an auditor needs to re-verify a principal's payment history offline:
- * every policy version (with hashes and activation times), the public view of every credential, the registered
- * approver keys, the signed receipt chain, and the on-chain anchors. It deliberately omits credential
- * signatures (bearer secrets) and session private keys.
+ * every policy version (with hashes and activation times), the public view of every credential, the approver
+ * keys (the current ones, and every key each approver held in this chain), the signed receipt chain, and the
+ * on-chain anchors. It deliberately omits credential signatures (bearer secrets) and session private keys.
  */
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** One key an approver held in a principal's receipt chain (ADR-0019). */
+export const ApproverKeySchema = z.object({
+  address: z.string().regex(ADDRESS).nullable(), // null: the approver was removed and has no key from here on
+  seq: z.number().int().nonnegative(), // position of the receipt that registered it: the key is in force after it
+  effectiveFrom: z.string().datetime(), // that receipt's timestamp
+  receiptId: z.string().min(1),
+});
+export type ApproverKey = z.infer<typeof ApproverKeySchema>;
+
+/**
+ * Every approver's keys in chain order, read from the `approver.registered` and `approver.removed` receipts. The
+ * gateway exports this as `approverHistory`; the verifier recomputes it from the receipts and requires the export to
+ * match. Malformed receipts are left out here and reported by `verifyBundle`.
+ */
+export function approverKeyHistory(receipts: readonly Receipt[]): Record<string, ApproverKey[]> {
+  const out = new Map<string, ApproverKey[]>();
+  for (const r of receipts) {
+    const k = approverKeyOf(r);
+    if (!k) continue;
+    const list = out.get(k.approverId) ?? [];
+    list.push(k.key);
+    out.set(k.approverId, list);
+  }
+  return Object.fromEntries(out);
+}
+
+function approverKeyOf(r: Receipt): { approverId: string; key: ApproverKey } | null {
+  if (r.kind !== "approver.registered" && r.kind !== "approver.removed") return null;
+  const d = r.data as { approverId?: unknown; address?: unknown };
+  if (typeof d.approverId !== "string" || !d.approverId) return null;
+  const address = r.kind === "approver.registered" ? d.address : null;
+  if (address !== null && !(typeof address === "string" && ADDRESS.test(address))) return null;
+  return { approverId: d.approverId, key: { address, seq: r.seq, effectiveFrom: r.ts, receiptId: r.id } };
+}
+
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const sameAddress = (a: string | null, b: string | null) => (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
 
 export const CredentialPublicSchema = z.object({
   v: z.literal(1),
@@ -40,7 +81,8 @@ export const EvidenceBundleSchema = z.object({
   contracts: z.record(z.string()),
   policy: z.object({ hash: z.string(), document: PolicySchema }), // the active version
   policyVersions: z.array(PolicyVersionSchema).default([]),
-  approvers: z.record(z.string()).default({}), // approver id -> address
+  approvers: z.record(z.string()).default({}), // approver id -> address, as configured at export
+  approverHistory: z.record(z.array(ApproverKeySchema)).default({}), // approver id -> every key it held in this chain
   credentials: z.array(CredentialPublicSchema),
   receipts: z.array(ReceiptSchema),
   anchors: z.array(
@@ -144,23 +186,65 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   const orphan = bundle.receipts.filter((r) => r.kind === "payment.settled" && !allowed.has(r.intentId));
   push("settlements.have_allow_decision", orphan.length === 0, orphan.map((r) => r.id).join(",") || undefined);
 
-  // approvals: signed resolutions verify against registered approver addresses; consumed approvals were granted
+  // approver key history (ADR-0019): `approver.registered` / `approver.removed` receipts say which key each approver
+  // held from which position in the chain. Each must name the key it replaces, and the export must match the receipts.
+  const keyHistory = new Map(Object.entries(approverKeyHistory(bundle.receipts)));
+  const historyProblems: string[] = [];
+  const held = new Map<string, string | null>();
+  for (const r of bundle.receipts) {
+    if (r.kind !== "approver.registered" && r.kind !== "approver.removed") continue;
+    const k = approverKeyOf(r);
+    if (!k) {
+      historyProblems.push(`${r.id}: malformed ${r.kind}`);
+      continue;
+    }
+    const before = held.get(k.approverId) ?? null;
+    const prev = (r.data as { prevAddress?: unknown }).prevAddress;
+    if (r.kind === "approver.removed" && before === null) historyProblems.push(`${r.id}: removes ${k.approverId}, which has no key`);
+    else if (!sameAddress(typeof prev === "string" ? prev : null, before)) historyProblems.push(`${r.id}: prevAddress is not the key ${k.approverId} held before it`);
+    held.set(k.approverId, k.key.address);
+  }
+  const exportedHistory = new Map(Object.entries(bundle.approverHistory));
+  for (const id of new Set([...keyHistory.keys(), ...exportedHistory.keys()])) {
+    if (canonicalize(exportedHistory.get(id) ?? []) !== canonicalize(keyHistory.get(id) ?? [])) historyProblems.push(`approverHistory.${id} does not match the receipts`);
+  }
+  const historySummary = [...keyHistory].map(([id, ks]) => `${id}: ${ks.map((k) => `${k.address ? short(k.address) : "removed"} from #${k.seq}`).join(", ")}`).join("; ");
+  push("approvers.history", historyProblems.length === 0, historyProblems.join("; ") || historySummary || "none: signed approvals verify against the approvers map");
+
+  // The key an approver held at a position: the last one registered before it. A resolution written before the chain had
+  // any key history (an older gateway, or a store from before the upgrade) uses the approver's first registered key, or
+  // the `approvers` map when the chain never registered that approver: bundles without history verify as they always did.
+  const firstKeySeq = [...keyHistory.values()].reduce((m, ks) => Math.min(m, ks[0]?.seq ?? Infinity), Infinity);
+  const keyAt = (approverId: string, seq: number): { address: string; basis: "history" | "first" | "map" } | { address: null; why: string } => {
+    const keys = keyHistory.get(approverId) ?? [];
+    const inForce = keys.filter((k) => k.seq < seq).pop();
+    if (inForce) return inForce.address ? { address: inForce.address, basis: "history" } : { address: null, why: `approver ${approverId} was removed at #${inForce.seq}` };
+    if (firstKeySeq < seq) return { address: null, why: `approver ${approverId} had no registered key at #${seq}` };
+    if (keys[0]) return keys[0].address ? { address: keys[0].address, basis: "first" } : { address: null, why: `approver ${approverId} not registered` };
+    const mapped = Object.hasOwn(bundle.approvers, approverId) ? bundle.approvers[approverId] : undefined;
+    return mapped ? { address: mapped, basis: "map" } : { address: null, why: `approver ${approverId} not registered` };
+  };
+
+  // approvals: each signed resolution verifies against the key its approver held at that point; consumed approvals were granted
   const approvalProblems: string[] = [];
   const granted = new Set<string>();
   let signedCount = 0;
+  const basisCount = { first: 0, map: 0 };
   for (const r of bundle.receipts) {
     if (r.kind === "approval.granted" || r.kind === "approval.rejected") {
-      const d = r.data as { approver?: { id: string; method: string; address?: string; signature?: string }; approval?: { id: string; principalId: string; intentHash: string; amount: string } };
+      const d = r.data as { approver?: { id?: unknown; method?: unknown; address?: unknown; signature?: unknown }; approval?: { id: string; principalId: string; intentHash: string; amount: string } };
       if (r.kind === "approval.granted" && r.approvalId) granted.add(r.approvalId);
       if (d.approver?.method === "signature") {
-        const registered = bundle.approvers[d.approver.id];
+        const id = typeof d.approver.id === "string" ? d.approver.id : "";
+        const key = keyAt(id, r.seq);
         const verdict: ApprovalVerdict = r.kind === "approval.granted" ? "approve" : "reject";
-        if (!registered) approvalProblems.push(`${r.id}: approver ${d.approver.id} not registered`);
-        else if (!d.approver.signature || !d.approval) approvalProblems.push(`${r.id}: missing signature or approval data`);
-        else if (d.approver.address && d.approver.address.toLowerCase() !== registered.toLowerCase()) approvalProblems.push(`${r.id}: approver address mismatch`);
+        if (key.address === null) approvalProblems.push(`${r.id}: ${key.why}`);
+        else if (typeof d.approver.signature !== "string" || !d.approval) approvalProblems.push(`${r.id}: missing signature or approval data`);
+        else if (d.approver.address !== undefined && !(typeof d.approver.address === "string" && sameAddress(d.approver.address, key.address))) approvalProblems.push(`${r.id}: approver address mismatch (${id} held ${short(key.address)} at #${r.seq})`);
         else {
           signedCount++;
-          const ok = await verifyApprovalSignature(d.approval, verdict, d.approver.signature as Hex, registered as Address);
+          if (key.basis !== "history") basisCount[key.basis]++;
+          const ok = await verifyApprovalSignature(d.approval, verdict, d.approver.signature as Hex, key.address as Address);
           if (!ok) approvalProblems.push(`${r.id}: approver signature invalid`);
         }
       }
@@ -168,7 +252,8 @@ export async function verifyBundle(bundle: EvidenceBundle): Promise<VerifyReport
   }
   const consumedWithoutGrant = bundle.receipts.filter((r) => r.kind === "approval.consumed" && (!r.approvalId || !granted.has(r.approvalId)));
   if (consumedWithoutGrant.length) approvalProblems.push(`${consumedWithoutGrant.length} approvals consumed without a grant`);
-  push("approvals", approvalProblems.length === 0, approvalProblems.join("; ") || `${granted.size} granted, ${signedCount} signature-verified`);
+  const basis = [basisCount.first ? `${basisCount.first} from before key history` : "", basisCount.map ? `${basisCount.map} against the approvers map` : ""].filter(Boolean).join(", ");
+  push("approvals", approvalProblems.length === 0, approvalProblems.join("; ") || `${granted.size} granted, ${signedCount} signature-verified${basis ? `; ${basis}` : ""}`);
 
   return { ok: checks.every((c) => c.ok), checks };
 }

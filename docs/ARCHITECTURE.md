@@ -62,9 +62,9 @@ flowchart LR
 * **Credential** — a macaroon-style bearer token: `sig_0 = HMAC(root, rootId)`, `sig_i = HMAC(sig_{i-1}, caveat_i)`. Anyone can append caveats offline; nobody can remove one. A `delegate` caveat names a sub-agent. The effective limit is the conjunction of every caveat (`rate_limit` caveats all apply, each scoped to the node that set it).
 * **Session** — the on-chain compilation of a credential's effective limits, with a `parent`. Sessions form a chain: owner → gateway root session → agent → sub-agent. Spend is charged to every ancestor; revoking an ancestor disables the subtree.
 * **Policy version** — a hashed document with activation time, `prevHash` link, diff and impact. Decisions cite the hash active at their time.
-* **Approval** — a pending/approved/rejected/expired/consumed record bound to one intent hash and amount; resolutions may carry an EIP-191 signature from a registered approver.
-* **Receipt** — one per decision, settlement, denial, credential event, approval transition, policy change, kill-switch flip and anchor. Hash-chained per principal and signed by the gateway key.
-* **EvidenceBundle** — policy versions, approvers, public credentials, receipt chain, anchors. `verifyBundle()` runs offline; `--rpc` adds anchor existence.
+* **Approval** — a pending/approved/rejected/expired/consumed record bound to one intent hash and amount; resolutions may carry an EIP-191 signature from a registered approver, verified against the key that approver held at that point in the chain (ADR-0019).
+* **Receipt** — one per decision, settlement, denial, credential event, approval transition, approver key change, policy change, kill-switch flip and anchor. Hash-chained per principal and signed by the gateway key.
+* **EvidenceBundle** — policy versions, approvers and their key history, public credentials, receipt chain, anchors. `verifyBundle()` runs offline; `--rpc` adds anchor existence.
 
 ## Sequences
 

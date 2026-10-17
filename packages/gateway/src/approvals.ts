@@ -4,11 +4,13 @@ import type { GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
 import type { ReceiptLog } from "./receipts.js";
 import type { Metrics } from "./metrics.js";
+import type { ApproverKeys } from "./approvers.js";
 
 /**
  * Human-in-the-loop approvals. An escalated intent becomes a pending approval; an operator resolves it with
  * the admin token or, when the gateway is configured with approver keys, with an EIP-191 signature from one of
- * them. Every transition is a receipt, and signed resolutions verify offline in the evidence bundle.
+ * them. Every transition is a receipt, and signed resolutions verify offline in the evidence bundle against the
+ * key the approver held at that point in the principal's chain.
  */
 export class ApprovalService {
   constructor(
@@ -16,6 +18,7 @@ export class ApprovalService {
     private readonly store: Store,
     private readonly receipts: ReceiptLog,
     private readonly metrics?: Metrics,
+    private readonly approverKeys?: ApproverKeys,
   ) {}
 
   async request(args: {
@@ -90,6 +93,8 @@ export class ApprovalService {
       const ok = await verifyApprovalSignature(a, verdict, approver.signature, registered as Address);
       if (!ok) throw Object.assign(new Error("approver signature invalid"), { statusCode: 403 });
       resolved = { id: approver.id, method: "signature", address: registered, signature: approver.signature };
+      // the key is registered in this principal's chain before the resolution it signs (ADR-0019)
+      await this.approverKeys?.sync(a.principalId);
     } else {
       if (this.cfg.requireSignedApprovals) throw Object.assign(new Error("signed approvals are required"), { statusCode: 403 });
       resolved = { id: approver.id, method: "admin-token" };

@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import type { Receipt, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
+import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
 import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
 interface State {
@@ -43,6 +43,9 @@ export class JsonStore implements Store {
       if (r.principalId === principalId) return r;
     }
     return undefined;
+  }
+  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[] {
+    return this.state.receipts.filter((r) => r.principalId === principalId && kinds.includes(r.kind));
   }
 
   getIdempotent(scope: string, key: string): IdempotentRecord | undefined {

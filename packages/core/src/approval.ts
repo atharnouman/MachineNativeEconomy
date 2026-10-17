@@ -4,7 +4,9 @@ import { verifyMessage, type Address, type Hex } from "viem";
 /**
  * Human-in-the-loop approvals. An `escalate` decision creates an approval request; an approver resolves it,
  * optionally with an EIP-191 signature over `approvalMessage()` so the resolution is verifiable offline by
- * anyone who knows the approver's address (the evidence bundle lists registered approvers).
+ * anyone who knows the approver's address. Approver keys change, so each principal's receipt chain records them
+ * (`approver.registered`, `approver.removed`) and the evidence verifier checks a signature against the key in force
+ * at the resolution's position in the chain (ADR-0019).
  */
 
 export const ApprovalStatusSchema = z.enum(["pending", "approved", "rejected", "expired", "consumed"]);
@@ -48,6 +50,20 @@ export const ApprovalSchema = z.object({
 export type Approval = z.infer<typeof ApprovalSchema>;
 
 export type ApprovalVerdict = "approve" | "reject";
+
+/** Data of an `approver.registered` receipt: from this position in the chain, `address` signs for `approverId`. */
+export interface ApproverRegisteredData {
+  approverId: string;
+  address: Address;
+  /** the key this one replaces in the same chain; null for the approver's first key */
+  prevAddress: Address | null;
+}
+
+/** Data of an `approver.removed` receipt: from this position in the chain, `approverId` has no key. */
+export interface ApproverRemovedData {
+  approverId: string;
+  prevAddress: Address;
+}
 
 /** The exact text an approver signs. Binding the intent hash and amount prevents reuse for another purchase. */
 export function approvalMessage(a: Pick<Approval, "id" | "principalId" | "intentHash" | "amount">, verdict: ApprovalVerdict): string {
