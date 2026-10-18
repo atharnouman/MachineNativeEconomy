@@ -8,11 +8,12 @@ import { LocalSigner } from "../src/signer.js";
 import { ReceiptLog } from "../src/receipts.js";
 import { IdempotencyGuard, idempotencyKeyOf } from "../src/idempotency.js";
 import { DenialThrottle } from "../src/denials.js";
+import { drivers, freshStoreOptions } from "./drivers.js";
 
 const PK = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const fresh = (driver: StoreDriver) => openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `spendmarshal-scale-${driver}-`)) });
+const fresh = async (driver: StoreDriver) => openStore(await freshStoreOptions(driver, "scale"));
 
-for (const driver of ["json", "sqlite"] as StoreDriver[]) {
+for (const driver of drivers()) {
   describe(`receipt chain head [${driver}]`, () => {
     it("appends without reading the chain, survives a restart, and keeps two principals independent under concurrency", async () => {
       const store = await fresh(driver);

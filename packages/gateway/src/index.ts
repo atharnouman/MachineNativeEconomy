@@ -2,7 +2,7 @@ export { buildGateway, type Gateway } from "./server.js";
 export { configFromEnv, approversFor, approverKeyFor, type GatewayConfig, type ContractAddresses, type PrincipalConfig } from "./config.js";
 export { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 export { ChainClient, type SessionCaveatsOnChain } from "./chain.js";
-export { openStore, withLease, ChainConflict, type Store, type StoreDriver, type StoreOptions, type LedgerEntry, type RegisteredCredential, type AnchorRecord, type IntentRecord } from "./store.js";
+export { openStore, withLease, ChainConflict, hasNonceLock, type NonceLock, type Store, type StoreDriver, type StoreOptions, type LedgerEntry, type RegisteredCredential, type AnchorRecord, type IntentRecord } from "./store.js";
 export { JsonStore } from "./store-json.js";
 export { SqliteStore } from "./store-sqlite.js";
 export { PolicyService, type PolicyUpdateResult } from "./policies.js";

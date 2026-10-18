@@ -76,7 +76,9 @@ export interface GatewayConfig {
   adminToken: string;
   dataDir: string;
   /** `json` (zero-dependency file, default for demos) or `sqlite` (WAL file, recommended for self-hosting). */
-  storeDriver?: "json" | "sqlite";
+  storeDriver?: "json" | "sqlite" | "postgres";
+  /** Postgres only: the database every instance of this deployment shares (ADR-0025). */
+  databaseUrl?: string;
   policyYaml: string;
   contracts: ContractAddresses;
   principals: Record<string, PrincipalConfig>;
@@ -141,7 +143,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     credentialRootKey: need("SPENDMARSHAL_CREDENTIAL_ROOT_KEY"),
     adminToken: need("SPENDMARSHAL_ADMIN_TOKEN"),
     dataDir: env.SPENDMARSHAL_DATA_DIR ?? "./data",
-    storeDriver: env.SPENDMARSHAL_STORE === "sqlite" ? "sqlite" : "json",
+    storeDriver: env.SPENDMARSHAL_STORE === "sqlite" || env.SPENDMARSHAL_STORE === "postgres" ? env.SPENDMARSHAL_STORE : "json",
+    databaseUrl: env.SPENDMARSHAL_DATABASE_URL,
     policyYaml: need("SPENDMARSHAL_POLICY_YAML"),
     contracts,
     principals,

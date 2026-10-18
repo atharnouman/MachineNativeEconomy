@@ -23,6 +23,7 @@ import {
   type TokenAuthorizationStruct,
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
+import type { NonceLock } from "./store.js";
 
 export interface SessionCaveatsOnChain {
   spendCap: bigint;
@@ -34,43 +35,76 @@ export interface SessionCaveatsOnChain {
   tokens: Address[];
 }
 
-/** Thin wrapper over viem for everything the gateway does on-chain. */
+/**
+ * Thin wrapper over viem for everything the gateway does on-chain. Within one process viem's nonce manager keeps the
+ * gateway key's nonces sequential; given a store's nonce lock, every send takes its nonce under that lock instead, so
+ * several gateway instances on one database never reuse one (ADR-0025).
+ */
 export class ChainClient {
   readonly chain: Chain;
   readonly pub: PublicClient;
   readonly wallet: WalletClient<ReturnType<typeof http>, Chain, Account>;
 
-  constructor(private readonly cfg: Pick<GatewayConfig, "rpcUrl" | "chainId" | "gatewayPrivateKey">) {
+  constructor(
+    private readonly cfg: Pick<GatewayConfig, "rpcUrl" | "chainId" | "gatewayPrivateKey">,
+    private readonly nonces?: NonceLock,
+  ) {
     this.chain = chainFor(cfg.chainId, cfg.rpcUrl);
     this.pub = createPublicClient({ chain: this.chain, transport: http(cfg.rpcUrl), pollingInterval: 500 }); // receipts within a block, not viem's 4 s default
     this.wallet = createWalletClient({ chain: this.chain, transport: http(cfg.rpcUrl), account: privateKeyToAccount(cfg.gatewayPrivateKey, { nonceManager }) }); // sequential nonces under concurrent sends
   }
 
-  async grantSession(account: Address, key: Address, c: SessionCaveatsOnChain): Promise<Hex> {
-    const hash = await this.wallet.writeContract({
-      address: account,
-      abi: AgentAccountAbi,
-      functionName: "grantSession",
-      args: [key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
+  /**
+   * Sends one transaction of the gateway key. Under the nonce lock the nonce is the larger of the next one recorded and the
+   * chain's pending count, and a nonce someone else took outside the lock is stepped past.
+   */
+  private async send(write: (nonce: number | undefined) => Promise<Hex>): Promise<Hex> {
+    if (!this.nonces) return write(undefined);
+    const address = this.wallet.account.address;
+    return this.nonces.withNonce(this.cfg.chainId, address, async (atLeast) => {
+      let nonce = Math.max(atLeast, await this.pub.getTransactionCount({ address, blockTag: "pending" }));
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return { nonce, result: await write(nonce) };
+        } catch (err) {
+          if (attempt >= 3 || !/nonce too low|nonce provided for the transaction is lower|already known|replacement transaction underpriced/i.test(String((err as Error)?.message))) throw err;
+          nonce++;
+        }
+      }
     });
+  }
+
+  async grantSession(account: Address, key: Address, c: SessionCaveatsOnChain): Promise<Hex> {
+    const hash = await this.send((nonce) =>
+      this.wallet.writeContract({
+        address: account,
+        abi: AgentAccountAbi,
+        functionName: "grantSession",
+        args: [key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
+        nonce,
+      }),
+    );
     await waitForInclusion(this.pub, hash);
     return hash;
   }
 
   async grantChildSession(account: Address, parentKey: Address, key: Address, c: SessionCaveatsOnChain): Promise<Hex> {
-    const hash = await this.wallet.writeContract({
-      address: account,
-      abi: AgentAccountAbi,
-      functionName: "grantChildSession",
-      args: [parentKey, key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
-    });
+    const hash = await this.send((nonce) =>
+      this.wallet.writeContract({
+        address: account,
+        abi: AgentAccountAbi,
+        functionName: "grantChildSession",
+        args: [parentKey, key, c.spendCap, c.perTxMax, c.validAfter, c.validUntil, c.anyTarget, c.targets, c.tokens],
+        nonce,
+      }),
+    );
     const r = await waitForInclusion(this.pub, hash);
     if (r.status !== "success") throw new Error("grantChildSession reverted");
     return hash;
   }
 
   async setPaused(account: Address, paused: boolean): Promise<Hex> {
-    const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: paused ? "pause" : "unpause", args: [] });
+    const hash = await this.send((nonce) => this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: paused ? "pause" : "unpause", args: [], nonce }));
     await waitForInclusion(this.pub, hash);
     return hash;
   }
@@ -95,7 +129,7 @@ export class ChainClient {
 
   async payWithAuthorization(account: Address, auth: PaymentAuthorizationStruct, sig: Hex): Promise<{ ok: true; txHash: Hex; blockNumber: bigint } | { ok: false; reason: string }> {
     try {
-      const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "payWithAuthorization", args: [auth, sig] });
+      const hash = await this.send((nonce) => this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "payWithAuthorization", args: [auth, sig], nonce }));
       const r = await waitForInclusion(this.pub, hash);
       return r.status === "success" ? { ok: true, txHash: hash, blockNumber: r.blockNumber } : { ok: false, reason: "reverted" };
     } catch (err) {
@@ -109,7 +143,7 @@ export class ChainClient {
    */
   async approveAuthorization(account: Address, auth: TokenAuthorizationStruct, sig: Hex): Promise<{ ok: true; txHash: Hex; blockNumber: bigint; digest: Hex } | { ok: false; reason: string }> {
     try {
-      const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "approveAuthorization", args: [auth, sig] });
+      const hash = await this.send((nonce) => this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "approveAuthorization", args: [auth, sig], nonce }));
       const r = await waitForInclusion(this.pub, hash);
       if (r.status !== "success") return { ok: false, reason: "reverted" };
       const { parseEventLogs } = await import("viem");
@@ -123,7 +157,7 @@ export class ChainClient {
   /** Restore the charge of an expired, unused pre-approval (anyone may call; the contract checks expiry and token nonce state). */
   async reclaimApproval(account: Address, digest: Hex): Promise<{ ok: true; txHash: Hex } | { ok: false; reason: string }> {
     try {
-      const hash = await this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "reclaimApproval", args: [digest] });
+      const hash = await this.send((nonce) => this.wallet.writeContract({ address: account, abi: AgentAccountAbi, functionName: "reclaimApproval", args: [digest], nonce }));
       const r = await waitForInclusion(this.pub, hash);
       return r.status === "success" ? { ok: true, txHash: hash } : { ok: false, reason: "reverted" };
     } catch (err) {
@@ -164,7 +198,7 @@ export class ChainClient {
   }
 
   async anchor(registry: Address, receiptChain: Hex, head: Hex, prevHead: Hex, count: bigint): Promise<{ txHash: Hex; blockNumber: bigint }> {
-    const hash = await this.wallet.writeContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "anchor", args: [receiptChain, head, prevHead, count] });
+    const hash = await this.send((nonce) => this.wallet.writeContract({ address: registry, abi: ReceiptRegistryAbi, functionName: "anchor", args: [receiptChain, head, prevHead, count], nonce }));
     const r = await waitForInclusion(this.pub, hash);
     if (r.status !== "success") throw new Error("anchor reverted");
     return { txHash: hash, blockNumber: r.blockNumber };

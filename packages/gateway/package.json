@@ -47,6 +47,7 @@
     "@spendmarshal/core": "workspace:*",
     "better-sqlite3": "^11",
     "fastify": "^5.2.0",
+    "pg": "^8.23.1",
     "prom-client": "^15",
     "viem": "^2.21.54",
     "yaml": "^2.6.1",
@@ -54,7 +55,8 @@
     "zod-to-json-schema": "^3"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0"
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/pg": "^8.23.1"
   },
   "files": [
     "dist",

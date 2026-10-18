@@ -7,8 +7,9 @@ import { privateKeyToAccount } from "viem/accounts";
 import { receiptSigner, verifyBundle, type EvidenceBundle } from "@spendmarshal/core";
 import { buildGateway, type Gateway } from "../src/server.js";
 import type { GatewayConfig } from "../src/config.js";
-import type { StoreDriver } from "../src/store.js";
+import type { StoreDriver, StoreOptions } from "../src/store.js";
 import { LocalSigner, receiptKeyOf } from "../src/signer.js";
+import { drivers, freshStoreOptions } from "./drivers.js";
 
 const ZERO: Address = "0x0000000000000000000000000000000000000000";
 const POLICY = `
@@ -25,7 +26,7 @@ const E: Hex = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab36
 const [AG1, AG2, AE] = [G1, G2, E].map((k) => privateKeyToAccount(k).address) as [Address, Address, Address];
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-function config(dataDir: string, driver: StoreDriver, gatewayKey: Hex, evidenceKey?: Hex): GatewayConfig {
+function config(store: StoreOptions, gatewayKey: Hex, evidenceKey?: Hex): GatewayConfig {
   return {
     host: "127.0.0.1",
     port: 0,
@@ -36,8 +37,9 @@ function config(dataDir: string, driver: StoreDriver, gatewayKey: Hex, evidenceK
     sessionSecret: "session-secret",
     credentialRootKey: "credential-root-key",
     adminToken: "admin",
-    dataDir,
-    storeDriver: driver,
+    dataDir: store.dataDir,
+    storeDriver: store.driver,
+    databaseUrl: store.databaseUrl,
     policyYaml: POLICY,
     contracts: { usdc: ZERO, receiptRegistry: ZERO, enforcers: { spendLimit: ZERO, timeWindow: ZERO, allowedTargets: ZERO } },
     principals: { org: { account: ZERO } },
@@ -60,13 +62,13 @@ const kinds = async (gw: Gateway) => (await gw.store.receiptsFor("org")).map((r)
 const exported = async (gw: Gateway) => JSON.parse(JSON.stringify(await gw.exportEvidence("org"))) as EvidenceBundle;
 const check = (r: Awaited<ReturnType<typeof verifyBundle>>, name: string) => r.checks.find((c) => c.check === name);
 
-for (const driver of ["json", "sqlite"] as StoreDriver[]) {
+for (const driver of drivers()) {
   describe(`evidence key [${driver}]`, () => {
     it("keeps one evidence key while the gateway key changes, and records who sent each anchor", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-evidence-${driver}-`));
+      const dir = await freshStoreOptions(driver, "evidence");
 
       // run 1: gateway key G1, evidence key E
-      let gw = await start(config(dir, driver, G1, E));
+      let gw = await start(config(dir, G1, E));
       const health = (await gw.app.inject({ method: "GET", url: "/healthz" })).json() as { gateway: string; evidenceKey: string };
       expect(health).toMatchObject({ gateway: AG1, evidenceKey: AE });
       expect(receiptSigner((await gw.store.receiptsFor("org"))[0]!)).toBe(AE);
@@ -74,7 +76,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       await gw.close();
 
       // run 2: a new gateway key (a fresh session key, as the testnet runner uses), the same evidence key: no rotation
-      gw = await start(config(dir, driver, G2, E));
+      gw = await start(config(dir, G2, E));
       expect(await gw.anchor("org")).toMatchObject({ count: 2, party: AG2 }); // the policy receipt and the first anchor's
       expect(await kinds(gw)).toEqual(["policy.updated", "evidence.anchored", "evidence.anchored"]);
       expect((await gw.store.receiptsFor("org")).map(receiptSigner)).toEqual([AE, AE, AE]);
@@ -95,12 +97,12 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("hands an existing chain over when a separate evidence key is turned on, signed by the gateway key", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-evidence-on-${driver}-`));
-      let gw = await start(config(dir, driver, G1));
+      const dir = await freshStoreOptions(driver, "evidence-on");
+      let gw = await start(config(dir, G1));
       expect(receiptSigner((await gw.store.receiptsFor("org"))[0]!)).toBe(AG1);
       await gw.close();
 
-      gw = await start(config(dir, driver, G1, E));
+      gw = await start(config(dir, G1, E));
       expect(await kinds(gw)).toEqual(["policy.updated", "gateway.key.rotated"]);
       expect((await gw.store.receiptsFor("org"))[1]!.data).toMatchObject({ prevAddress: AG1, address: AE, handover: expect.stringMatching(/^0x[0-9a-f]{130}$/) });
       const report = await verifyBundle(await exported(gw), { trustedGatewayKeys: [AG1] });
@@ -111,8 +113,8 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("refuses an evidence key that is not a private key, before anything is receipted", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-evidence-bad-${driver}-`));
-      await expect(buildGateway(config(dir, driver, G1, "0x1234"))).rejects.toThrow("evidence key is not a 32-byte hex private key");
+      const dir = await freshStoreOptions(driver, "evidence-bad");
+      await expect(buildGateway(config(dir, G1, "0x1234"))).rejects.toThrow("evidence key is not a 32-byte hex private key");
     });
   });
 }

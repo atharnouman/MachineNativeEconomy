@@ -3,9 +3,11 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import pg from "pg";
 import { verifyChain, type Approval, type Decision, type PolicyVersion, type SpendLedgerView } from "@spendmarshal/core";
 import { openStore, ChainConflict, type LedgerEntry, type Store, type StoreOptions } from "../src/store.js";
 import { SQLITE_MIGRATIONS } from "../src/store-sqlite.js";
+import { POSTGRES_MIGRATIONS } from "../src/store-postgres.js";
 import { LocalSigner } from "../src/signer.js";
 import { ReceiptLog } from "../src/receipts.js";
 import { Metrics } from "../src/metrics.js";
@@ -234,6 +236,16 @@ for (const driver of drivers()) {
       await s.close();
     });
 
+    it("lets two handles on one store reserve against one cap without passing it", async () => {
+      const [a, b] = await twoHandles("two-reservers");
+      const capped = (v: SpendLedgerView) => decision(v.spentByBudget("org") + 100n <= 450n ? "allow" : "deny");
+      const results = await Promise.all(Array.from({ length: 10 }, (_, i) => (i % 2 ? a : b).reserveIf(entry(), capped)));
+      expect(results.filter((r) => r.entry).length).toBe(4);
+      expect(await figure(a, "p", (v) => v.spentByBudget("org"))).toBe(400n);
+      await a.close();
+      if (b !== a) await b.close();
+    });
+
     it("keeps one linear chain when two receipt logs write to the same store at once", async () => {
       const [a, b] = await twoHandles("two-logs");
       const signer = new LocalSigner(PK, "secret");
@@ -291,6 +303,37 @@ describe("SQLite migrations", () => {
     db.pragma("user_version = 99");
     db.close();
     await expect(openStore({ driver: "sqlite", dataDir: join(path, "..") })).rejects.toThrow("the SQLite store is at schema version 99, newer than this gateway knows");
+  });
+});
+
+describe.skipIf(!drivers().includes("postgres"))("Postgres migrations", () => {
+  const admin = async (url: string, sql: string, params: unknown[] = []) => {
+    const c = new pg.Client({ connectionString: url });
+    await c.connect();
+    try {
+      return (await c.query(sql, params)).rows;
+    } finally {
+      await c.end();
+    }
+  };
+
+  it("are applied once when several instances open a new database together", async () => {
+    const opts = await freshStoreOptions("postgres", "pg-migrate");
+    const stores = await Promise.all([openStore(opts), openStore(opts), openStore(opts)]);
+    const rows = await admin(opts.databaseUrl!, "SELECT version, name FROM schema_migrations ORDER BY version");
+    expect(rows).toEqual(POSTGRES_MIGRATIONS.map((m) => ({ version: m.version, name: m.name })));
+    await Promise.all(stores.map((s) => s.close()));
+  });
+
+  it("refuse a database whose applied migration has changed, or that a newer gateway migrated", async () => {
+    const opts = await freshStoreOptions("postgres", "pg-migrate-refuse");
+    await (await openStore(opts)).close();
+    await admin(opts.databaseUrl!, "UPDATE schema_migrations SET checksum = 'edited' WHERE version = 1");
+    await expect(openStore(opts)).rejects.toThrow("migration 1 (initial schema) has changed since it was applied to this database");
+    const newer = await freshStoreOptions("postgres", "pg-migrate-newer");
+    await (await openStore(newer)).close();
+    await admin(newer.databaseUrl!, "INSERT INTO schema_migrations (version, name, checksum) VALUES (99, 'from the future', 'x')");
+    await expect(openStore(newer)).rejects.toThrow("the Postgres store is at schema version 99, newer than this gateway knows");
   });
 });
 

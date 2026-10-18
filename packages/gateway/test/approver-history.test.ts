@@ -7,7 +7,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { approvalMessage, nowIso, randomId, verifyBundle, type Decision, type PaymentIntent } from "@spendmarshal/core";
 import { buildGateway, type Gateway } from "../src/server.js";
 import type { GatewayConfig, PrincipalConfig } from "../src/config.js";
-import type { StoreDriver } from "../src/store.js";
+import type { StoreDriver, StoreOptions } from "../src/store.js";
+import { drivers, freshStoreOptions } from "./drivers.js";
 
 const ZERO: Address = "0x0000000000000000000000000000000000000000";
 const POLICY = `
@@ -23,7 +24,7 @@ const keyB = privateKeyToAccount("0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f
 const keyC = privateKeyToAccount("0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba");
 
 /** A gateway on an existing store; the chain is never contacted (no payment runs here). */
-function config(dataDir: string, driver: StoreDriver, approvers: Record<string, Address>, principals: Record<string, PrincipalConfig> = { org: { account: ZERO } }): GatewayConfig {
+function config(store: StoreOptions, approvers: Record<string, Address>, principals: Record<string, PrincipalConfig> = { org: { account: ZERO } }): GatewayConfig {
   return {
     host: "127.0.0.1",
     port: 0,
@@ -33,8 +34,9 @@ function config(dataDir: string, driver: StoreDriver, approvers: Record<string, 
     sessionSecret: "session-secret",
     credentialRootKey: "credential-root-key",
     adminToken: "admin",
-    dataDir,
-    storeDriver: driver,
+    dataDir: store.dataDir,
+    storeDriver: store.driver,
+    databaseUrl: store.databaseUrl,
     policyYaml: POLICY,
     contracts: { usdc: ZERO, receiptRegistry: ZERO, enforcers: { spendLimit: ZERO, timeWindow: ZERO, allowedTargets: ZERO } },
     principals,
@@ -77,19 +79,19 @@ async function approve(gw: Gateway, approvalId: string, signer: typeof keyA) {
 
 const kinds = async (gw: Gateway) => (await gw.store.receiptsFor("org")).map((r) => r.kind);
 
-for (const driver of ["json", "sqlite"] as StoreDriver[]) {
+for (const driver of drivers()) {
   describe(`approver key history [${driver}]`, () => {
     it("keeps every approval verifiable when the approver's key rotates between runs on one store", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-approvers-${driver}-`));
+      const dir = await freshStoreOptions(driver, "approvers");
 
       // run 1: the CFO signs with key A
-      let gw = await start(config(dir, driver, { cfo: keyA.address }));
+      let gw = await start(config(dir, { cfo: keyA.address }));
       expect(await kinds(gw)).toEqual(["policy.updated", "approver.registered"]);
       await approve(gw, (await requestApproval(gw)).id, keyA);
       await gw.close();
 
       // run 2: the key is rotated to B. The chain records it before anything else happens, and A no longer signs.
-      gw = await start(config(dir, driver, { cfo: keyB.address }));
+      gw = await start(config(dir, { cfo: keyB.address }));
       expect((await kinds(gw)).slice(4)).toEqual(["approver.registered"]);
       expect((await gw.store.receiptsFor("org"))[4]!.data).toEqual({ approverId: "cfo", address: keyB.address, prevAddress: keyA.address });
       const second = await requestApproval(gw);
@@ -107,14 +109,14 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       await gw.close();
 
       // run 3: same key again: nothing new is registered; an approval is left pending
-      gw = await start(config(dir, driver, { cfo: keyB.address }));
+      gw = await start(config(dir, { cfo: keyB.address }));
       expect((await kinds(gw)).filter((k) => k === "approver.registered")).toHaveLength(2);
       const pending = await requestApproval(gw);
       await gw.close();
 
       // run 4: this gateway no longer serves the principal, and the key is rotated to C. Startup leaves the principal's
       // chain alone; resolving its pending approval registers C right before the grant it signs.
-      gw = await start(config(dir, driver, { cfo: keyC.address }, {}));
+      gw = await start(config(dir, { cfo: keyC.address }, {}));
       const before = (await gw.store.receiptsFor("org")).length;
       await approve(gw, pending.id, keyC);
       expect((await kinds(gw)).slice(before)).toEqual(["approver.registered", "approval.granted"]);
@@ -126,7 +128,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
 
       // removing the approver is receipted too, and the bundle still verifies every earlier approval
       await gw.close();
-      gw = await start(config(dir, driver, {}));
+      gw = await start(config(dir, {}));
       expect((await kinds(gw)).at(-1)).toBe("approver.removed");
       const removed = await verifyBundle(JSON.parse(JSON.stringify((await gw.exportEvidence("org")))));
       expect(removed.ok, JSON.stringify(removed.checks)).toBe(true);
@@ -134,8 +136,8 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("refuses to start with an approver key that is not an address", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-approvers-${driver}-`));
-      await expect(buildGateway(config(dir, driver, { cfo: "0x1234" as Address }))).rejects.toThrow("approver cfo: 0x1234 is not an address");
+      const dir = await freshStoreOptions(driver, "approvers");
+      await expect(buildGateway(config(dir, { cfo: "0x1234" as Address }))).rejects.toThrow("approver cfo: 0x1234 is not an address");
     });
   });
 }

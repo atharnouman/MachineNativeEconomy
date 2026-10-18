@@ -34,6 +34,7 @@ function config(opts: StoreOptions, policyYaml = policy()): GatewayConfig {
     adminToken: "operator-admin-token",
     dataDir: opts.dataDir,
     storeDriver: opts.driver,
+    databaseUrl: opts.databaseUrl,
     policyYaml,
     contracts: { usdc: ZERO, receiptRegistry: ZERO, enforcers: { spendLimit: ZERO, timeWindow: ZERO, allowedTargets: ZERO } },
     principals: { org: { account: ZERO } },
@@ -135,6 +136,19 @@ for (const driver of drivers()) {
 
     it("refuses the second of two simultaneous policy updates instead of numbering both version 2", async () => {
       const gw = await start(await freshStoreOptions(driver, "race-policy"));
+      // both updates read the current version before either writes the next one, whatever the driver's timing
+      const read = gw.store.policyVersions.bind(gw.store);
+      let arrived = 0;
+      let release!: () => void;
+      const bothRead = new Promise<void>((r) => (release = r));
+      gw.store.policyVersions = async (principalId) => {
+        const versions = await read(principalId);
+        if (++arrived <= 2) {
+          if (arrived === 2) release();
+          await bothRead;
+        }
+        return versions;
+      };
       const outcomes = await Promise.allSettled([gw.policies.update("org", policy("2.00"), "alice"), gw.policies.update("org", policy("3.00"), "bob")]);
       expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
       expect(((outcomes.find((o) => o.status === "rejected") as PromiseRejectedResult).reason as { statusCode?: number }).statusCode).toBe(409);
@@ -179,6 +193,33 @@ for (const driver of drivers().filter((d): d is Exclude<StoreDriver, "json"> => 
       expect((await verifyChain(rs, one.signer.address)).ok).toBe(true);
       const report = await verifyBundle(await exported(two));
       expect(report.ok, JSON.stringify(report.checks)).toBe(true);
+      await one.close();
+      await two.close();
+    });
+
+    it("runs one payment under an approval and one charge of a subscription at a time across instances", async () => {
+      const opts = await freshStoreOptions(driver, "two-instances-leases");
+      const one = await start(opts);
+      const two = await start(opts);
+      for (const gw of [one, two]) {
+        stub<PayResult>(gw, "payOnce", async () => {
+          await sleep(150);
+          return { ok: false, status: 502, intent: {} as PaymentIntent, receipts: [], error: "payee unreachable" };
+        });
+        (gw.payments as unknown as { chargeLeased: (s: Subscription) => Promise<ChargeResult> }).chargeLeased = async (s) => {
+          await sleep(150);
+          return { ok: true, status: 200, subscriptionId: s.id, subscriptionStatus: "active" };
+        };
+      }
+      const cred = { principalId: "org" } as Credential;
+      const req = { url: "https://payee.example/v1/report", maxAmount: "0.04", purpose: "research", approvalId: "apr_shared" };
+      const paid = await Promise.allSettled([one.payments.pay(cred, req), two.payments.pay(cred, req)]);
+      expect(paid.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+
+      const token = "charge-token";
+      await one.store.putSubscription({ v: 1, id: "sub_2", principalId: "org", agentId: "a", credentialId: "cred_test", payee: { url: "https://payee.example/v1/feed", host: "payee.example", address: ZERO }, resource: "/v1/feed", purpose: "feed", token: ZERO, chain: "eip155:31337", terms: { kind: "fixed", amountPerCharge: "1000", interval: "1h", expiresAt: new Date(Date.now() + 86_400_000).toISOString() }, chargeTokenHash: createHash("sha256").update(token).digest("hex"), chargeUrl: "http://127.0.0.1/v1/subscriptions/sub_2/charges", status: "active", createdAt: nowIso(), charges: 1, totalCharged: "1000" } as Subscription);
+      const charged = await Promise.all([one.payments.charge("sub_2", token, {}), two.payments.charge("sub_2", token, {})]);
+      expect(charged.map((r) => r.status).sort()).toEqual([200, 409]);
       await one.close();
       await two.close();
     });

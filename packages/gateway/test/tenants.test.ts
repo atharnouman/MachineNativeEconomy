@@ -7,7 +7,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { approvalMessage, nowIso, randomId, verifyBundle, type Decision, type EvidenceBundle, type PaymentIntent } from "@spendmarshal/core";
 import { buildGateway, type Gateway } from "../src/server.js";
 import type { GatewayConfig, PrincipalConfig } from "../src/config.js";
-import type { StoreDriver } from "../src/store.js";
+import type { StoreDriver, StoreOptions } from "../src/store.js";
+import { drivers, freshStoreOptions } from "./drivers.js";
 
 const ZERO: Address = "0x0000000000000000000000000000000000000000";
 const policy = (principalId: string) => `
@@ -30,7 +31,7 @@ const principals = (over: Partial<Record<"acme" | "globex", Partial<PrincipalCon
   globex: { account: ZERO, approvers: { cfo: globexCfo.address, auditor: globexAuditor.address }, adminToken: GLOBEX, ...over.globex },
 });
 
-function config(dataDir: string, driver: StoreDriver, policyFor: string, ps: Record<string, PrincipalConfig> = principals()): GatewayConfig {
+function config(store: StoreOptions, policyFor: string, ps: Record<string, PrincipalConfig> = principals()): GatewayConfig {
   return {
     host: "127.0.0.1",
     port: 0,
@@ -40,8 +41,9 @@ function config(dataDir: string, driver: StoreDriver, policyFor: string, ps: Rec
     sessionSecret: "session-secret",
     credentialRootKey: "credential-root-key",
     adminToken: OPERATOR,
-    dataDir,
-    storeDriver: driver,
+    dataDir: store.dataDir,
+    storeDriver: store.driver,
+    databaseUrl: store.databaseUrl,
     policyYaml: policy(policyFor),
     contracts: { usdc: ZERO, receiptRegistry: ZERO, enforcers: { spendLimit: ZERO, timeWindow: ZERO, allowedTargets: ZERO } },
     principals: ps,
@@ -53,11 +55,11 @@ function config(dataDir: string, driver: StoreDriver, policyFor: string, ps: Rec
 
 /** Both principals with a policy: globex's from an earlier start, acme's from this one. */
 async function start(driver: StoreDriver): Promise<Gateway> {
-  const dir = mkdtempSync(join(tmpdir(), `spendmarshal-tenants-${driver}-`));
-  const first = await buildGateway(config(dir, driver, "globex"));
+  const dir = await freshStoreOptions(driver, "tenants");
+  const first = await buildGateway(config(dir, "globex"));
   await first.ready;
   await first.close();
-  const gw = await buildGateway(config(dir, driver, "acme"));
+  const gw = await buildGateway(config(dir, "acme"));
   await gw.ready;
   gw.chain.now = async () => 0n; // the reclaim job reads chain time first; nothing here is on-chain
   return gw;
@@ -91,7 +93,7 @@ const registered = async (gw: Gateway, principalId: string) => (await gw.store.r
 const call = (gw: Gateway, method: "GET" | "POST", url: string, token?: string, payload?: object) =>
   gw.app.inject({ method, url, headers: token ? { "x-admin-token": token } : {}, ...(payload ? { payload } : {}) });
 
-for (const driver of ["json", "sqlite"] as StoreDriver[]) {
+for (const driver of drivers()) {
   describe(`approvers and admin tokens per organisation [${driver}]`, () => {
     it("registers and accepts only a principal's own approvers", async () => {
       const gw = await start(driver);
@@ -116,13 +118,13 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("moves a principal from the gateway-wide approvers to its own with key-change receipts in its chain", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-tenants-move-${driver}-`));
-      const shared = config(dir, driver, "acme", { acme: { account: ZERO }, globex: { account: ZERO } });
+      const dir = await freshStoreOptions(driver, "tenants-move");
+      const shared = config(dir, "acme", { acme: { account: ZERO }, globex: { account: ZERO } });
       shared.approvers = { cfo: globexCfo.address, auditor: globexAuditor.address };
       const first = await buildGateway(shared);
       await first.ready;
       await first.close();
-      const gw = await buildGateway(config(dir, driver, "acme")); // now acme lists its own cfo, globex the two it had
+      const gw = await buildGateway(config(dir, "acme")); // now acme lists its own cfo, globex the two it had
       await gw.ready;
       const changes = async (principalId: string) => (await gw.store.receiptsFor(principalId)).filter((r) => r.kind.startsWith("approver.")).map((r) => ({ kind: r.kind, ...r.data }));
       expect(await changes("acme")).toEqual([
@@ -171,14 +173,14 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("refuses admin tokens that are short or shared, and approvers that are not addresses, before anything is receipted", async () => {
-      const dir = () => mkdtempSync(join(tmpdir(), `spendmarshal-tenants-bad-${driver}-`));
-      await expect(buildGateway(config(dir(), driver, "acme", principals({ globex: { adminToken: ACME } })))).rejects.toThrow("the admin token of globex is the same as the admin token of acme");
-      await expect(buildGateway(config(dir(), driver, "acme", principals({ acme: { adminToken: OPERATOR + "-but" }, globex: { adminToken: OPERATOR + "-but" } })))).rejects.toThrow("the admin token of globex is the same as the admin token of acme");
-      const sameAsOperator = config(dir(), driver, "acme", principals());
+      const dir = () => freshStoreOptions(driver, "tenants-bad");
+      await expect(buildGateway(config(await dir(), "acme", principals({ globex: { adminToken: ACME } })))).rejects.toThrow("the admin token of globex is the same as the admin token of acme");
+      await expect(buildGateway(config(await dir(), "acme", principals({ acme: { adminToken: OPERATOR + "-but" }, globex: { adminToken: OPERATOR + "-but" } })))).rejects.toThrow("the admin token of globex is the same as the admin token of acme");
+      const sameAsOperator = config(await dir(), "acme", principals());
       sameAsOperator.adminToken = ACME;
       await expect(buildGateway(sameAsOperator)).rejects.toThrow("the admin token of acme is the same as the gateway admin token");
-      await expect(buildGateway(config(dir(), driver, "acme", principals({ acme: { adminToken: "short" } })))).rejects.toThrow("the admin token of acme is shorter than 16 characters");
-      await expect(buildGateway(config(dir(), driver, "acme", principals({ acme: { approvers: { cfo: "0x12" as Address } } })))).rejects.toThrow("approver cfo of acme: 0x12 is not an address");
+      await expect(buildGateway(config(await dir(), "acme", principals({ acme: { adminToken: "short" } })))).rejects.toThrow("the admin token of acme is shorter than 16 characters");
+      await expect(buildGateway(config(await dir(), "acme", principals({ acme: { approvers: { cfo: "0x12" as Address } } })))).rejects.toThrow("approver cfo of acme: 0x12 is not an address");
     });
   });
 }

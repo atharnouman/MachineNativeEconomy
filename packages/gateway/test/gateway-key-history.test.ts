@@ -7,9 +7,10 @@ import { privateKeyToAccount } from "viem/accounts";
 import { verifyBundle, verifyChain, type EvidenceBundle } from "@spendmarshal/core";
 import { buildGateway, type Gateway } from "../src/server.js";
 import type { GatewayConfig, PrincipalConfig } from "../src/config.js";
-import { openStore, type StoreDriver } from "../src/store.js";
+import { openStore, type StoreDriver, type StoreOptions } from "../src/store.js";
 import { LocalSigner } from "../src/signer.js";
 import { ReceiptLog } from "../src/receipts.js";
+import { drivers, freshStoreOptions } from "./drivers.js";
 
 const ZERO: Address = "0x0000000000000000000000000000000000000000";
 const policy = (principalId: string) => `
@@ -27,7 +28,7 @@ const [A1, A2, A3] = [K1, K2, K3].map((k) => privateKeyToAccount(k).address) as 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 /** A gateway on an existing store. The chain is never contacted: anchoring goes to the fake registry in `start`. */
-function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous?: Hex[]; addresses?: Address[]; policyFor?: string; principals?: Record<string, PrincipalConfig> } = {}): GatewayConfig {
+function config(store: StoreOptions, key: Hex, opts: { previous?: Hex[]; addresses?: Address[]; policyFor?: string; principals?: Record<string, PrincipalConfig> } = {}): GatewayConfig {
   return {
     host: "127.0.0.1",
     port: 0,
@@ -39,8 +40,9 @@ function config(dataDir: string, driver: StoreDriver, key: Hex, opts: { previous
     sessionSecret: "session-secret",
     credentialRootKey: "credential-root-key",
     adminToken: "admin",
-    dataDir,
-    storeDriver: driver,
+    dataDir: store.dataDir,
+    storeDriver: store.driver,
+    databaseUrl: store.databaseUrl,
     policyYaml: policy(opts.policyFor ?? "org"),
     contracts: { usdc: ZERO, receiptRegistry: ZERO, enforcers: { spendLimit: ZERO, timeWindow: ZERO, allowedTargets: ZERO } },
     principals: opts.principals ?? { org: { account: ZERO } },
@@ -70,14 +72,14 @@ const verify = async (gw: Gateway, p: string, trustedGatewayKeys?: string[]) => 
 const check = (r: Awaited<ReturnType<typeof verifyBundle>>, name: string) => r.checks.find((c) => c.check === name);
 const external = (gw: Gateway, principalId: string) => gw.app.inject({ method: "POST", url: "/v1/receipts/external", headers: { "x-admin-token": "admin" }, payload: { principalId, source: "test", data: { note: "late" } } });
 
-for (const driver of ["json", "sqlite"] as StoreDriver[]) {
+for (const driver of drivers()) {
   describe(`gateway key history [${driver}]`, () => {
     it("hands each chain over to a new gateway key, and every bundle keeps verifying", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-${driver}-`));
+      const dir = await freshStoreOptions(driver, "gwkeys");
 
       // run 1, key K1: "dormant" and "idle" are served once and never again; "org" is anchored
-      for (const p of ["dormant", "idle"]) await (await start(config(dir, driver, K1, { policyFor: p, principals: {} }))).close();
-      let gw = await start(config(dir, driver, K1));
+      for (const p of ["dormant", "idle"]) await (await start(config(dir, K1, { policyFor: p, principals: {} }))).close();
+      let gw = await start(config(dir, K1));
       await gw.anchor("org");
       expect(await kinds(gw, "org")).toEqual(["policy.updated", "evidence.anchored"]);
       expect((await gw.store.anchorsList("org"))[0]?.party).toBe(A1);
@@ -87,7 +89,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       await gw.close();
 
       // run 2, key K2 with K1 still configured: startup hands the served principal over, and K1 signs the handover
-      gw = await start(config(dir, driver, K2, { previous: [K1] }));
+      gw = await start(config(dir, K2, { previous: [K1] }));
       expect(await kinds(gw, "org")).toEqual(["policy.updated", "evidence.anchored", "gateway.key.rotated"]);
       const rotation = (await gw.store.receiptsFor("org"))[2]!;
       expect(rotation.data).toMatchObject({ prevAddress: A1, address: A2, handover: expect.stringMatching(/^0x[0-9a-f]{130}$/) });
@@ -105,13 +107,13 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       await gw.close();
 
       // a restart with the same key writes nothing
-      gw = await start(config(dir, driver, K2, { previous: [K1] }));
+      gw = await start(config(dir, K2, { previous: [K1] }));
       expect(await kinds(gw, "org")).toHaveLength(3);
       await gw.close();
 
       // run 3, key K3, and K2 is gone, but nobody told the gateway: it refuses to continue the chain K2 signed (ADR-0022).
       // Startup fails and writes nothing; an operator's receipt for an unserved chain and the reclaim job are refused too.
-      gw = await build(config(dir, driver, K3));
+      gw = await build(config(dir, K3));
       await expect(gw.ready).rejects.toThrow(`the receipt chain of org ends with #2, signed by ${A2}`);
       expect(await kinds(gw, "org")).toHaveLength(3);
       expect((await external(gw, "dormant")).statusCode).toBe(409);
@@ -130,7 +132,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
 
       // run 3 again, with K2 and K1 declared as previous addresses whose keys are gone: the rotation is receipted without a
       // handover. The chain is consistent, but nothing vouches for the change, so it verifies only with both sides pinned.
-      gw = await start(config(dir, driver, K3, { addresses: [A2, A1] }));
+      gw = await start(config(dir, K3, { addresses: [A2, A1] }));
       expect((await gw.store.receiptsFor("org"))[3]).toMatchObject({ kind: "gateway.key.rotated", data: { prevAddress: A2, address: A3, handover: null } });
       report = await verify(gw, "org");
       expect(check(report, "receipts.chain")?.ok).toBe(true);
@@ -157,7 +159,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("writes one rotation however many receipts race to follow a key change", async () => {
-      const store = await openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-race-${driver}-`)) });
+      const store = await openStore(await freshStoreOptions(driver, "gwkeys-race"));
       const old = new ReceiptLog(store, new LocalSigner(K1, "secret"));
       for (let i = 0; i < 3; i++) await old.append("p", "external", { i });
       const log = new ReceiptLog(store, new LocalSigner(K2, "secret", [K1]));
@@ -172,7 +174,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("refuses to continue a chain an unknown key signed, and writes nothing, until that key is declared", async () => {
-      const store = await openStore({ driver, dataDir: mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-refuse-${driver}-`)) });
+      const store = await openStore(await freshStoreOptions(driver, "gwkeys-refuse"));
       await new ReceiptLog(store, new LocalSigner(K1, "secret")).append("p", "external", { by: "K1" });
       const strict = new ReceiptLog(store, new LocalSigner(K2, "secret"));
       await expect(strict.append("p", "external", { by: "K2" })).rejects.toMatchObject({ statusCode: 409 });
@@ -186,17 +188,17 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     });
 
     it("refuses a previous gateway address that is not an address, before anything is receipted", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-badaddr-${driver}-`));
-      await expect(buildGateway(config(dir, driver, K2, { addresses: ["0x1234" as Address] }))).rejects.toThrow("previous gateway address 0x1234 is not an address");
-      const store = await openStore({ driver, dataDir: dir });
+      const dir = await freshStoreOptions(driver, "gwkeys-badaddr");
+      await expect(buildGateway(config(dir, K2, { addresses: ["0x1234" as Address] }))).rejects.toThrow("previous gateway address 0x1234 is not an address");
+      const store = await openStore(dir);
       expect((await store.lastReceipt("org"))).toBeUndefined();
       await store.close();
     });
 
     it("refuses a previous gateway key that is not a private key, before anything is receipted", async () => {
-      const dir = mkdtempSync(join(tmpdir(), `spendmarshal-gwkeys-bad-${driver}-`));
-      await expect(buildGateway(config(dir, driver, K2, { previous: ["0x1234"] }))).rejects.toThrow("previous gateway key is not a 32-byte hex private key");
-      const store = await openStore({ driver, dataDir: dir });
+      const dir = await freshStoreOptions(driver, "gwkeys-bad");
+      await expect(buildGateway(config(dir, K2, { previous: ["0x1234"] }))).rejects.toThrow("previous gateway key is not a 32-byte hex private key");
+      const store = await openStore(dir);
       expect((await store.lastReceipt("org"))).toBeUndefined();
       expect((await store.policyVersions("org"))).toEqual([]);
       await store.close();

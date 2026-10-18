@@ -172,7 +172,7 @@ Either way every caveat is enforced on-chain and the gateway confirms the settle
 
 ## Storage
 
-`SPENDMARSHAL_STORE=json` (zero-dependency file, demos) or `SPENDMARSHAL_STORE=sqlite` (WAL file via better-sqlite3, recommended for self-hosting). Same interface, same tests, no server to run. [ADR-0010](docs/adr/0010-store-drivers.md).
+`SPENDMARSHAL_STORE=json` (zero-dependency file, demos), `SPENDMARSHAL_STORE=sqlite` (WAL file via better-sqlite3, recommended for a single self-hosted gateway, no server to run) or `SPENDMARSHAL_STORE=postgres` with `SPENDMARSHAL_DATABASE_URL` (several gateway instances on one database, behind any load balancer). Same interface, same tests; SQLite and Postgres migrate themselves on start. [ADR-0010](docs/adr/0010-store-drivers.md), [ADR-0025](docs/adr/0025-postgres-store-and-several-instances.md).
 
 ## Policy in one glance
 

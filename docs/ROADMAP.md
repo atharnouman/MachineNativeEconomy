@@ -16,7 +16,7 @@ Done:
 * Approval workflow with EIP-191-signed resolutions, resume, expiry, offline verification.
 * Policy versions with diff, impact analysis and activation-time verification.
 * `@spendmarshal/devnet`; Phase 1 demo and end-to-end test.
-* Store interface with JSON and SQLite drivers (ADR-0010).
+* Store interface with JSON and SQLite drivers (ADR-0010); an asynchronous store with atomic check-then-act, versioned migrations, and a Postgres driver for several gateway instances on one database (ADR-0025).
 * Standard x402 interop: EIP-3009 payloads for EOAs and, via on-chain pre-approval + ERC-1271, for AgentAccounts and delegated EOAs, so any public facilitator can settle (ADR-0009).
 * RFC 9421: outbound Web Bot Auth with a signed key directory, payee-side verification, holder-bound credentials (ADR-0011).
 * Prometheus metrics, redacted logs, OpenAPI 3.1 at `/openapi.json` and `docs/openapi.json` (ADR-0012).
@@ -26,7 +26,6 @@ Done:
 
 Next (in order):
 * Live run against a public facilitator and real USDC on Base Sepolia (needs a funded testnet key: the user's own).
-* Postgres driver behind the same `Store` interface for multi-instance deployments; versioned migrations.
 * FX oracle with a freshness bound for the L402 rail.
 * OpenTelemetry tracing once there is a collector to send to.
 * Third-party audit of `packages/contracts` before any mainnet funds.

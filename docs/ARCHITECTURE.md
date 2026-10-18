@@ -242,7 +242,7 @@ sequenceDiagram
 
 ## What is still simplified
 
-* Store drivers are JSON and SQLite. Every check-then-act on shared state is one atomic store operation and SQLite migrations are versioned (ADR-0025); the Postgres driver, for several gateway instances on one database, is the next step.
+* Store drivers are JSON (one process), SQLite (one file) and Postgres (several gateway instances on one database, ADR-0025). Copying existing JSON or SQLite data into Postgres, read replicas and cache invalidation across instances are not built yet.
 * The standard x402 path has been exercised against the bundled facilitator behaving as a public one; a live run against Coinbase's or Stellar's facilitator on a testnet is the next step and needs a funded key.
 * Orphaned pre-approvals (standard path, settlement never happened) keep their spend charge until a `reclaim` function lands.
 * MPP covers one-shot payments; subscriptions and streaming are milestone 1.9.

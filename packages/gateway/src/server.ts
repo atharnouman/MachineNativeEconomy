@@ -21,7 +21,7 @@ import {
   type Receipt,
 } from "@spendmarshal/core";
 import { approversFor, type GatewayConfig } from "./config.js";
-import { openStore, withLease, type Store } from "./store.js";
+import { openStore, withLease, hasNonceLock, type Store } from "./store.js";
 import { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 import { ChainClient } from "./chain.js";
 import { ReceiptLog } from "./receipts.js";
@@ -94,13 +94,25 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     if (owner) throw new Error(`the admin token of ${p} is the same as ${owner}`); // never echo the token
     tokenOwners.set(pc.adminToken, `the admin token of ${p}`);
   }
-  const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
+  const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir, databaseUrl: cfg.databaseUrl });
+  // a configuration refused from here on must not leave the store open (a Postgres pool keeps the process alive)
+  const refused = async (err: unknown): Promise<never> => {
+    await store.close();
+    throw err;
+  };
   const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys, cfg.evidencePrivateKey);
-  const chain = new ChainClient(cfg);
+  // gateway instances sharing a database take turns on the gateway key's nonces (ADR-0025)
+  const chain = new ChainClient(cfg, hasNonceLock(store) ? store : undefined);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
   const receipts = new ReceiptLog(store, signer, metrics, { previousGatewayAddresses: cfg.previousGatewayAddresses, log: app.log });
-  const approverKeys = new ApproverKeys(cfg, store, receipts); // checks the approver addresses before anything is receipted
-  const policies = new PolicyService(store, receipts, { yaml: cfg.policyYaml, by: "config" });
+  let approverKeys: ApproverKeys;
+  let policies: PolicyService;
+  try {
+    approverKeys = new ApproverKeys(cfg, store, receipts); // checks the approver addresses before anything is receipted
+    policies = new PolicyService(store, receipts, { yaml: cfg.policyYaml, by: "config" });
+  } catch (err) {
+    return refused(err);
+  }
   const approvals = new ApprovalService(cfg, store, receipts, metrics, approverKeys);
   const credentials = new CredentialService(cfg, store, signer, chain, receipts);
   const payments = new PaymentService(cfg, store, signer, chain, receipts, policies, approvals, { metrics, publicUrl });

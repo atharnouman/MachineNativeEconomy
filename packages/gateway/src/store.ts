@@ -159,15 +159,35 @@ export interface Store {
   close(): Promise<void>;
 }
 
-export type StoreDriver = "json" | "sqlite";
+/**
+ * Serializes the gateway key's transactions across gateway instances (the Postgres driver has it). `send` gets the lowest
+ * nonce it may use, sends, and returns the nonce it used; the next send gets at least that plus one (ADR-0025).
+ */
+export interface NonceLock {
+  withNonce<T>(chainId: number, address: string, send: (atLeast: number) => Promise<{ nonce: number; result: T }>): Promise<T>;
+}
+
+export const hasNonceLock = (s: Store): s is Store & NonceLock => typeof (s as Partial<NonceLock>).withNonce === "function";
+
+export type StoreDriver = "json" | "sqlite" | "postgres";
 
 export interface StoreOptions {
   driver?: StoreDriver;
   dataDir: string;
+  /** Postgres only: the database every gateway instance of the deployment shares. */
+  databaseUrl?: string;
 }
 
-/** Open the configured store. JSON lives at `<dataDir>/state.json`, SQLite at `<dataDir>/spendmarshal.sqlite`. */
+/**
+ * Open the configured store. JSON lives at `<dataDir>/state.json`, SQLite at `<dataDir>/spendmarshal.sqlite`, Postgres at
+ * `databaseUrl` (migrated on open).
+ */
 export async function openStore(opts: StoreOptions): Promise<Store> {
+  if (opts.driver === "postgres") {
+    if (!opts.databaseUrl) throw new Error("the postgres store needs a database URL (SPENDMARSHAL_DATABASE_URL)");
+    const { PostgresStore } = await import("./store-postgres.js");
+    return PostgresStore.open(opts.databaseUrl);
+  }
   mkdirSync(opts.dataDir, { recursive: true });
   if ((opts.driver ?? "json") === "sqlite") {
     const { SqliteStore } = await import("./store-sqlite.js");

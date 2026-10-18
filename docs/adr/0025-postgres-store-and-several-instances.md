@@ -140,10 +140,10 @@ Rejected:
   - One contract suite covers every store operation, run against JSON, SQLite and, when `SPENDMARSHAL_TEST_POSTGRES_URL`
     is set, Postgres. The gateway tests that already run per driver also run on Postgres.
   - The race fixes are also tested in one process, on JSON and SQLite.
-  - Two gateway instances on one database are tested with simultaneous:
-    - payments against one budget;
-    - appends to one chain, which must stay one linear chain that verifies;
-    - resolutions of one approval, and uses of it;
-    - subscription charges and duplicate idempotent requests;
+  - Two gateway instances on one database (SQLite file, or Postgres) are tested with simultaneous:
     - startups, which must record one policy version 1 and register each approver once;
-    - sends from both instances on anvil, which must never reuse a nonce.
+    - appends to one chain, which must stay one linear chain that verifies;
+    - resolutions of one approval, payments under it, and charges of one subscription;
+    - duplicate idempotent requests, run once.
+  - Two store handles reserve against one budget cap without passing it.
+  - On anvil, two instances sending at once never reuse a nonce of the gateway key.

@@ -12,12 +12,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@spendmarshal/cli": "workspace:*",
     "@spendmarshal/core": "workspace:*",
     "@spendmarshal/devnet": "workspace:*",
     "@spendmarshal/gateway": "workspace:*",
     "@spendmarshal/payee": "workspace:*",
     "@spendmarshal/sdk": "workspace:*",
-    "@spendmarshal/cli": "workspace:*",
     "viem": "^2.21.54"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   }
 }
