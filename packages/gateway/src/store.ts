@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Receipt, ReceiptKind, CredentialPublic, SpendLedgerView, Approval, PaymentIntent, PolicyVersion, Subscription } from "@spendmarshal/core";
+import { randomId, type Receipt, type ReceiptKind, type CredentialPublic, type SpendLedgerView, type Approval, type PaymentIntent, type PolicyVersion, type Subscription, type Decision } from "@spendmarshal/core";
 
 export interface RegisteredCredential extends CredentialPublic {
   sessionKey: string;
@@ -71,65 +71,92 @@ export interface IdempotentRecord {
 }
 export const IDEMPOTENCY_TTL_MS = 24 * 3600 * 1000;
 
+/** A receipt whose sequence number another writer took first: the head moved, so read it again and rebuild (ADR-0025). */
+export class ChainConflict extends Error {
+  constructor(
+    readonly principalId: string,
+    readonly seq: number,
+  ) {
+    super(`receipt #${seq} of ${principalId} was written by another writer first`);
+    this.name = "ChainConflict";
+  }
+}
+
 /**
- * The gateway's durable state. Two drivers implement it: a JSON file (zero dependencies, fine for demos and
- * single-process dev) and SQLite (WAL mode, real queries, the default for a self-hosted deployment). Every
- * mutation is synchronous so a crash never loses a receipt that was returned to a caller.
+ * The gateway's durable state. Three drivers implement it: a JSON file (zero dependencies, for demos and single-process
+ * dev), SQLite (WAL mode, the default for a self-hosted deployment) and Postgres (several gateway instances on one
+ * database). Every method is asynchronous; a write completes before the receipt or response that depends on it.
+ *
+ * Everything that checks state and then changes it is one operation here, which each driver makes atomic, so it holds
+ * across gateway instances as well as within one (ADR-0025): `reserveIf`, `appendReceipt` (refuses a taken sequence
+ * number), `transitionApproval`, `addPolicyVersion` (refuses a taken version) and the leases.
  */
 export interface Store {
   // receipts
-  appendReceipt(r: Receipt): void;
-  receiptsFor(principalId: string): Receipt[];
+  /** Appends a receipt; rejects with `ChainConflict` when its sequence number is taken. */
+  appendReceipt(r: Receipt): Promise<void>;
+  receiptsFor(principalId: string): Promise<Receipt[]>;
   /** The chain head for a principal (indexed; never loads the chain). */
-  lastReceipt(principalId: string): Receipt | undefined;
+  lastReceipt(principalId: string): Promise<Receipt | undefined>;
   /** A principal's receipts of the given kinds, in chain order (indexed; never loads the rest of the chain). */
-  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[];
+  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Promise<Receipt[]>;
   // idempotency: final outcomes kept for IDEMPOTENCY_TTL_MS
-  getIdempotent(scope: string, key: string): IdempotentRecord | undefined;
-  putIdempotent(rec: IdempotentRecord): void;
+  getIdempotent(scope: string, key: string): Promise<IdempotentRecord | undefined>;
+  putIdempotent(rec: IdempotentRecord): Promise<void>;
   // credentials
-  getCredential(id: string): RegisteredCredential | undefined;
-  putCredential(c: RegisteredCredential): void;
-  credentialsFor(principalId: string): RegisteredCredential[];
+  getCredential(id: string): Promise<RegisteredCredential | undefined>;
+  putCredential(c: RegisteredCredential): Promise<void>;
+  credentialsFor(principalId: string): Promise<RegisteredCredential[]>;
   // ledger
-  reserve(e: Omit<LedgerEntry, "state">): LedgerEntry;
-  settle(id: string, txHash: string, settledAt: string): void;
-  release(id: string): void;
   /**
-   * Live view for one principal: reserved + settled entries count against caps, budgets, rate limits and velocity.
-   * Budget names and agent ids are only unique within a principal, so every sum is scoped to it.
+   * Decides on the principal's ledger and, when the decision allows, reserves `entry` in the same step: no other
+   * reservation of that principal comes in between. Reserved and settled entries count against caps, budgets, rate limits
+   * and velocity; budget names and agent ids are only unique within a principal, so every figure is scoped to it.
+   * `decide` may run more than once and must depend only on the view it gets (fix `now` outside it).
    */
-  ledgerView(principalId: string): SpendLedgerView;
-  ledgerEntries(principalId: string): LedgerEntry[];
+  reserveIf(entry: Omit<LedgerEntry, "state">, decide: (ledger: SpendLedgerView) => Decision): Promise<{ decision: Decision; entry?: LedgerEntry }>;
+  /** Runs `read` on a consistent view of the principal's ledger. Like `decide` above, it may run more than once. */
+  withLedger<T>(principalId: string, read: (ledger: SpendLedgerView) => T): Promise<T>;
+  settle(id: string, txHash: string, settledAt: string): Promise<void>;
+  release(id: string): Promise<void>;
+  ledgerEntries(principalId: string): Promise<LedgerEntry[]>;
   /** Settled totals of one principal, by credential and by budget. */
-  spent(principalId: string): { byCredential: Record<string, string>; byBudget: Record<string, string> };
+  spent(principalId: string): Promise<{ byCredential: Record<string, string>; byBudget: Record<string, string> }>;
   // approvals
-  putApproval(a: Approval): void;
-  getApproval(id: string): Approval | undefined;
-  approvalsFor(principalId: string, status?: Approval["status"]): Approval[];
+  putApproval(a: Approval): Promise<void>;
+  /** Replaces the approval with `next` only while its stored status is one of `from`; true when it did. */
+  transitionApproval(next: Approval, from: readonly Approval["status"][]): Promise<boolean>;
+  getApproval(id: string): Promise<Approval | undefined>;
+  approvalsFor(principalId: string, status?: Approval["status"]): Promise<Approval[]>;
   // intents (impact analysis)
-  putIntent(r: IntentRecord): void;
-  recentIntents(principalId: string, n: number): IntentRecord[];
+  putIntent(r: IntentRecord): Promise<void>;
+  recentIntents(principalId: string, n: number): Promise<IntentRecord[]>;
   // policy versions
-  policyVersions(principalId: string): PolicyVersion[];
-  addPolicyVersion(principalId: string, v: PolicyVersion): void;
-  principalsWithPolicies(): string[];
+  policyVersions(principalId: string): Promise<PolicyVersion[]>;
+  /** Adds a version; false when that version number is already taken (the policy changed meanwhile). */
+  addPolicyVersion(principalId: string, v: PolicyVersion): Promise<boolean>;
+  principalsWithPolicies(): Promise<string[]>;
   // subscriptions
-  putSubscription(s: Subscription): void;
-  getSubscription(id: string): Subscription | undefined;
-  subscriptionsFor(principalId: string): Subscription[];
+  putSubscription(s: Subscription): Promise<void>;
+  getSubscription(id: string): Promise<Subscription | undefined>;
+  subscriptionsFor(principalId: string): Promise<Subscription[]>;
   // pre-approvals (standard x402 path)
-  putPreApproval(p: PreApprovalRecord): void;
-  getPreApproval(digest: string): PreApprovalRecord | undefined;
-  pendingPreApprovals(principalId?: string): PreApprovalRecord[];
+  putPreApproval(p: PreApprovalRecord): Promise<void>;
+  getPreApproval(digest: string): Promise<PreApprovalRecord | undefined>;
+  pendingPreApprovals(principalId?: string): Promise<PreApprovalRecord[]>;
   // kill switch
-  killSwitch(principalId: string): boolean;
-  setKillSwitch(principalId: string, on: boolean): void;
+  killSwitch(principalId: string): Promise<boolean>;
+  setKillSwitch(principalId: string, on: boolean): Promise<void>;
   // anchors
   /** Anchors in order; with a principal, only that principal's (a bundle must never carry another tenant's). */
-  anchorsList(principalId?: string): AnchorRecord[];
-  addAnchor(a: AnchorRecord): void;
-  close(): void;
+  anchorsList(principalId?: string): Promise<AnchorRecord[]>;
+  addAnchor(a: AnchorRecord): Promise<void>;
+  // leases, for work that spans awaits
+  /** Takes the named lease for `holder` for `ttlMs`, unless another holder has it unexpired; true when taken. */
+  acquireLease(name: string, holder: string, ttlMs: number): Promise<boolean>;
+  /** Gives the lease up if `holder` still has it. */
+  releaseLease(name: string, holder: string): Promise<void>;
+  close(): Promise<void>;
 }
 
 export type StoreDriver = "json" | "sqlite";
@@ -148,4 +175,22 @@ export async function openStore(opts: StoreOptions): Promise<Store> {
   }
   const { JsonStore } = await import("./store-json.js");
   return new JsonStore(join(opts.dataDir, "state.json"));
+}
+
+/**
+ * Runs `fn` while holding the named lease, given up afterwards whatever happens. Waits up to `waitMs` for a lease another
+ * holder has (default: not at all), then fails with 409 and the `busy` message.
+ */
+export async function withLease<T>(store: Store, name: string, opts: { ttlMs: number; waitMs?: number; busy: string }, fn: () => Promise<T>): Promise<T> {
+  const holder = randomId("lease");
+  const deadline = Date.now() + (opts.waitMs ?? 0);
+  while (!(await store.acquireLease(name, holder, opts.ttlMs))) {
+    if (Date.now() >= deadline) throw Object.assign(new Error(opts.busy), { statusCode: 409 });
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  try {
+    return await fn();
+  } finally {
+    await store.releaseLease(name, holder);
+  }
 }

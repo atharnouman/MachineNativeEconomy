@@ -42,7 +42,7 @@ describe("CredentialService.register", () => {
     const reg = await svc.register(c);
     expect(grants).toBe(1);
     expect(reg.txHash).toBe(ZERO_TX);
-    expect(store.getCredential(credentialId(c))?.sessionKey).toBe(reg.sessionKey);
+    expect((await store.getCredential(credentialId(c)))?.sessionKey).toBe(reg.sessionKey);
     expect((await svc.register(c)).txHash).toBe(ZERO_TX); // idempotent from the store, no second grant
     expect(grants).toBe(1);
   });

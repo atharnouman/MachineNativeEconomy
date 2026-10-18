@@ -64,7 +64,7 @@ async function start(driver: StoreDriver): Promise<Gateway> {
 }
 
 /** An escalated intent's pending approval, as the payment flow creates it. */
-function requestApproval(gw: Gateway, principalId: string) {
+async function requestApproval(gw: Gateway, principalId: string) {
   const intent: PaymentIntent = {
     v: 1,
     id: randomId("int"),
@@ -78,16 +78,16 @@ function requestApproval(gw: Gateway, principalId: string) {
     rail: "x402",
     createdAt: nowIso(),
   };
-  const decision: Decision = { effect: "escalate", reasons: ["RULE_ESCALATE:big"], checks: [], matchedRules: ["big"], budgetPath: ["org"], policyHash: gw.policies.activeVersion(principalId).hash as Hex, amount: "40000" };
+  const decision: Decision = { effect: "escalate", reasons: ["RULE_ESCALATE:big"], checks: [], matchedRules: ["big"], budgetPath: ["org"], policyHash: (await gw.policies.activeVersion(principalId)).hash as Hex, amount: "40000" };
   return gw.approvals.request({ intent, decision, amount: 40_000n, rail: "x402", request: { method: "GET" } });
 }
 
 async function signed(gw: Gateway, approvalId: string, approverId: string, signer: typeof acmeCfo) {
-  const a = gw.store.getApproval(approvalId)!;
+  const a = (await gw.store.getApproval(approvalId))!;
   return gw.approvals.resolve(approvalId, "approve", { id: approverId, signature: await signer.signMessage({ message: approvalMessage(a, "approve") }) });
 }
 
-const registered = (gw: Gateway, principalId: string) => gw.store.receiptsFor(principalId).filter((r) => r.kind === "approver.registered").map((r) => [r.data.approverId, r.data.address]);
+const registered = async (gw: Gateway, principalId: string) => (await gw.store.receiptsFor(principalId)).filter((r) => r.kind === "approver.registered").map((r) => [r.data.approverId, r.data.address]);
 const call = (gw: Gateway, method: "GET" | "POST", url: string, token?: string, payload?: object) =>
   gw.app.inject({ method, url, headers: token ? { "x-admin-token": token } : {}, ...(payload ? { payload } : {}) });
 
@@ -95,8 +95,8 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
   describe(`approvers and admin tokens per organisation [${driver}]`, () => {
     it("registers and accepts only a principal's own approvers", async () => {
       const gw = await start(driver);
-      expect(registered(gw, "acme")).toEqual([["cfo", acmeCfo.address]]);
-      expect(registered(gw, "globex")).toEqual([["cfo", globexCfo.address], ["auditor", globexAuditor.address]]);
+      expect(await registered(gw, "acme")).toEqual([["cfo", acmeCfo.address]]);
+      expect(await registered(gw, "globex")).toEqual([["cfo", globexCfo.address], ["auditor", globexAuditor.address]]);
 
       const acme = await requestApproval(gw, "acme");
       await expect(signed(gw, acme.id, "auditor", globexAuditor)).rejects.toThrow("approver auditor has no registered key for acme");
@@ -107,7 +107,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       expect((await signed(gw, globex.id, "auditor", globexAuditor)).status).toBe("approved");
 
       for (const [principalId, approvers] of [["acme", { cfo: acmeCfo.address }], ["globex", { cfo: globexCfo.address, auditor: globexAuditor.address }]] as const) {
-        const bundle = JSON.parse(JSON.stringify(gw.exportEvidence(principalId))) as EvidenceBundle;
+        const bundle = JSON.parse(JSON.stringify((await gw.exportEvidence(principalId)))) as EvidenceBundle;
         expect(bundle.approvers).toEqual(approvers);
         const report = await verifyBundle(bundle);
         expect(report.ok, JSON.stringify(report.checks)).toBe(true);
@@ -124,15 +124,15 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       await first.close();
       const gw = await buildGateway(config(dir, driver, "acme")); // now acme lists its own cfo, globex the two it had
       await gw.ready;
-      const changes = (principalId: string) => gw.store.receiptsFor(principalId).filter((r) => r.kind.startsWith("approver.")).map((r) => ({ kind: r.kind, ...r.data }));
-      expect(changes("acme")).toEqual([
+      const changes = async (principalId: string) => (await gw.store.receiptsFor(principalId)).filter((r) => r.kind.startsWith("approver.")).map((r) => ({ kind: r.kind, ...r.data }));
+      expect(await changes("acme")).toEqual([
         { kind: "approver.registered", approverId: "cfo", address: globexCfo.address, prevAddress: null },
         { kind: "approver.registered", approverId: "auditor", address: globexAuditor.address, prevAddress: null },
         { kind: "approver.registered", approverId: "cfo", address: acmeCfo.address, prevAddress: globexCfo.address },
         { kind: "approver.removed", approverId: "auditor", prevAddress: globexAuditor.address },
       ]);
-      expect(changes("globex")).toHaveLength(2);
-      const report = await verifyBundle(JSON.parse(JSON.stringify(gw.exportEvidence("acme"))) as EvidenceBundle);
+      expect(await changes("globex")).toHaveLength(2);
+      const report = await verifyBundle(JSON.parse(JSON.stringify((await gw.exportEvidence("acme")))) as EvidenceBundle);
       expect(report.ok, JSON.stringify(report.checks)).toBe(true);
       await gw.close();
     });
@@ -153,7 +153,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       expect((await call(gw, "POST", "/v1/receipts/external", ACME, { principalId: "globex", source: "test", data: {} })).statusCode).toBe(403);
       // another principal's approval is left exactly as it was
       expect((await call(gw, "POST", `/v1/approvals/${globex.id}/approve`, ACME, { approverId: "ops" })).statusCode).toBe(403);
-      expect(gw.store.getApproval(globex.id)?.status).toBe("pending");
+      expect((await gw.store.getApproval(globex.id))?.status).toBe("pending");
       // the reclaim job for every principal at once is the operator's
       expect((await call(gw, "POST", "/v1/maintenance/reclaim", ACME, {})).statusCode).toBe(403);
       expect((await call(gw, "POST", "/v1/maintenance/reclaim", ACME, { principalId: "acme" })).statusCode).toBe(200);
@@ -166,7 +166,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       // within its own principal the token resolves an approval (admin-token method)
       const approved = await call(gw, "POST", `/v1/approvals/${acme.id}/approve`, ACME, { approverId: "ops" });
       expect(approved.statusCode).toBe(200);
-      expect(gw.store.getApproval(acme.id)?.approver).toEqual({ id: "ops", method: "admin-token" });
+      expect((await gw.store.getApproval(acme.id))?.approver).toEqual({ id: "ops", method: "admin-token" });
       await gw.close();
     });
 

@@ -15,10 +15,13 @@ import {
   type Caveat,
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
-import type { Store, RegisteredCredential } from "./store.js";
+import { withLease, type Store, type RegisteredCredential } from "./store.js";
 import type { Signer } from "./signer.js";
 import type { ChainClient, SessionCaveatsOnChain } from "./chain.js";
 import type { ReceiptLog } from "./receipts.js";
+
+/** A registration waits for the chain to show the session (up to a minute on a public RPC); the lease outlasts that. */
+const REGISTER_LEASE_MS = 3 * 60_000;
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 const FAR_FUTURE = 4_102_444_800n; // 2100-01-01
@@ -67,15 +70,20 @@ export class CredentialService {
 
   private readonly inflight = new Map<string, Promise<RegisteredCredential>>();
 
-  /** Compile caveats to an on-chain session (idempotent; concurrent calls for one credential share one transaction). */
+  /**
+   * Compile caveats to an on-chain session (idempotent; concurrent calls for one credential share one transaction: in
+   * this process through the in-flight map, across gateway instances through a lease on the credential, ADR-0025).
+   */
   async register(c: Credential): Promise<RegisteredCredential> {
     this.verify(c);
     const id = credentialId(c);
-    const existing = this.store.getCredential(id);
+    const existing = await this.store.getCredential(id);
     if (existing) return existing;
     const running = this.inflight.get(id);
     if (running) return running;
-    const p = this.registerInner(c, id).finally(() => this.inflight.delete(id));
+    const p = withLease(this.store, `credential:${id}`, { ttlMs: REGISTER_LEASE_MS, waitMs: REGISTER_LEASE_MS, busy: `credential ${id} is being registered` }, async () => {
+      return (await this.store.getCredential(id)) ?? this.registerInner(c, id); // registered meanwhile by another instance
+    }).finally(() => this.inflight.delete(id));
     this.inflight.set(id, p);
     return p;
   }
@@ -114,7 +122,7 @@ export class CredentialService {
     let parentSessionKey: string | null = null;
     if (parent) {
       const parentId = credentialId(parent);
-      const parentReg = this.store.getCredential(parentId);
+      const parentReg = await this.store.getCredential(parentId);
       if (!parentReg) throw new Error(`parent credential ${parentId} must be registered first`);
       const sub = isSubsetOf(lim, effectiveLimits(parent.caveats));
       if (!sub.ok) throw new Error(`child wider than parent in ${sub.violations.join(",")}`);
@@ -149,7 +157,7 @@ export class CredentialService {
     }
 
     const reg: RegisteredCredential = { ...toPublic(c), sessionKey: key, parentSessionKey, registeredAt: nowIso(), txHash };
-    this.store.putCredential(reg);
+    await this.store.putCredential(reg);
     await this.receipts.append(
       c.principalId,
       "credential.registered",

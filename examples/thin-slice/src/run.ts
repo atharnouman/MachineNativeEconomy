@@ -239,7 +239,7 @@ export async function runThinSlice(opts: ThinSliceOptions = {}): Promise<ThinSli
     // ── balances ───────────────────────────────────────────────────────────────────
     const acctBal = await gw.chain.usdcBalance(usdc, account);
     const payeeBal = await gw.chain.usdcBalance(usdc, payeeTreasury);
-    const spent = gw.store.spent("org-acme");
+    const spent = await gw.store.spent("org-acme");
     log(`\nbalances: AgentAccount ${toHuman(acctBal)} USDC, payee ${toHuman(payeeBal)} USDC`);
     log(`ledger:   ${JSON.stringify(Object.fromEntries(Object.entries(spent.byBudget).map(([k, v]) => [k, toHuman(v)])))} by budget; ${Object.keys(spent.byCredential).length} credential nodes charged`);
 

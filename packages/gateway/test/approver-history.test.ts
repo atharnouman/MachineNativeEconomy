@@ -52,7 +52,7 @@ async function start(cfg: GatewayConfig): Promise<Gateway> {
 }
 
 /** An escalated intent's pending approval, as the payment flow creates it. */
-function requestApproval(gw: Gateway) {
+async function requestApproval(gw: Gateway) {
   const intent: PaymentIntent = {
     v: 1,
     id: randomId("int"),
@@ -66,16 +66,16 @@ function requestApproval(gw: Gateway) {
     rail: "x402",
     createdAt: nowIso(),
   };
-  const decision: Decision = { effect: "escalate", reasons: ["RULE_ESCALATE:big"], checks: [], matchedRules: ["big"], budgetPath: ["org"], policyHash: gw.policies.activeVersion("org").hash as Hex, amount: "40000" };
+  const decision: Decision = { effect: "escalate", reasons: ["RULE_ESCALATE:big"], checks: [], matchedRules: ["big"], budgetPath: ["org"], policyHash: (await gw.policies.activeVersion("org")).hash as Hex, amount: "40000" };
   return gw.approvals.request({ intent, decision, amount: 40_000n, rail: "x402", request: { method: "GET" } });
 }
 
 async function approve(gw: Gateway, approvalId: string, signer: typeof keyA) {
-  const a = gw.store.getApproval(approvalId)!;
+  const a = (await gw.store.getApproval(approvalId))!;
   return gw.approvals.resolve(approvalId, "approve", { id: "cfo", signature: await signer.signMessage({ message: approvalMessage(a, "approve") }) });
 }
 
-const kinds = (gw: Gateway) => gw.store.receiptsFor("org").map((r) => r.kind);
+const kinds = async (gw: Gateway) => (await gw.store.receiptsFor("org")).map((r) => r.kind);
 
 for (const driver of ["json", "sqlite"] as StoreDriver[]) {
   describe(`approver key history [${driver}]`, () => {
@@ -84,18 +84,18 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
 
       // run 1: the CFO signs with key A
       let gw = await start(config(dir, driver, { cfo: keyA.address }));
-      expect(kinds(gw)).toEqual(["policy.updated", "approver.registered"]);
+      expect(await kinds(gw)).toEqual(["policy.updated", "approver.registered"]);
       await approve(gw, (await requestApproval(gw)).id, keyA);
       await gw.close();
 
       // run 2: the key is rotated to B. The chain records it before anything else happens, and A no longer signs.
       gw = await start(config(dir, driver, { cfo: keyB.address }));
-      expect(kinds(gw).slice(4)).toEqual(["approver.registered"]);
-      expect(gw.store.receiptsFor("org")[4]!.data).toEqual({ approverId: "cfo", address: keyB.address, prevAddress: keyA.address });
+      expect((await kinds(gw)).slice(4)).toEqual(["approver.registered"]);
+      expect((await gw.store.receiptsFor("org"))[4]!.data).toEqual({ approverId: "cfo", address: keyB.address, prevAddress: keyA.address });
       const second = await requestApproval(gw);
       await expect(approve(gw, second.id, keyA)).rejects.toThrow("approver signature invalid");
       await approve(gw, second.id, keyB);
-      const bundle = gw.exportEvidence("org");
+      const bundle = (await gw.exportEvidence("org"));
       expect(bundle.approvers).toEqual({ cfo: keyB.address });
       expect(bundle.approverHistory.cfo?.map((k) => [k.address, k.seq])).toEqual([
         [keyA.address, 1],
@@ -108,17 +108,17 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
 
       // run 3: same key again: nothing new is registered; an approval is left pending
       gw = await start(config(dir, driver, { cfo: keyB.address }));
-      expect(kinds(gw).filter((k) => k === "approver.registered")).toHaveLength(2);
+      expect((await kinds(gw)).filter((k) => k === "approver.registered")).toHaveLength(2);
       const pending = await requestApproval(gw);
       await gw.close();
 
       // run 4: this gateway no longer serves the principal, and the key is rotated to C. Startup leaves the principal's
       // chain alone; resolving its pending approval registers C right before the grant it signs.
       gw = await start(config(dir, driver, { cfo: keyC.address }, {}));
-      const before = gw.store.receiptsFor("org").length;
+      const before = (await gw.store.receiptsFor("org")).length;
       await approve(gw, pending.id, keyC);
-      expect(kinds(gw).slice(before)).toEqual(["approver.registered", "approval.granted"]);
-      const later = gw.exportEvidence("org");
+      expect((await kinds(gw)).slice(before)).toEqual(["approver.registered", "approval.granted"]);
+      const later = (await gw.exportEvidence("org"));
       expect(later.approverHistory.cfo?.map((k) => k.address)).toEqual([keyA.address, keyB.address, keyC.address]);
       const again = await verifyBundle(JSON.parse(JSON.stringify(later)));
       expect(again.ok, JSON.stringify(again.checks)).toBe(true);
@@ -127,8 +127,8 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       // removing the approver is receipted too, and the bundle still verifies every earlier approval
       await gw.close();
       gw = await start(config(dir, driver, {}));
-      expect(kinds(gw).at(-1)).toBe("approver.removed");
-      const removed = await verifyBundle(JSON.parse(JSON.stringify(gw.exportEvidence("org"))));
+      expect((await kinds(gw)).at(-1)).toBe("approver.removed");
+      const removed = await verifyBundle(JSON.parse(JSON.stringify((await gw.exportEvidence("org")))));
       expect(removed.ok, JSON.stringify(removed.checks)).toBe(true);
       await gw.close();
     });

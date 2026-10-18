@@ -173,7 +173,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
       ],
       bindTo: "new", // holder-bound: the sub-agent's credential only works with its own Ed25519 key
     });
-    const raReg = gw.store.getCredential(credentialId(researchAgent.credential))!;
+    const raReg = (await gw.store.getCredential(credentialId(researchAgent.credential)))!;
     const raSession = await readSession(net, alice.address, raReg.sessionKey as `0x${string}`);
     step("credential chain mirrors on-chain", raReg.parentSessionKey?.toLowerCase() === gatewayAddr.toLowerCase() && raSession.parent.toLowerCase() === gatewayAddr.toLowerCase(), `research-agent session ${raReg.sessionKey.slice(0, 10)}… has parent = gateway root session; fetcher is its child`);
 
@@ -245,7 +245,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
       const orphanAuth = { token: core.usdc, to: payeeTreasury, value: 1_000n, validAfter: 0n, validBefore, nonce: keccak256(toHex(`orphan-${Date.now()}`)), intentHash: keccak256(toHex("orphan-intent")) };
       const sig = await gw.signer.signTokenAuthorization(raId, alice.address, net.chainId, orphanAuth);
       const appr = await gw.chain.approveAuthorization(alice.address, orphanAuth, sig);
-      if (appr.ok) gw.store.putPreApproval({ digest: appr.digest, principalId: "org-acme", account: alice.address, credentialId: raId, intentId: "int_orphan_demo", value: "1000", validBefore: orphanAuth.validBefore.toString(), approvalTxHash: appr.txHash, createdAt: new Date().toISOString(), state: "pending" });
+      if (appr.ok) await gw.store.putPreApproval({ digest: appr.digest, principalId: "org-acme", account: alice.address, credentialId: raId, intentId: "int_orphan_demo", value: "1000", validBefore: orphanAuth.validBefore.toString(), approvalTxHash: appr.txHash, createdAt: new Date().toISOString(), state: "pending" });
       const spentCharged = (await readSession(net, alice.address, raReg.sessionKey as `0x${string}`)).spent;
       const tooEarly = await admin.reclaim("org-acme");
       // advance the dev chain's clock past the window instead of sleeping (anvil evm_increaseTime + evm_mine)
@@ -320,7 +320,7 @@ export async function runPhase1(opts: Phase1Options = {}): Promise<Phase1Summary
     // ── 9. lineage accounting on-chain ─────────────────────────────────────────────
     const root = await readSession(net, alice.address, gatewayAddr);
     const ra = await readSession(net, alice.address, raReg.sessionKey as `0x${string}`);
-    const fe = await readSession(net, alice.address, gw.store.getCredential(credentialId(fetcher.credential))!.sessionKey as `0x${string}`);
+    const fe = await readSession(net, alice.address, (await gw.store.getCredential(credentialId(fetcher.credential)))!.sessionKey as `0x${string}`);
     const payeeBal = await usdcBalance(net, core.usdc, payeeTreasury);
     step("lineage spend on-chain", root.spent === payeeBal && ra.spent === payeeBal && fe.spent === 30_000n, `gateway root spent ${toHuman(root.spent)} = research-agent ${toHuman(ra.spent)} = payee USDC balance ${toHuman(payeeBal)} (Lightning spend is off-chain: ${lightning.paidSats} sats); fetcher ${toHuman(fe.spent)}`);
 

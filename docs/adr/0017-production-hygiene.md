@@ -23,7 +23,7 @@ looping agent could grow the receipt chain without bound through denials.
 3. **Reserve is atomic with the decision.** Immediately before `store.reserve()` the gateway re-runs the
    ledger-dependent decision synchronously, with no await between the re-check and the reservation. In one process
    that makes the pair atomic; with Postgres the same section takes a per-principal advisory lock. On-chain caps remain
-   the hard backstop either way.
+   the hard backstop either way. (ADR-0025 moves the pair into the store as `reserveIf`.)
 4. **Every outbound request has a deadline.** `payeeFetch` aborts after `payeeTimeoutMs` (default 15 s,
    `SPENDMARSHAL_PAYEE_TIMEOUT_MS`); a timed-out probe answers 502 "payee unreachable: timeout" with nothing reserved.
    The payee middleware's directory fetch (5 s), facilitator call (20 s) and subscription charge (15 s) have deadlines too.

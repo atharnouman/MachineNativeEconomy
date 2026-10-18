@@ -1,8 +1,9 @@
 import Database from "better-sqlite3";
-import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
-import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
+import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription, Decision } from "@spendmarshal/core";
+import { IDEMPOTENCY_TTL_MS, ChainConflict, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
-const SCHEMA = `
+/** Version 1: the schema before migrations were versioned; created only where missing, so existing files adopt it. */
+const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS receipts (
   id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, seq INTEGER NOT NULL, ts TEXT NOT NULL, kind TEXT NOT NULL, json TEXT NOT NULL,
   UNIQUE (principal_id, seq)
@@ -36,9 +37,16 @@ CREATE TABLE IF NOT EXISTS anchors (seq INTEGER PRIMARY KEY AUTOINCREMENT, json 
 CREATE TABLE IF NOT EXISTS idempotency (scope TEXT NOT NULL, key TEXT NOT NULL, created_at TEXT NOT NULL, status INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (scope, key));
 `;
 
+/** Versioned migrations, applied in order and tracked with `PRAGMA user_version` (ADR-0025). Never edit an applied one. */
+export const SQLITE_MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: string }> = [
+  { version: 1, name: "initial schema", sql: SCHEMA_V1 },
+  { version: 2, name: "leases", sql: "CREATE TABLE IF NOT EXISTS leases (name TEXT PRIMARY KEY, holder TEXT NOT NULL, until INTEGER NOT NULL);" },
+];
+
 /**
- * SQLite driver (better-sqlite3, WAL mode, 64-bit integers for amounts). Synchronous like the JSON driver, so
- * the receipt log's ordering guarantees hold unchanged. One file, no server: still a one-command self-host.
+ * SQLite driver (better-sqlite3, WAL mode, 64-bit integers for amounts). One file, no server: still a one-command
+ * self-host. Queries are synchronous underneath, and every method runs without an `await` inside, so each check-then-act
+ * is atomic within the process; the ones that write more than one row run in a transaction (ADR-0025).
  */
 export class SqliteStore implements Store {
   private readonly db: Database.Database;
@@ -48,7 +56,26 @@ export class SqliteStore implements Store {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("synchronous = NORMAL");
     this.db.defaultSafeIntegers(true); // INTEGER columns come back as BigInt: amounts never lose precision
-    this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  private version(): number {
+    return Number(this.db.pragma("user_version", { simple: true }));
+  }
+
+  private migrate() {
+    const latest = SQLITE_MIGRATIONS[SQLITE_MIGRATIONS.length - 1]!.version;
+    if (this.version() > latest) throw new Error(`the SQLite store is at schema version ${this.version()}, newer than this gateway knows (${latest})`);
+    for (const m of SQLITE_MIGRATIONS) {
+      // IMMEDIATE takes the write lock first, so two processes opening one file apply each migration once
+      this.db
+        .transaction(() => {
+          if (this.version() >= m.version) return;
+          this.db.exec(m.sql);
+          this.db.pragma(`user_version = ${m.version}`);
+        })
+        .immediate();
+    }
   }
 
   private row<T>(sql: string, ...params: unknown[]): T | undefined {
@@ -59,47 +86,64 @@ export class SqliteStore implements Store {
   }
 
   // ───────── receipts ─────────
-  appendReceipt(r: Receipt) {
-    this.db.prepare("INSERT INTO receipts (id, principal_id, seq, ts, kind, json) VALUES (?, ?, ?, ?, ?, ?)").run(r.id, r.principalId, r.seq, r.ts, r.kind, JSON.stringify(r));
+  async appendReceipt(r: Receipt) {
+    try {
+      this.db.prepare("INSERT INTO receipts (id, principal_id, seq, ts, kind, json) VALUES (?, ?, ?, ?, ?, ?)").run(r.id, r.principalId, r.seq, r.ts, r.kind, JSON.stringify(r));
+    } catch (err) {
+      if (this.row("SELECT 1 AS taken FROM receipts WHERE principal_id = ? AND seq = ?", r.principalId, r.seq)) throw new ChainConflict(r.principalId, r.seq);
+      throw err;
+    }
   }
-  receiptsFor(principalId: string): Receipt[] {
+  async receiptsFor(principalId: string): Promise<Receipt[]> {
     return this.rows<{ json: string }>("SELECT json FROM receipts WHERE principal_id = ? ORDER BY seq", principalId).map((x) => JSON.parse(x.json) as Receipt);
   }
-  lastReceipt(principalId: string): Receipt | undefined {
+  async lastReceipt(principalId: string): Promise<Receipt | undefined> {
     const r = this.row<{ json: string }>("SELECT json FROM receipts WHERE principal_id = ? ORDER BY seq DESC LIMIT 1", principalId);
     return r ? (JSON.parse(r.json) as Receipt) : undefined;
   }
-  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[] {
+  async receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Promise<Receipt[]> {
     if (!kinds.length) return [];
     const sql = `SELECT json FROM receipts WHERE principal_id = ? AND kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY seq`;
     return this.rows<{ json: string }>(sql, principalId, ...kinds).map((x) => JSON.parse(x.json) as Receipt);
   }
 
-  getIdempotent(scope: string, key: string): IdempotentRecord | undefined {
+  async getIdempotent(scope: string, key: string): Promise<IdempotentRecord | undefined> {
     const r = this.row<{ json: string; created_at: string }>("SELECT json, created_at FROM idempotency WHERE scope = ? AND key = ?", scope, key);
     if (!r || Date.now() - Date.parse(r.created_at) > IDEMPOTENCY_TTL_MS) return undefined;
     return JSON.parse(r.json) as IdempotentRecord;
   }
   private idempotencyInserts = 0;
-  putIdempotent(rec: IdempotentRecord) {
+  async putIdempotent(rec: IdempotentRecord) {
     this.db.prepare("INSERT OR REPLACE INTO idempotency (scope, key, created_at, status, json) VALUES (?, ?, ?, ?, ?)").run(rec.scope, rec.key, rec.createdAt, rec.status, JSON.stringify(rec));
     if (++this.idempotencyInserts % 200 === 0) this.db.prepare("DELETE FROM idempotency WHERE created_at < ?").run(new Date(Date.now() - IDEMPOTENCY_TTL_MS).toISOString());
   }
 
   // ───────── credentials ─────────
-  getCredential(id: string) {
+  async getCredential(id: string) {
     const r = this.row<{ json: string }>("SELECT json FROM credentials WHERE id = ?", id);
     return r ? (JSON.parse(r.json) as RegisteredCredential) : undefined;
   }
-  putCredential(c: RegisteredCredential) {
+  async putCredential(c: RegisteredCredential) {
     this.db.prepare("INSERT INTO credentials (id, principal_id, json) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json").run(c.id, c.principalId, JSON.stringify(c));
   }
-  credentialsFor(principalId: string) {
+  async credentialsFor(principalId: string) {
     return this.rows<{ json: string }>("SELECT json FROM credentials WHERE principal_id = ? ORDER BY rowid", principalId).map((x) => JSON.parse(x.json) as RegisteredCredential);
   }
 
   // ───────── ledger ─────────
-  reserve(e: Omit<LedgerEntry, "state">): LedgerEntry {
+  async reserveIf(e: Omit<LedgerEntry, "state">, decide: (ledger: SpendLedgerView) => Decision) {
+    // one IMMEDIATE transaction: not even another process on this file can reserve between the decision and the entry
+    return this.db
+      .transaction((): { decision: Decision; entry?: LedgerEntry } => {
+        const decision = decide(this.view(e.principalId));
+        return decision.effect === "allow" ? { decision, entry: this.reserve(e) } : { decision };
+      })
+      .immediate();
+  }
+  async withLedger<T>(principalId: string, read: (ledger: SpendLedgerView) => T): Promise<T> {
+    return read(this.view(principalId));
+  }
+  private reserve(e: Omit<LedgerEntry, "state">): LedgerEntry {
     const entry: LedgerEntry = { ...e, state: "reserved" };
     const tx = this.db.transaction(() => {
       this.db
@@ -117,15 +161,15 @@ export class SqliteStore implements Store {
     tx();
     return entry;
   }
-  settle(id: string, txHash: string, settledAt: string) {
+  async settle(id: string, txHash: string, settledAt: string) {
     const r = this.db.prepare("UPDATE ledger SET state = 'settled', tx_hash = ?, settled_at = ? WHERE id = ?").run(txHash, settledAt, id);
     if (r.changes === 0) throw new Error(`ledger entry ${id} not found`);
   }
-  release(id: string) {
+  async release(id: string) {
     const r = this.db.prepare("UPDATE ledger SET state = 'released' WHERE id = ?").run(id);
     if (r.changes === 0) throw new Error(`ledger entry ${id} not found`);
   }
-  ledgerView(principalId: string): SpendLedgerView {
+  private view(principalId: string): SpendLedgerView {
     const sinceIso = (d?: Date) => (d ? d.toISOString() : null);
     const sum = (r: { s: bigint | null } | undefined) => BigInt(r?.s ?? 0n);
     return {
@@ -162,7 +206,7 @@ export class SqliteStore implements Store {
       },
     };
   }
-  ledgerEntries(principalId: string): LedgerEntry[] {
+  async ledgerEntries(principalId: string): Promise<LedgerEntry[]> {
     const rows = this.rows<{ id: string; principal_id: string; ts: string; intent_id: string; agent_id: string; root_agent_id: string; amount: bigint; state: LedgerEntry["state"]; settled_at: string | null; tx_hash: string | null }>(
       "SELECT * FROM ledger WHERE principal_id = ? ORDER BY rowid",
       principalId,
@@ -182,7 +226,7 @@ export class SqliteStore implements Store {
       budgetIds: this.rows<{ budget_id: string }>("SELECT budget_id FROM ledger_budgets WHERE entry_id = ? ORDER BY position", r.id).map((x) => x.budget_id),
     }));
   }
-  spent(principalId: string) {
+  async spent(principalId: string) {
     const byCredential = Object.fromEntries(
       this.rows<{ k: string; s: bigint }>("SELECT c.credential_id AS k, SUM(l.amount) AS s FROM ledger l JOIN ledger_credentials c ON c.entry_id = l.id WHERE l.principal_id = ? AND l.state = 'settled' GROUP BY c.credential_id", principalId).map((x) => [x.k, x.s.toString()]),
     );
@@ -193,14 +237,19 @@ export class SqliteStore implements Store {
   }
 
   // ───────── approvals ─────────
-  putApproval(a: Approval) {
+  async putApproval(a: Approval) {
     this.db.prepare("INSERT INTO approvals (id, principal_id, status, json) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, json = excluded.json").run(a.id, a.principalId, a.status, JSON.stringify(a));
   }
-  getApproval(id: string) {
+  async transitionApproval(next: Approval, from: readonly Approval["status"][]) {
+    if (!from.length) return false;
+    const sql = `UPDATE approvals SET status = ?, json = ? WHERE id = ? AND status IN (${from.map(() => "?").join(", ")})`;
+    return this.db.prepare(sql).run(next.status, JSON.stringify(next), next.id, ...from).changes === 1;
+  }
+  async getApproval(id: string) {
     const r = this.row<{ json: string }>("SELECT json FROM approvals WHERE id = ?", id);
     return r ? (JSON.parse(r.json) as Approval) : undefined;
   }
-  approvalsFor(principalId: string, status?: Approval["status"]) {
+  async approvalsFor(principalId: string, status?: Approval["status"]) {
     const rows = status
       ? this.rows<{ json: string }>("SELECT json FROM approvals WHERE principal_id = ? AND status = ? ORDER BY rowid", principalId, status)
       : this.rows<{ json: string }>("SELECT json FROM approvals WHERE principal_id = ? ORDER BY rowid", principalId);
@@ -209,51 +258,51 @@ export class SqliteStore implements Store {
 
   // ───────── intents ─────────
   private intentInserts = 0;
-  putIntent(r: IntentRecord) {
+  async putIntent(r: IntentRecord) {
     this.db.prepare("INSERT INTO intents (principal_id, ts, json) VALUES (?, ?, ?)").run(r.intent.principalId, r.ts, JSON.stringify(r));
     // trim to the last 5000 per principal, but only every 500 inserts: the trim scans the principal's rows
     if (++this.intentInserts % 500 === 0) {
       this.db.prepare("DELETE FROM intents WHERE principal_id = ? AND seq NOT IN (SELECT seq FROM intents WHERE principal_id = ? ORDER BY seq DESC LIMIT 5000)").run(r.intent.principalId, r.intent.principalId);
     }
   }
-  recentIntents(principalId: string, n: number) {
+  async recentIntents(principalId: string, n: number) {
     return this.rows<{ json: string }>("SELECT json FROM intents WHERE principal_id = ? ORDER BY seq DESC LIMIT ?", principalId, n)
       .map((x) => JSON.parse(x.json) as IntentRecord)
       .reverse();
   }
 
   // ───────── policy versions ─────────
-  policyVersions(principalId: string) {
+  async policyVersions(principalId: string) {
     return this.rows<{ json: string }>("SELECT json FROM policies WHERE principal_id = ? ORDER BY version", principalId).map((x) => JSON.parse(x.json) as PolicyVersion);
   }
-  addPolicyVersion(principalId: string, v: PolicyVersion) {
-    this.db.prepare("INSERT INTO policies (principal_id, version, json) VALUES (?, ?, ?)").run(principalId, v.version, JSON.stringify(v));
+  async addPolicyVersion(principalId: string, v: PolicyVersion) {
+    return this.db.prepare("INSERT OR IGNORE INTO policies (principal_id, version, json) VALUES (?, ?, ?)").run(principalId, v.version, JSON.stringify(v)).changes === 1;
   }
-  principalsWithPolicies() {
+  async principalsWithPolicies() {
     return this.rows<{ principal_id: string }>("SELECT DISTINCT principal_id FROM policies ORDER BY principal_id").map((x) => x.principal_id);
   }
 
   // ───────── subscriptions ─────────
-  putSubscription(s: Subscription) {
+  async putSubscription(s: Subscription) {
     this.db.prepare("INSERT INTO subscriptions (id, principal_id, status, json) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, json = excluded.json").run(s.id, s.principalId, s.status, JSON.stringify(s));
   }
-  getSubscription(id: string) {
+  async getSubscription(id: string) {
     const r = this.row<{ json: string }>("SELECT json FROM subscriptions WHERE id = ?", id);
     return r ? (JSON.parse(r.json) as Subscription) : undefined;
   }
-  subscriptionsFor(principalId: string) {
+  async subscriptionsFor(principalId: string) {
     return this.rows<{ json: string }>("SELECT json FROM subscriptions WHERE principal_id = ? ORDER BY rowid", principalId).map((x) => JSON.parse(x.json) as Subscription);
   }
 
   // ───────── pre-approvals ─────────
-  putPreApproval(p: PreApprovalRecord) {
+  async putPreApproval(p: PreApprovalRecord) {
     this.db.prepare("INSERT INTO preapprovals (digest, principal_id, state, json) VALUES (?, ?, ?, ?) ON CONFLICT(digest) DO UPDATE SET state = excluded.state, json = excluded.json").run(p.digest, p.principalId, p.state, JSON.stringify(p));
   }
-  getPreApproval(digest: string) {
+  async getPreApproval(digest: string) {
     const r = this.row<{ json: string }>("SELECT json FROM preapprovals WHERE digest = ?", digest);
     return r ? (JSON.parse(r.json) as PreApprovalRecord) : undefined;
   }
-  pendingPreApprovals(principalId?: string) {
+  async pendingPreApprovals(principalId?: string) {
     const rows = principalId
       ? this.rows<{ json: string }>("SELECT json FROM preapprovals WHERE state = 'pending' AND principal_id = ? ORDER BY rowid", principalId)
       : this.rows<{ json: string }>("SELECT json FROM preapprovals WHERE state = 'pending' ORDER BY rowid");
@@ -261,24 +310,34 @@ export class SqliteStore implements Store {
   }
 
   // ───────── kill switch ─────────
-  killSwitch(principalId: string) {
+  async killSwitch(principalId: string) {
     const r = this.row<{ on_flag: bigint }>("SELECT on_flag FROM killswitch WHERE principal_id = ?", principalId);
     return !!r && r.on_flag !== 0n;
   }
-  setKillSwitch(principalId: string, on: boolean) {
+  async setKillSwitch(principalId: string, on: boolean) {
     this.db.prepare("INSERT INTO killswitch (principal_id, on_flag) VALUES (?, ?) ON CONFLICT(principal_id) DO UPDATE SET on_flag = excluded.on_flag").run(principalId, on ? 1 : 0);
   }
 
   // ───────── anchors ─────────
-  anchorsList(principalId?: string) {
+  async anchorsList(principalId?: string) {
     const all = this.rows<{ json: string }>("SELECT json FROM anchors ORDER BY seq").map((x) => JSON.parse(x.json) as AnchorRecord);
     return principalId === undefined ? all : all.filter((a) => a.principalId === principalId);
   }
-  addAnchor(a: AnchorRecord) {
+  async addAnchor(a: AnchorRecord) {
     this.db.prepare("INSERT INTO anchors (json) VALUES (?)").run(JSON.stringify(a));
   }
 
-  close() {
+  // ───────── leases ─────────
+  async acquireLease(name: string, holder: string, ttlMs: number) {
+    const now = Date.now();
+    const sql = "INSERT INTO leases (name, holder, until) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET holder = excluded.holder, until = excluded.until WHERE leases.until <= ? OR leases.holder = excluded.holder";
+    return this.db.prepare(sql).run(name, holder, now + ttlMs, now).changes === 1;
+  }
+  async releaseLease(name: string, holder: string) {
+    this.db.prepare("DELETE FROM leases WHERE name = ? AND holder = ?").run(name, holder);
+  }
+
+  async close() {
     this.db.close();
   }
 }

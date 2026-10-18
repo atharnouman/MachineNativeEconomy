@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription } from "@spendmarshal/core";
-import { IDEMPOTENCY_TTL_MS, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
+import type { Receipt, ReceiptKind, SpendLedgerView, Approval, PolicyVersion, Subscription, Decision } from "@spendmarshal/core";
+import { IDEMPOTENCY_TTL_MS, ChainConflict, type Store, type RegisteredCredential, type AnchorRecord, type LedgerEntry, type IntentRecord, type PreApprovalRecord, type IdempotentRecord } from "./store.js";
 
 interface State {
   receipts: Receipt[];
@@ -18,9 +18,17 @@ interface State {
 
 const empty = (): State => ({ receipts: [], credentials: {}, ledger: [], approvals: {}, intents: [], policies: {}, subscriptions: {}, preApprovals: {}, killSwitch: {}, anchors: [] });
 
-/** JSON-file driver with write-through on every mutation. Zero dependencies; for demos and single-process dev. */
+/** Callers get copies of mutable records, so a change takes effect only through the store. */
+const copy = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
+
+/**
+ * JSON-file driver with write-through on every mutation. Zero dependencies; for demos and single-process dev. Every
+ * method runs without an `await` inside, so each check-then-act is atomic within the process (ADR-0025). Leases live in
+ * memory: the process that holds them is the only writer.
+ */
 export class JsonStore implements Store {
   private state: State;
+  private readonly leases = new Map<string, { holder: string; until: number }>();
 
   constructor(private readonly file: string) {
     this.state = existsSync(file) ? { ...empty(), ...(JSON.parse(readFileSync(file, "utf8")) as Partial<State>) } : empty();
@@ -30,32 +38,38 @@ export class JsonStore implements Store {
     writeFileSync(this.file, JSON.stringify(this.state, null, 2));
   }
 
-  appendReceipt(r: Receipt) {
-    this.state.receipts.push(r);
-    this.flush();
-  }
-  receiptsFor(principalId: string): Receipt[] {
-    return this.state.receipts.filter((r) => r.principalId === principalId);
-  }
-  lastReceipt(principalId: string): Receipt | undefined {
+  private last(principalId: string): Receipt | undefined {
     for (let i = this.state.receipts.length - 1; i >= 0; i--) {
       const r = this.state.receipts[i]!;
       if (r.principalId === principalId) return r;
     }
     return undefined;
   }
-  receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Receipt[] {
+
+  async appendReceipt(r: Receipt) {
+    const head = this.last(r.principalId);
+    if (head && r.seq <= head.seq) throw new ChainConflict(r.principalId, r.seq);
+    this.state.receipts.push(r);
+    this.flush();
+  }
+  async receiptsFor(principalId: string): Promise<Receipt[]> {
+    return this.state.receipts.filter((r) => r.principalId === principalId);
+  }
+  async lastReceipt(principalId: string): Promise<Receipt | undefined> {
+    return this.last(principalId);
+  }
+  async receiptsOfKind(principalId: string, kinds: readonly ReceiptKind[]): Promise<Receipt[]> {
     return this.state.receipts.filter((r) => r.principalId === principalId && kinds.includes(r.kind));
   }
 
-  getIdempotent(scope: string, key: string): IdempotentRecord | undefined {
+  async getIdempotent(scope: string, key: string): Promise<IdempotentRecord | undefined> {
     const rec = this.state.idempotency?.[`${scope}\u0000${key}`];
     if (!rec || Date.now() - Date.parse(rec.createdAt) > IDEMPOTENCY_TTL_MS) return undefined;
-    return rec;
+    return copy(rec);
   }
-  putIdempotent(rec: IdempotentRecord) {
+  async putIdempotent(rec: IdempotentRecord) {
     const all = (this.state.idempotency ??= {});
-    all[`${rec.scope}\u0000${rec.key}`] = rec;
+    all[`${rec.scope}\u0000${rec.key}`] = copy(rec);
     if (Object.keys(all).length > 5000) {
       const cutoff = Date.now() - IDEMPOTENCY_TTL_MS;
       for (const [k, v] of Object.entries(all)) if (Date.parse(v.createdAt) < cutoff) delete all[k];
@@ -63,38 +77,20 @@ export class JsonStore implements Store {
     this.flush();
   }
 
-  getCredential(id: string) {
-    return this.state.credentials[id];
+  async getCredential(id: string) {
+    return copy(this.state.credentials[id]);
   }
-  putCredential(c: RegisteredCredential) {
-    this.state.credentials[c.id] = c;
+  async putCredential(c: RegisteredCredential) {
+    this.state.credentials[c.id] = copy(c);
     this.flush();
   }
-  credentialsFor(principalId: string) {
-    return Object.values(this.state.credentials).filter((c) => c.principalId === principalId);
+  async credentialsFor(principalId: string) {
+    return Object.values(this.state.credentials)
+      .filter((c) => c.principalId === principalId)
+      .map(copy);
   }
 
-  reserve(e: Omit<LedgerEntry, "state">): LedgerEntry {
-    const entry: LedgerEntry = { ...e, state: "reserved" };
-    this.state.ledger.push(entry);
-    this.flush();
-    return entry;
-  }
-  settle(id: string, txHash: string, settledAt: string) {
-    const e = this.state.ledger.find((x) => x.id === id);
-    if (!e) throw new Error(`ledger entry ${id} not found`);
-    e.state = "settled";
-    e.txHash = txHash;
-    e.settledAt = settledAt;
-    this.flush();
-  }
-  release(id: string) {
-    const e = this.state.ledger.find((x) => x.id === id);
-    if (!e) throw new Error(`ledger entry ${id} not found`);
-    e.state = "released";
-    this.flush();
-  }
-  ledgerView(principalId: string): SpendLedgerView {
+  private view(principalId: string): SpendLedgerView {
     const live = (since?: Date) => this.state.ledger.filter((e) => e.principalId === principalId && e.state !== "released" && (!since || new Date(e.ts) >= since));
     const sum = (es: LedgerEntry[]) => es.reduce((a, e) => a + BigInt(e.amount), 0n);
     return {
@@ -106,10 +102,35 @@ export class JsonStore implements Store {
       },
     };
   }
-  ledgerEntries(principalId: string) {
-    return this.state.ledger.filter((e) => e.principalId === principalId);
+  async reserveIf(e: Omit<LedgerEntry, "state">, decide: (ledger: SpendLedgerView) => Decision) {
+    const decision = decide(this.view(e.principalId));
+    if (decision.effect !== "allow") return { decision };
+    const entry: LedgerEntry = { ...copy(e), state: "reserved" };
+    this.state.ledger.push(entry);
+    this.flush();
+    return { decision, entry: copy(entry) };
   }
-  spent(principalId: string) {
+  async withLedger<T>(principalId: string, read: (ledger: SpendLedgerView) => T): Promise<T> {
+    return read(this.view(principalId));
+  }
+  async settle(id: string, txHash: string, settledAt: string) {
+    const e = this.state.ledger.find((x) => x.id === id);
+    if (!e) throw new Error(`ledger entry ${id} not found`);
+    e.state = "settled";
+    e.txHash = txHash;
+    e.settledAt = settledAt;
+    this.flush();
+  }
+  async release(id: string) {
+    const e = this.state.ledger.find((x) => x.id === id);
+    if (!e) throw new Error(`ledger entry ${id} not found`);
+    e.state = "released";
+    this.flush();
+  }
+  async ledgerEntries(principalId: string) {
+    return this.state.ledger.filter((e) => e.principalId === principalId).map(copy);
+  }
+  async spent(principalId: string) {
     const byCredential: Record<string, bigint> = {};
     const byBudget: Record<string, bigint> = {};
     for (const e of this.state.ledger) {
@@ -121,76 +142,106 @@ export class JsonStore implements Store {
     return { byCredential: str(byCredential), byBudget: str(byBudget) };
   }
 
-  putApproval(a: Approval) {
-    this.state.approvals[a.id] = a;
+  async putApproval(a: Approval) {
+    this.state.approvals[a.id] = copy(a);
     this.flush();
   }
-  getApproval(id: string) {
-    return this.state.approvals[id];
+  async transitionApproval(next: Approval, from: readonly Approval["status"][]) {
+    const cur = this.state.approvals[next.id];
+    if (!cur || !from.includes(cur.status)) return false;
+    this.state.approvals[next.id] = copy(next);
+    this.flush();
+    return true;
   }
-  approvalsFor(principalId: string, status?: Approval["status"]) {
-    return Object.values(this.state.approvals).filter((a) => a.principalId === principalId && (!status || a.status === status));
+  async getApproval(id: string) {
+    return copy(this.state.approvals[id]);
+  }
+  async approvalsFor(principalId: string, status?: Approval["status"]) {
+    return Object.values(this.state.approvals)
+      .filter((a) => a.principalId === principalId && (!status || a.status === status))
+      .map(copy);
   }
 
-  putIntent(r: IntentRecord) {
-    this.state.intents.push(r);
+  async putIntent(r: IntentRecord) {
+    this.state.intents.push(copy(r));
     if (this.state.intents.length > 5000) this.state.intents.splice(0, this.state.intents.length - 5000);
     this.flush();
   }
-  recentIntents(principalId: string, n: number) {
-    return this.state.intents.filter((r) => r.intent.principalId === principalId).slice(-n);
+  async recentIntents(principalId: string, n: number) {
+    return this.state.intents
+      .filter((r) => r.intent.principalId === principalId)
+      .slice(-n)
+      .map(copy);
   }
 
-  policyVersions(principalId: string) {
+  async policyVersions(principalId: string) {
     return [...(this.state.policies[principalId] ?? [])];
   }
-  addPolicyVersion(principalId: string, v: PolicyVersion) {
-    (this.state.policies[principalId] ??= []).push(v);
+  async addPolicyVersion(principalId: string, v: PolicyVersion) {
+    const versions = (this.state.policies[principalId] ??= []);
+    if (versions.some((x) => x.version === v.version)) return false;
+    versions.push(v);
     this.flush();
+    return true;
   }
-  principalsWithPolicies() {
+  async principalsWithPolicies() {
     return Object.keys(this.state.policies);
   }
 
-  putSubscription(s: Subscription) {
-    this.state.subscriptions[s.id] = s;
+  async putSubscription(s: Subscription) {
+    this.state.subscriptions[s.id] = copy(s);
     this.flush();
   }
-  getSubscription(id: string) {
-    return this.state.subscriptions[id];
+  async getSubscription(id: string) {
+    return copy(this.state.subscriptions[id]);
   }
-  subscriptionsFor(principalId: string) {
-    return Object.values(this.state.subscriptions).filter((s) => s.principalId === principalId);
+  async subscriptionsFor(principalId: string) {
+    return Object.values(this.state.subscriptions)
+      .filter((s) => s.principalId === principalId)
+      .map(copy);
   }
 
-  putPreApproval(p: PreApprovalRecord) {
-    this.state.preApprovals[p.digest] = p;
+  async putPreApproval(p: PreApprovalRecord) {
+    this.state.preApprovals[p.digest] = copy(p);
     this.flush();
   }
-  getPreApproval(digest: string) {
-    return this.state.preApprovals[digest];
+  async getPreApproval(digest: string) {
+    return copy(this.state.preApprovals[digest]);
   }
-  pendingPreApprovals(principalId?: string) {
-    return Object.values(this.state.preApprovals).filter((p) => p.state === "pending" && (!principalId || p.principalId === principalId));
+  async pendingPreApprovals(principalId?: string) {
+    return Object.values(this.state.preApprovals)
+      .filter((p) => p.state === "pending" && (!principalId || p.principalId === principalId))
+      .map(copy);
   }
 
-  killSwitch(principalId: string) {
+  async killSwitch(principalId: string) {
     return !!this.state.killSwitch[principalId];
   }
-  setKillSwitch(principalId: string, on: boolean) {
+  async setKillSwitch(principalId: string, on: boolean) {
     this.state.killSwitch[principalId] = on;
     this.flush();
   }
 
-  anchorsList(principalId?: string) {
-    return principalId === undefined ? [...this.state.anchors] : this.state.anchors.filter((a) => a.principalId === principalId);
+  async anchorsList(principalId?: string) {
+    return (principalId === undefined ? this.state.anchors : this.state.anchors.filter((a) => a.principalId === principalId)).map(copy);
   }
-  addAnchor(a: AnchorRecord) {
-    this.state.anchors.push(a);
+  async addAnchor(a: AnchorRecord) {
+    this.state.anchors.push(copy(a));
     this.flush();
   }
 
-  close() {
+  async acquireLease(name: string, holder: string, ttlMs: number) {
+    const now = Date.now();
+    const cur = this.leases.get(name);
+    if (cur && cur.holder !== holder && cur.until > now) return false;
+    this.leases.set(name, { holder, until: now + ttlMs });
+    return true;
+  }
+  async releaseLease(name: string, holder: string) {
+    if (this.leases.get(name)?.holder === holder) this.leases.delete(name);
+  }
+
+  async close() {
     /* nothing to release */
   }
 }

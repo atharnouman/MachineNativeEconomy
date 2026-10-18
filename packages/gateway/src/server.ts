@@ -21,7 +21,7 @@ import {
   type Receipt,
 } from "@spendmarshal/core";
 import { approversFor, type GatewayConfig } from "./config.js";
-import { openStore, type Store } from "./store.js";
+import { openStore, withLease, type Store } from "./store.js";
 import { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 import { ChainClient } from "./chain.js";
 import { ReceiptLog } from "./receipts.js";
@@ -56,7 +56,7 @@ export interface Gateway {
    * its chain to this gateway's key and the approver keys in force. `listen()` awaits it.
    */
   ready: Promise<void>;
-  exportEvidence(principalId: string): EvidenceBundle;
+  exportEvidence(principalId: string): Promise<EvidenceBundle>;
   anchor(principalId: string): Promise<{ head: Hex; count: number; txHash: Hex; blockNumber: string }>;
   listen(): Promise<string>;
   close(): Promise<void>;
@@ -173,10 +173,12 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     chainId: cfg.chainId,
     store: cfg.storeDriver ?? "json",
     policies: Object.fromEntries(
-      store.principalsWithPolicies().map((p) => {
-        const v = policies.activeVersion(p);
-        return [p, { version: v.version, hash: v.hash, activatedAt: v.activatedAt }];
-      }),
+      await Promise.all(
+        (await store.principalsWithPolicies()).map(async (p) => {
+          const v = await policies.activeVersion(p);
+          return [p, { version: v.version, hash: v.hash, activatedAt: v.activatedAt }] as const;
+        }),
+      ),
     ),
   }));
 
@@ -226,7 +228,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   app.get("/v1/credentials/me", async (req) => {
     const c = await requireCredential(req);
-    return { credential: toPublic(c), registered: store.getCredential(credentialId(c)) ?? null };
+    return { credential: toPublic(c), registered: (await store.getCredential(credentialId(c))) ?? null };
   });
 
   // ───────── payments ─────────
@@ -268,10 +270,10 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       const scope = requireAdmin(req);
       const q = z.object({ principalId: z.string() }).parse(req.query);
       allow(scope, q.principalId);
-      return { subscriptions: payments.listSubscriptions({ admin: true, principalId: q.principalId }) };
+      return { subscriptions: await payments.listSubscriptions({ admin: true, principalId: q.principalId }) };
     }
     const c = await requireCredential(req);
-    return { subscriptions: payments.listSubscriptions(c) };
+    return { subscriptions: await payments.listSubscriptions(c) };
   });
 
   app.post("/v1/subscriptions/:id/cancel", async (req) => {
@@ -306,7 +308,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     const scope = requireAdmin(req);
     const q = z.object({ principalId: z.string(), status: z.enum(["pending", "approved", "rejected", "expired", "consumed"]).optional() }).parse(req.query);
     allow(scope, q.principalId);
-    const list = await Promise.all(approvals.list(q.principalId, q.status).map((a) => approvals.get(a.id)));
+    const list = await Promise.all((await approvals.list(q.principalId, q.status)).map((a) => approvals.get(a.id)));
     return { approvals: list.filter((a): a is NonNullable<typeof a> => !!a && (!q.status || a.status === q.status)).map((a) => approvals.publicView(a)) };
   });
 
@@ -315,7 +317,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       const scope = requireAdmin(req);
       const b = z.object({ approverId: z.string().min(1), signature: z.string().regex(/^0x[0-9a-f]+$/).optional(), note: z.string().optional() }).parse(req.body);
       const id = (req.params as { id: string }).id;
-      const pending = store.getApproval(id); // read without side effects: the scope is checked before anything changes
+      const pending = await store.getApproval(id); // read without side effects: the scope is checked before anything changes
       if (!pending) throw Object.assign(new Error("approval not found"), { statusCode: 404 });
       allow(scope, pending.principalId);
       const a = await approvals.resolve(id, verdict, { id: b.approverId, signature: b.signature as Hex | undefined }, b.note);
@@ -327,8 +329,8 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   app.get("/v1/policies/:principalId", async (req) => {
     const p = (req.params as { principalId: string }).principalId;
     allow(requireAdmin(req), p);
-    const active = policies.activeVersion(p);
-    return { active, versions: policies.versions(p).map(({ document: _d, ...meta }) => meta) };
+    const active = await policies.activeVersion(p);
+    return { active, versions: (await policies.versions(p)).map(({ document: _d, ...meta }) => meta) };
   });
 
   app.put("/v1/policies/:principalId", async (req) => {
@@ -343,7 +345,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   // ───────── receipts & evidence ─────────
   app.get("/v1/receipts", async (req) => {
     const c = await requireCredential(req);
-    return { receipts: store.receiptsFor(c.principalId) };
+    return { receipts: await store.receiptsFor(c.principalId) };
   });
 
   app.post("/v1/receipts/external", async (req) => {
@@ -366,9 +368,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     }
   };
 
-  const exportEvidence = (principalId: string): EvidenceBundle => {
-    const active = policies.activeVersion(principalId);
-    const rs = store.receiptsFor(principalId);
+  const exportEvidence = async (principalId: string): Promise<EvidenceBundle> => {
+    const active = await policies.activeVersion(principalId);
+    const rs = await store.receiptsFor(principalId);
     return {
       v: 1,
       principalId,
@@ -382,12 +384,12 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
         ...Object.fromEntries(Object.entries(cfg.contracts.enforcers).map(([k, v]) => [`enforcer.${k}`, v])),
       },
       policy: { hash: active.hash, document: active.document },
-      policyVersions: policies.versions(principalId),
+      policyVersions: await policies.versions(principalId),
       approvers: approversFor(cfg, principalId), // this principal's approvers as configured at export (ADR-0024)
       approverHistory: approverKeyHistory(rs),
-      credentials: store.credentialsFor(principalId).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
+      credentials: (await store.credentialsFor(principalId)).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
       receipts: rs,
-      anchors: store.anchorsList(principalId).map(({ principalId: _owner, ...a }) => a),
+      anchors: (await store.anchorsList(principalId)).map(({ principalId: _owner, ...a }) => a),
     };
   };
 
@@ -403,11 +405,12 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   // claim the same head. The chain is handed over to this gateway's receipt key first, so this gateway signed the head
   // it anchors (ADR-0020). The gateway key sends the anchor; the `evidence.anchored` receipt records that sender, and it
   // is written before the anchor is listed, so an export never lists an anchor its chain does not record (ADR-0023).
+  // Gateway instances sharing a store take turns per chain through a lease (ADR-0025).
   let anchoring: Promise<unknown> = Promise.resolve();
   const anchor = (principalId: string) => {
-    const run = anchoring.then(async () => {
+    const run = anchoring.then(() => withLease(store, `anchor:${principalId}`, { ttlMs: 10 * 60_000, waitMs: 60_000, busy: `another anchor of ${principalId} is in progress` }, async () => {
       await receipts.handOver(principalId);
-      const rs = store.receiptsFor(principalId);
+      const rs = await store.receiptsFor(principalId);
       const head = rs[rs.length - 1]?.hash as Hex | undefined;
       if (!head) throw new Error("nothing to anchor");
       const receiptChain = rs[0]!.hash as Hex;
@@ -415,9 +418,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, receiptChain, head, prev, BigInt(rs.length));
       const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry, party: chain.wallet.account.address };
       await receipts.append(principalId, "evidence.anchored", rec);
-      store.addAnchor({ principalId, ...rec });
+      await store.addAnchor({ principalId, ...rec });
       return rec;
-    });
+    }));
     anchoring = run.catch(() => undefined);
     return run;
   };
@@ -435,7 +438,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     const b = z.object({ principalId: z.string().optional() }).parse(req.body ?? {});
     allow(scope, b.principalId); // every principal at once needs the gateway-wide token
     const results = await payments.reclaimExpiredPreApprovals(b.principalId);
-    return { reclaimed: results.filter((r) => r.ok).length, results, pending: store.pendingPreApprovals(b.principalId).length };
+    return { reclaimed: results.filter((r) => r.ok).length, results, pending: (await store.pendingPreApprovals(b.principalId)).length };
   });
 
   // ───────── kill switch ─────────
@@ -445,7 +448,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     allow(scope, b.principalId);
     const account = cfg.principals[b.principalId]?.account;
     if (!account) throw Object.assign(new Error("unknown principal"), { statusCode: 404 });
-    store.setKillSwitch(b.principalId, b.on); // gateway refuses first (one request cycle)
+    await store.setKillSwitch(b.principalId, b.on); // gateway refuses first (one request cycle)
     let txHash: Hex | null = null;
     let onchain: string;
     try {
@@ -485,7 +488,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     },
     close: async () => {
       await app.close();
-      store.close();
+      await store.close();
     },
   };
 }

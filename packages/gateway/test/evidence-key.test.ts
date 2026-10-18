@@ -52,12 +52,12 @@ async function start(cfg: GatewayConfig): Promise<Gateway> {
   const gw = await buildGateway(cfg);
   await gw.ready;
   gw.chain.latestAnchorHead = async () => `0x${"0".repeat(64)}` as Hex;
-  gw.chain.anchor = async () => ({ txHash: `0x${String(gw.store.anchorsList().length + 1).repeat(64)}` as Hex, blockNumber: 1n });
+  gw.chain.anchor = async () => ({ txHash: `0x${String((await gw.store.anchorsList()).length + 1).repeat(64)}` as Hex, blockNumber: 1n });
   return gw;
 }
 
-const kinds = (gw: Gateway) => gw.store.receiptsFor("org").map((r) => r.kind);
-const exported = (gw: Gateway) => JSON.parse(JSON.stringify(gw.exportEvidence("org"))) as EvidenceBundle;
+const kinds = async (gw: Gateway) => (await gw.store.receiptsFor("org")).map((r) => r.kind);
+const exported = async (gw: Gateway) => JSON.parse(JSON.stringify(await gw.exportEvidence("org"))) as EvidenceBundle;
 const check = (r: Awaited<ReturnType<typeof verifyBundle>>, name: string) => r.checks.find((c) => c.check === name);
 
 for (const driver of ["json", "sqlite"] as StoreDriver[]) {
@@ -69,16 +69,16 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       let gw = await start(config(dir, driver, G1, E));
       const health = (await gw.app.inject({ method: "GET", url: "/healthz" })).json() as { gateway: string; evidenceKey: string };
       expect(health).toMatchObject({ gateway: AG1, evidenceKey: AE });
-      expect(receiptSigner(gw.store.receiptsFor("org")[0]!)).toBe(AE);
+      expect(receiptSigner((await gw.store.receiptsFor("org"))[0]!)).toBe(AE);
       expect(await gw.anchor("org")).toMatchObject({ count: 1, party: AG1 });
       await gw.close();
 
       // run 2: a new gateway key (a fresh session key, as the testnet runner uses), the same evidence key: no rotation
       gw = await start(config(dir, driver, G2, E));
       expect(await gw.anchor("org")).toMatchObject({ count: 2, party: AG2 }); // the policy receipt and the first anchor's
-      expect(kinds(gw)).toEqual(["policy.updated", "evidence.anchored", "evidence.anchored"]);
-      expect(gw.store.receiptsFor("org").map(receiptSigner)).toEqual([AE, AE, AE]);
-      const bundle = exported(gw);
+      expect(await kinds(gw)).toEqual(["policy.updated", "evidence.anchored", "evidence.anchored"]);
+      expect((await gw.store.receiptsFor("org")).map(receiptSigner)).toEqual([AE, AE, AE]);
+      const bundle = await exported(gw);
       expect(bundle.gateway.address).toBe(AE);
       expect(bundle.gatewayKeyHistory).toEqual([]);
       expect(bundle.anchors.map((a) => a.party)).toEqual([AG1, AG2]);
@@ -88,7 +88,7 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       expect(check(report, "gateway.trusted")?.detail).toBe(`trusted ${short(AE)}`);
 
       // an anchor listed under a sender its chain does not record fails
-      const misattributed = exported(gw);
+      const misattributed = await exported(gw);
       misattributed.anchors[0]!.party = AG2;
       expect(check(await verifyBundle(misattributed), "anchors.match")?.ok).toBe(false);
       await gw.close();
@@ -97,16 +97,16 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
     it("hands an existing chain over when a separate evidence key is turned on, signed by the gateway key", async () => {
       const dir = mkdtempSync(join(tmpdir(), `spendmarshal-evidence-on-${driver}-`));
       let gw = await start(config(dir, driver, G1));
-      expect(receiptSigner(gw.store.receiptsFor("org")[0]!)).toBe(AG1);
+      expect(receiptSigner((await gw.store.receiptsFor("org"))[0]!)).toBe(AG1);
       await gw.close();
 
       gw = await start(config(dir, driver, G1, E));
-      expect(kinds(gw)).toEqual(["policy.updated", "gateway.key.rotated"]);
-      expect(gw.store.receiptsFor("org")[1]!.data).toMatchObject({ prevAddress: AG1, address: AE, handover: expect.stringMatching(/^0x[0-9a-f]{130}$/) });
-      const report = await verifyBundle(exported(gw), { trustedGatewayKeys: [AG1] });
+      expect(await kinds(gw)).toEqual(["policy.updated", "gateway.key.rotated"]);
+      expect((await gw.store.receiptsFor("org"))[1]!.data).toMatchObject({ prevAddress: AG1, address: AE, handover: expect.stringMatching(/^0x[0-9a-f]{130}$/) });
+      const report = await verifyBundle(await exported(gw), { trustedGatewayKeys: [AG1] });
       expect(report.ok, JSON.stringify(report.checks)).toBe(true);
       expect(check(report, "gateway.trusted")?.detail).toBe(`trusted ${short(AG1)}; handed over ${short(AE)}`);
-      expect((await verifyBundle(exported(gw))).ok).toBe(true); // a handover needs no pin
+      expect((await verifyBundle(await exported(gw))).ok).toBe(true); // a handover needs no pin
       await gw.close();
     });
 

@@ -168,17 +168,18 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   const earlierKeys = await (async () => {
     const s = await openStore({ driver: "sqlite", dataDir });
     try {
-      const signers = s.principalsWithPolicies().flatMap((p) => {
-        const head = s.lastReceipt(p);
+      const signers: Hex[] = [];
+      for (const p of await s.principalsWithPolicies()) {
+        const head = await s.lastReceipt(p);
         try {
-          return head ? [receiptSigner(head)] : [];
+          if (head) signers.push(receiptSigner(head));
         } catch {
-          return []; // an unreadable head stays refused
+          /* an unreadable head stays refused */
         }
-      });
+      }
       return [...new Set(signers)];
     } finally {
-      s.close();
+      await s.close();
     }
   })();
   const adminToken = secrets.adminToken;

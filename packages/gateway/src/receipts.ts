@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import { randomId, nowIso, receiptHash, receiptSigner, gatewayKeyHandoverMessage, type GatewayKeyRotatedData, type Receipt, type ReceiptBody, type ReceiptKind } from "@spendmarshal/core";
-import type { Store } from "./store.js";
+import { ChainConflict, type Store } from "./store.js";
 import { receiptKeyOf, type Signer } from "./signer.js";
 import type { Metrics } from "./metrics.js";
 
@@ -16,6 +16,17 @@ export interface ReceiptLogOptions {
   log?: { info(obj: object, msg: string): void; warn(obj: object, msg: string): void };
 }
 
+export interface AppendOptions {
+  /**
+   * What to do when another writer took the receipt's sequence number first: `retry` (default) writes it again on the new
+   * head; `report` rejects with the `ChainConflict`, for a receipt that depends on the chain's state (ADR-0025).
+   */
+  conflicts?: "retry" | "report";
+}
+
+/** How many times one append is rebuilt on a moved head before it gives up. */
+const CONFLICT_RETRIES = 8;
+
 /**
  * Append-only, hash-chained, gateway-signed receipt log. One chain per principal.
  *
@@ -24,11 +35,15 @@ export interface ReceiptLogOptions {
  * carries the earlier key's handover signature when the signer holds that key; without one, the earlier address must be
  * one the operator declared. A chain signed by any other key is refused: continuing it would put this gateway's signature
  * over receipts nobody here wrote (ADR-0022).
+ *
+ * Several gateway instances may share one store (ADR-0025). The store refuses a receipt whose sequence number another
+ * instance took first; the log then reads the head again and rebuilds the receipt on it, key check included, so a chain
+ * never forks.
  */
 export class ReceiptLog {
   /** one append queue per principal: chains never race, and principals never wait for each other */
   private readonly chains = new Map<string, Promise<void>>();
-  /** chain head per principal, seeded from the store once; an append never reads the chain. `key` signed the head. */
+  /** chain head per principal, read from the store once and again after a conflict; `key` signed the head */
   private readonly heads = new Map<string, { seq: number; hash: string; key: Address }>();
   private readonly declared: Set<string>;
   /** the key that signs this log's receipts: the evidence key, or the gateway key (ADR-0023) */
@@ -44,11 +59,13 @@ export class ReceiptLog {
     this.key = receiptKeyOf(signer);
   }
 
-  append(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta = {}): Promise<Receipt> {
-    return this.enqueue(principalId, async () => {
-      await this.adoptKey(principalId);
-      return this.write(principalId, kind, data, meta);
-    });
+  append(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta = {}, opts: AppendOptions = {}): Promise<Receipt> {
+    return this.enqueue(principalId, () =>
+      this.onFreshHead(principalId, opts, async () => {
+        await this.adoptKey(principalId);
+        return this.write(principalId, kind, data, meta);
+      }),
+    );
   }
 
   /**
@@ -57,7 +74,21 @@ export class ReceiptLog {
    * first; startup, anchoring and the reclaim job call it on their own, before anything happens on-chain.
    */
   handOver(principalId: string): Promise<Receipt | null> {
-    return this.enqueue(principalId, () => this.adoptKey(principalId));
+    return this.enqueue(principalId, () => this.onFreshHead(principalId, {}, () => this.adoptKey(principalId)));
+  }
+
+  /** Runs `write`, and again on the head as it now is whenever another writer moved it first. */
+  private async onFreshHead<T>(principalId: string, opts: AppendOptions, write: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await write();
+      } catch (err) {
+        if (!(err instanceof ChainConflict)) throw err;
+        this.heads.delete(principalId);
+        this.metrics?.chainConflicts.inc();
+        if (opts.conflicts === "report" || attempt >= CONFLICT_RETRIES) throw err;
+      }
+    }
   }
 
   private enqueue<T>(principalId: string, run: () => Promise<T>): Promise<T> {
@@ -67,10 +98,10 @@ export class ReceiptLog {
     return p;
   }
 
-  private head(principalId: string) {
+  private async head(principalId: string) {
     let head = this.heads.get(principalId);
     if (!head) {
-      const last = this.store.lastReceipt(principalId);
+      const last = await this.store.lastReceipt(principalId);
       if (last) {
         // a head whose signature does not even parse cannot name a key; appending then works as before key history
         let key = this.key;
@@ -87,7 +118,7 @@ export class ReceiptLog {
   }
 
   private async adoptKey(principalId: string): Promise<Receipt | null> {
-    const head = this.head(principalId);
+    const head = await this.head(principalId);
     if (!head || head.key.toLowerCase() === this.key.toLowerCase()) return null;
     const message = gatewayKeyHandoverMessage({ principalId, seq: head.seq + 1, prev: head.hash, prevAddress: head.key, address: this.key });
     const handover = (await this.signer.signKeyHandover?.(head.key, message)) ?? null;
@@ -109,7 +140,7 @@ export class ReceiptLog {
   }
 
   private async write(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta): Promise<Receipt> {
-    const head = this.head(principalId);
+    const head = await this.head(principalId);
     const body: ReceiptBody = {
       v: 1,
       id: randomId("rcpt"),
@@ -124,7 +155,7 @@ export class ReceiptLog {
     const hash = receiptHash(body);
     const sig = await this.signer.signReceiptHash(hash);
     const receipt: Receipt = { ...body, hash, sig };
-    this.store.appendReceipt(receipt);
+    await this.store.appendReceipt(receipt);
     this.heads.set(principalId, { seq: receipt.seq, hash: receipt.hash, key: this.key });
     this.metrics?.receipts.inc({ kind });
     return receipt;

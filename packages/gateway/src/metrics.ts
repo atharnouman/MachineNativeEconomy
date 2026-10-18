@@ -12,6 +12,7 @@ export class Metrics {
   readonly httpRequests: Counter<"route" | "status">;
   readonly gatewayKeyRotations: Counter<"handover">;
   readonly chainRefusals: Counter<string>;
+  readonly chainConflicts: Counter<string>;
 
   constructor(opts: { defaultMetrics?: boolean } = {}) {
     if (opts.defaultMetrics) collectDefaultMetrics({ register: this.registry, prefix: "spendmarshal_" });
@@ -24,6 +25,7 @@ export class Metrics {
     this.httpRequests = new Counter({ name: "spendmarshal_http_requests_total", help: "Gateway API requests by route and status", labelNames: ["route", "status"], registers: [this.registry] });
     this.gatewayKeyRotations = new Counter({ name: "spendmarshal_gateway_key_rotations_total", help: "Receipt chains handed over to this gateway's key, by whether the previous key signed the handover", labelNames: ["handover"], registers: [this.registry] });
     this.chainRefusals = new Counter({ name: "spendmarshal_receipt_chain_refusals_total", help: "Receipt chains this gateway refused to continue: an unknown key signed their head", registers: [this.registry] });
+    this.chainConflicts = new Counter({ name: "spendmarshal_receipt_chain_conflicts_total", help: "Receipts rebuilt because another gateway instance moved the chain head first", registers: [this.registry] });
   }
 
   payment(rail: string, outcome: string, payloadKind: string, seconds: number) {

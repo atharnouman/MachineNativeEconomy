@@ -44,10 +44,12 @@ import {
   type SubscribeRequest,
   type ChargeRequest,
   type MppCredential,
+  type Policy,
+  type SpendLedgerView,
   PREAPPROVED_SIGNATURE,
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
-import type { Store } from "./store.js";
+import { withLease, type Store, type PreApprovalRecord } from "./store.js";
 import type { Signer } from "./signer.js";
 import type { ChainClient } from "./chain.js";
 import type { ReceiptLog } from "./receipts.js";
@@ -132,6 +134,12 @@ interface Quote {
 const ZERO: Address = "0x0000000000000000000000000000000000000000";
 
 /**
+ * How long a payment may hold its approval, a charge its subscription, and a reclaim its pre-approval (ADR-0025): longer
+ * than any payment takes (two payee calls, a pre-approval and a confirmation), so a lease only expires after a crash.
+ */
+export const PAYMENT_LEASE_MS = 10 * 60_000;
+
+/**
  * The pay-side flow, rail-agnostic:
  *   intent -> structural pre-check -> fetch -> 402 quote -> binding decision (quoted amount)
  *   -> [escalate: approval request, 202] -> on-chain simulate -> reserve -> sign -> retry with rail headers
@@ -186,18 +194,20 @@ export class PaymentService {
     };
   }
 
-  private decide(intent: PaymentIntent, cred: Credential, amountBase: bigint, rail: Rail | "auto", approval?: Approval, stage: "structural" | "binding" = "binding"): Decision {
-    return evaluate({
-      policy: this.policies.active(cred.principalId),
-      intent,
-      credential: cred,
-      amountBase,
-      rail,
-      ledger: this.store.ledgerView(cred.principalId),
-      killSwitch: this.store.killSwitch(cred.principalId),
-      approval: approval ? { id: approval.id } : undefined,
-      stage,
-    });
+  /**
+   * Everything a decision reads besides the ledger, read first, so the decision itself is a pure function of the ledger
+   * that the store can run inside its own step (ADR-0025). `now` is fixed here for the same reason.
+   */
+  private async decider(intent: PaymentIntent, cred: Credential, amountBase: bigint, rail: Rail | "auto", approval?: Approval, stage: "structural" | "binding" = "binding"): Promise<{ policy: Policy; decide: (ledger: SpendLedgerView) => Decision }> {
+    const [policy, killSwitch] = await Promise.all([this.policies.active(cred.principalId), this.store.killSwitch(cred.principalId)]);
+    const now = new Date();
+    return { policy, decide: (ledger) => evaluate({ policy, intent, credential: cred, amountBase, rail, ledger, killSwitch, approval: approval ? { id: approval.id } : undefined, stage, now }) };
+  }
+
+  /** A decision on the ledger as it stands, for the record; the one a reservation rests on is made by `store.reserveIf`. */
+  private async decide(intent: PaymentIntent, cred: Credential, amountBase: bigint, rail: Rail | "auto", approval?: Approval, stage: "structural" | "binding" = "binding"): Promise<Decision> {
+    const { decide } = await this.decider(intent, cred, amountBase, rail, approval, stage);
+    return this.store.withLedger(cred.principalId, decide);
   }
 
   private readonly denialThrottle = new DenialThrottle();
@@ -234,7 +244,7 @@ export class PaymentService {
     } catch (err) {
       quoteInfo = { quoted: false, error: `payee unreachable: ${String(err)}` };
     }
-    const decision = this.decide(intent, cred, amountBase, rail);
+    const decision = await this.decide(intent, cred, amountBase, rail);
     const onchain = rail === "l402" ? { ok: true, reason: "not applicable (lightning)" } : await this.simulateOnChain(cred, intent, amountBase, to);
     const r = await this.receipts.append(
       cred.principalId,
@@ -246,7 +256,7 @@ export class PaymentService {
   }
 
   private async simulateOnChain(cred: Credential, intent: PaymentIntent, amountBase: bigint, to: Address) {
-    const reg = this.store.getCredential(credentialId(cred));
+    const reg = await this.store.getCredential(credentialId(cred));
     if (!reg) return { ok: false, reason: "credential not registered on-chain" };
     const account = this.cfg.principals[cred.principalId]!.account;
     const auth = this.authorizationFor(intent, amountBase, to);
@@ -292,11 +302,17 @@ export class PaymentService {
     return r;
   }
 
-  private async payInner(cred: Credential, req: PayRequest, internal: { subscription?: NonNullable<MppCredential["subscription"]> } = {}): Promise<PayResult> {
+  private payInner(cred: Credential, req: PayRequest, internal: { subscription?: NonNullable<MppCredential["subscription"]> } = {}): Promise<PayResult> {
+    if (!req.approvalId) return this.payOnce(cred, req, internal);
+    // one payment at a time under an approval, in this gateway or another: the second gets 409 (ADR-0025)
+    return withLease(this.store, `approval:${req.approvalId}`, { ttlMs: PAYMENT_LEASE_MS, busy: `approval ${req.approvalId} is in use by another payment` }, () => this.payOnce(cred, req, internal));
+  }
+
+  private async payOnce(cred: Credential, req: PayRequest, internal: { subscription?: NonNullable<MppCredential["subscription"]> } = {}): Promise<PayResult> {
     const receipts: Receipt[] = [];
     const intent = this.buildIntent(cred, req);
     const meta = { agentId: intent.agentId, credentialId: intent.credentialId, intentId: intent.id };
-    const reg = this.store.getCredential(intent.credentialId);
+    const reg = await this.store.getCredential(intent.credentialId);
     if (!reg) {
       const r = await this.denied(cred.principalId, { reason: "credential not registered" }, meta);
       return { ok: false, status: 403, intent, receipts: r, error: "credential not registered" };
@@ -314,7 +330,7 @@ export class PaymentService {
     const metaA = approval ? { ...meta, approvalId: approval.id } : meta;
 
     // 1. structural pre-check: could this ever be allowed? amount predicates and amount checks wait for the quote
-    const pre = this.decide(intent, cred, 0n, intent.rail, approval, "structural");
+    const pre = await this.decide(intent, cred, 0n, intent.rail, approval, "structural");
     receipts.push(await this.receipts.append(cred.principalId, "decision", { stage: "precheck", effect: pre.effect, reasons: pre.reasons, checks: pre.checks, matchedRules: pre.matchedRules, amount: "0", ceiling: intent.maxAmount.value }, { ...metaA, policyHash: pre.policyHash }));
     if (pre.effect === "deny") {
       receipts.push(...(await this.denied(cred.principalId, { stage: "precheck", effect: pre.effect, reasons: pre.reasons }, { ...metaA, policyHash: pre.policyHash })));
@@ -364,9 +380,9 @@ export class PaymentService {
     }
 
     // 4. binding decision on the quoted price
-    const decision = this.decide(intent, cred, quote.amount, quote.rail, approval);
+    const decision = await this.decide(intent, cred, quote.amount, quote.rail, approval);
     const onchain = quote.rail === "l402" ? { ok: true, reason: "not applicable (lightning)" } : await this.simulateOnChain(cred, intent, quote.amount, quote.payTo);
-    this.store.putIntent({ intent, amount: quote.amount.toString(), effect: decision.effect, ts: nowIso() });
+    await this.store.putIntent({ intent, amount: quote.amount.toString(), effect: decision.effect, ts: nowIso() });
     receipts.push(await this.receipts.append(cred.principalId, "decision", { stage: "quote", effect: decision.effect, reasons: decision.reasons, checks: decision.checks, matchedRules: decision.matchedRules, amount: quote.amount, onchain, quote: { payTo: quote.payTo, token: quote.token, chain: quote.chain, ...(quote.l402 ? { amountSats: quote.l402.amountSats, satsPerUsdc: quote.l402.satsPerUsdc } : {}) } }, { ...metaQ, policyHash: decision.policyHash }));
     if (decision.effect === "escalate") {
       const a = await this.approvals.request({ intent, decision, amount: quote.amount, rail: quote.rail, request: { method: req.method ?? "GET", body: req.body } });
@@ -381,25 +397,30 @@ export class PaymentService {
       return { ok: false, status: 403, intent, decision, onchain, receipts, error: `on-chain would reject: ${onchain.reason}` };
     }
 
-    // 5. reserve. The ledger-dependent checks run again synchronously, with no await between them and the
-    //    reservation, so two concurrent intents cannot both pass an off-chain budget or velocity limit
+    // 5. reserve. The ledger-dependent checks run again inside the store's reservation step, so two concurrent intents
+    //    (in this gateway or another on the same store) cannot both pass an off-chain budget or velocity limit
     //    (on-chain caps are the hard backstop either way).
-    const recheck = this.decide(intent, cred, quote.amount, quote.rail, approval);
-    if (recheck.effect !== "allow") {
+    const checkAgain = await this.decider(intent, cred, quote.amount, quote.rail, approval);
+    const reserved = await this.store.reserveIf(
+      {
+        id: randomId("led"),
+        ts: nowIso(),
+        principalId: cred.principalId,
+        intentId: intent.id,
+        agentId: intent.agentId,
+        rootAgentId: rootAgentOf(cred),
+        credentialIds: lineage(cred).map(credentialId),
+        budgetIds: budgetPathFor(checkAgain.policy, rootAgentOf(cred)),
+        amount: quote.amount.toString(),
+      },
+      checkAgain.decide,
+    );
+    const entry = reserved.entry;
+    if (!entry) {
+      const recheck = reserved.decision;
       receipts.push(...(await this.denied(cred.principalId, { stage: "reserve", effect: recheck.effect, reasons: recheck.reasons, amount: quote.amount }, { ...metaQ, policyHash: recheck.policyHash })));
       return { ok: false, status: 403, intent, decision: recheck, onchain, receipts, error: `denied: ${recheck.reasons.join(", ")}` };
     }
-    const entry = this.store.reserve({
-      id: randomId("led"),
-      ts: nowIso(),
-      principalId: cred.principalId,
-      intentId: intent.id,
-      agentId: intent.agentId,
-      rootAgentId: rootAgentOf(cred),
-      credentialIds: lineage(cred).map(credentialId),
-      budgetIds: budgetPathFor(this.policies.active(cred.principalId), rootAgentOf(cred)),
-      amount: quote.amount.toString(),
-    });
 
     // ── L402: pay the invoice through the Lightning backend; the preimage is the proof ──
     if (quote.rail === "l402") return this.settleLightning(cred, req, intent, decision, onchain, quote, entry.id, receipts, metaQ, bodyText, baseHeaders);
@@ -417,12 +438,12 @@ export class PaymentService {
       const tsig = await this.signer.signTokenAuthorization(intent.credentialId, account, this.cfg.chainId, tauth);
       const appr = await this.chain.approveAuthorization(account, tauth, tsig);
       if (!appr.ok) {
-        this.store.release(entry.id);
+        await this.store.release(entry.id);
         receipts.push(await this.receipts.append(cred.principalId, "onchain.denied", { stage: "approve", reason: appr.reason, amount: quote.amount }, metaQ));
         return { ok: false, status: 403, intent, decision, onchain, receipts, error: `on-chain pre-approval rejected: ${appr.reason}` };
       }
       approvalTxHash = appr.txHash;
-      this.store.putPreApproval({ digest: appr.digest, principalId: cred.principalId, account, credentialId: intent.credentialId, intentId: intent.id, value: quote.amount.toString(), validBefore: auth.validBefore.toString(), approvalTxHash: appr.txHash, createdAt: nowIso(), state: "pending" });
+      await this.store.putPreApproval({ digest: appr.digest, principalId: cred.principalId, account, credentialId: intent.credentialId, intentId: intent.id, value: quote.amount.toString(), validBefore: auth.validBefore.toString(), approvalTxHash: appr.txHash, createdAt: nowIso(), state: "pending" });
       payload = {
         signature: PREAPPROVED_SIGNATURE, // ignored by the account; ERC-1271 answers from the approved digest
         authorization: { from: account, to: auth.to, value: auth.amount.toString(), validAfter: auth.validAfter.toString(), validBefore: auth.validBefore.toString(), nonce: auth.nonce },
@@ -445,7 +466,7 @@ export class PaymentService {
     try {
       second = await this.payeeFetch(req.url, { method: req.method ?? "GET", headers, body: bodyText });
     } catch (err) {
-      this.store.release(entry.id);
+      await this.store.release(entry.id);
       receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `payee unreachable: ${String(err)}`, ...orphan }, metaQ)));
       return { ok: false, status: 502, intent, decision, receipts, error: "payee unreachable" };
     }
@@ -455,7 +476,7 @@ export class PaymentService {
     const mppReceipt = quote.rail === "mpp" ? decodeMppReceipt(second.headers.get(MPP_HEADERS.receipt) ?? undefined) : null;
     const body = await readBody(second);
     if (!second.ok || !txHash) {
-      this.store.release(entry.id);
+      await this.store.release(entry.id);
       receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `payee rejected payment (status ${second.status})`, body, ...orphan }, metaQ)));
       return { ok: false, status: second.status, intent, decision, receipts, error: "payee rejected payment", body };
     }
@@ -464,15 +485,15 @@ export class PaymentService {
         ? await this.chain.confirmStandardPayment(txHash, quote.token, account, quote.payTo, quote.amount, auth.nonce)
         : await this.chain.confirmPayment(txHash, account, ih, quote.amount, quote.payTo);
     if (!confirm.ok) {
-      this.store.release(entry.id);
+      await this.store.release(entry.id);
       receipts.push(...(await this.denied(cred.principalId, { stage: "confirm", reason: confirm.reason, txHash, ...orphan }, metaQ)));
       return { ok: false, status: 502, intent, decision, receipts, error: `settlement not confirmed: ${confirm.reason}` };
     }
     const settledAt = nowIso();
-    this.store.settle(entry.id, txHash, settledAt);
+    await this.store.settle(entry.id, txHash, settledAt);
     if (payloadKind === "standard") {
-      const pre = this.store.pendingPreApprovals(cred.principalId).find((p) => p.intentId === intent.id);
-      if (pre) this.store.putPreApproval({ ...pre, state: "settled", settledTxHash: txHash });
+      const pre = (await this.store.pendingPreApprovals(cred.principalId)).find((p) => p.intentId === intent.id);
+      if (pre) await this.store.putPreApproval({ ...pre, state: "settled", settledTxHash: txHash });
     }
     const settlement = { txHash, blockNumber: confirm.blockNumber!.toString(), amount: quote.amount.toString(), payee: quote.payTo, ...(approvalTxHash ? { approvalTxHash } : {}) };
     receipts.push(
@@ -506,13 +527,13 @@ export class PaymentService {
     try {
       paid = await this.cfg.lightning!.payInvoice(ln.invoice);
     } catch (err) {
-      this.store.release(entryId);
+      await this.store.release(entryId);
       receipts.push(...(await this.denied(cred.principalId, { stage: "settle", reason: `lightning payment failed: ${(err as Error).message}` }, metaQ)));
       return { ok: false, status: 502, intent, decision, onchain, receipts, error: `lightning payment failed: ${(err as Error).message}` };
     }
     if (!preimageMatches(paid.preimage, ln.paymentHash)) {
       // money may have moved for a hash we did not ask for: keep the charge, flag it loudly
-      this.store.settle(entryId, `0x${paid.paymentHash}` as Hex, nowIso());
+      await this.store.settle(entryId, `0x${paid.paymentHash}` as Hex, nowIso());
       receipts.push(...(await this.denied(cred.principalId, { stage: "confirm", reason: "preimage does not match the invoice payment hash", preimage: paid.preimage, paymentHash: paid.paymentHash, expected: ln.paymentHash }, metaQ)));
       return { ok: false, status: 502, intent, decision, onchain, receipts, error: "preimage does not match the invoice" };
     }
@@ -526,7 +547,7 @@ export class PaymentService {
     const delivered = !!second && second.ok;
     const body = second ? await readBody(second) : undefined;
     const settledAt = nowIso();
-    this.store.settle(entryId, `0x${paid.paymentHash}` as Hex, settledAt); // sats left the wallet either way
+    await this.store.settle(entryId, `0x${paid.paymentHash}` as Hex, settledAt); // sats left the wallet either way
     const lightning = { preimage: paid.preimage, paymentHash: paid.paymentHash, amountSats: paid.amountSats.toString(), satsPerUsdc: ln.satsPerUsdc, delivered };
     const settlement = { txHash: `0x${paid.paymentHash}` as Hex, blockNumber: "0", amount: quote.amount.toString(), payee: ZERO, lightning };
     receipts.push(
@@ -599,42 +620,65 @@ export class PaymentService {
     sub.totalCharged = first.settlement!.amount;
     sub.lastChargedAt = nowIso();
     sub.payeeSubscriptionId = first.mppReceipt?.subscriptionId;
-    this.store.putSubscription(sub);
+    await this.store.putSubscription(sub);
     await this.receipts.append(cred.principalId, "subscription.created", { subscription: subscriptionPublic(sub), firstChargeTx: first.settlement!.txHash }, { agentId: sub.agentId, credentialId: sub.credentialId, intentId: first.intent.id, subscriptionId: id, rail: "mpp" });
     return { ok: true, status: 200, subscription: subscriptionPublic(sub), firstCharge: first };
   }
 
   /** A credential may see and manage its own subscriptions and those of its descendants (an ancestor governs its subtree). */
-  private managesSubscription(cred: Credential, sub: Subscription): boolean {
+  private async managesSubscription(cred: Credential, sub: Subscription): Promise<boolean> {
     const callerId = credentialId(cred);
-    const reg = this.store.getCredential(sub.credentialId);
+    const reg = await this.store.getCredential(sub.credentialId);
     if (!reg) return false;
     return lineage({ rootId: reg.rootId, caveats: reg.caveats }).map(credentialId).includes(callerId);
   }
 
   async cancelSubscription(cred: Credential | { admin: true; principalId: string }, id: string): Promise<ReturnType<typeof subscriptionPublic>> {
-    const sub = this.store.getSubscription(id);
-    const allowed = !!sub && sub.principalId === cred.principalId && ("admin" in cred || this.managesSubscription(cred, sub));
-    if (!sub || !allowed) throw Object.assign(new Error("subscription not found"), { statusCode: 404 });
-    if (sub.status === "active") {
-      sub.status = "cancelled";
-      sub.cancelledAt = nowIso();
-      this.store.putSubscription(sub);
-      await this.receipts.append(cred.principalId, "subscription.cancelled", { subscription: subscriptionPublic(sub) }, { agentId: sub.agentId, credentialId: sub.credentialId, subscriptionId: id });
-    }
-    return subscriptionPublic(sub);
+    const found = await this.store.getSubscription(id);
+    const allowed = !!found && found.principalId === cred.principalId && ("admin" in cred || (await this.managesSubscription(cred, found)));
+    if (!found || !allowed) throw Object.assign(new Error("subscription not found"), { statusCode: 404 });
+    // a charge in progress writes the subscription back when it ends: wait for it, so this cancellation is not overwritten
+    return withLease(this.store, `subscription:${id}`, { ttlMs: PAYMENT_LEASE_MS, waitMs: 60_000, busy: "a charge of this subscription is in progress; try again" }, async () => {
+      const sub = (await this.store.getSubscription(id))!;
+      if (sub.status === "active") {
+        sub.status = "cancelled";
+        sub.cancelledAt = nowIso();
+        await this.store.putSubscription(sub);
+        await this.receipts.append(cred.principalId, "subscription.cancelled", { subscription: subscriptionPublic(sub) }, { agentId: sub.agentId, credentialId: sub.credentialId, subscriptionId: id });
+      }
+      return subscriptionPublic(sub);
+    });
   }
 
-  listSubscriptions(cred: Credential | { admin: true; principalId: string }) {
-    const all = this.store.subscriptionsFor(cred.principalId);
-    return ("admin" in cred ? all : all.filter((s) => this.managesSubscription(cred, s))).map(subscriptionPublic);
+  async listSubscriptions(cred: Credential | { admin: true; principalId: string }) {
+    const all = await this.store.subscriptionsFor(cred.principalId);
+    if ("admin" in cred) return all.map(subscriptionPublic);
+    const managed = await Promise.all(all.map((s) => this.managesSubscription(cred, s)));
+    return all.filter((_s, i) => managed[i]).map(subscriptionPublic);
   }
 
-  /** The payee charges a subscription. Policy runs on every charge; settlement is relayed on-chain by the gateway. */
+  /**
+   * The payee charges a subscription. Policy runs on every charge; settlement is relayed on-chain by the gateway. One
+   * charge at a time per subscription (in this gateway or another): the terms are checked on a fresh read under the
+   * subscription's lease, so concurrent charges cannot both pass the interval or the limits (ADR-0025).
+   */
   async charge(id: string, bearerToken: string | undefined, body: ChargeRequest): Promise<ChargeResult> {
-    const sub = this.store.getSubscription(id);
-    if (!sub) return { ok: false, status: 404, subscriptionId: id, subscriptionStatus: "cancelled", error: "subscription not found" };
-    if (!bearerToken || createHash("sha256").update(bearerToken).digest("hex") !== sub.chargeTokenHash) return { ok: false, status: 401, subscriptionId: id, subscriptionStatus: sub.status, error: "invalid charge token" };
+    const found = await this.store.getSubscription(id);
+    if (!found) return { ok: false, status: 404, subscriptionId: id, subscriptionStatus: "cancelled", error: "subscription not found" };
+    if (!bearerToken || createHash("sha256").update(bearerToken).digest("hex") !== found.chargeTokenHash) return { ok: false, status: 401, subscriptionId: id, subscriptionStatus: found.status, error: "invalid charge token" };
+    const holder = randomId("chg");
+    if (!(await this.store.acquireLease(`subscription:${id}`, holder, PAYMENT_LEASE_MS))) {
+      return { ok: false, status: 409, subscriptionId: id, subscriptionStatus: found.status, error: "another charge of this subscription is in progress" };
+    }
+    try {
+      return await this.chargeLeased((await this.store.getSubscription(id))!, body);
+    } finally {
+      await this.store.releaseLease(`subscription:${id}`, holder);
+    }
+  }
+
+  private async chargeLeased(sub: Subscription, body: ChargeRequest): Promise<ChargeResult> {
+    const id = sub.id;
     const refuse = async (status: number, reason: string, extra: Record<string, unknown> = {}): Promise<ChargeResult> => {
       // Receipts for refusals are throttled to one per interval per subscription, with a count of the ones in
       // between, so a payee hammering the charge URL cannot grow the receipt chain without bound.
@@ -646,7 +690,7 @@ export class PaymentService {
         sub.lastRefusedAt = nowIsoStr;
         sub.refusals = 0;
       }
-      this.store.putSubscription(sub);
+      await this.store.putSubscription(sub);
       this.extras.metrics?.denials.inc({ reason: `SUBSCRIPTION:${reason.split(" ")[0]}` });
       return { ok: false, status, subscriptionId: id, subscriptionStatus: sub.status, error: reason, ...(extra as Partial<ChargeResult>) };
     };
@@ -654,7 +698,7 @@ export class PaymentService {
     if (sub.status !== "active") return refuse(410, `subscription is ${sub.status}`);
     if (new Date(sub.terms.expiresAt).getTime() < now) {
       sub.status = "expired";
-      this.store.putSubscription(sub);
+      await this.store.putSubscription(sub);
       return refuse(410, "subscription is expired");
     }
     if (sub.lastChargedAt) {
@@ -663,7 +707,7 @@ export class PaymentService {
     }
     if (sub.terms.maxCharges !== undefined && sub.charges >= sub.terms.maxCharges) {
       sub.status = "exhausted";
-      this.store.putSubscription(sub);
+      await this.store.putSubscription(sub);
       return refuse(410, "subscription is exhausted");
     }
     // amount
@@ -681,7 +725,7 @@ export class PaymentService {
     if (sub.terms.maxTotal !== undefined && BigInt(sub.totalCharged) + amount > BigInt(sub.terms.maxTotal)) return refuse(403, "charge exceeds maxTotal", { amount: amount.toString() });
 
     // policy on this charge, with the stored credential
-    const reg = this.store.getCredential(sub.credentialId);
+    const reg = await this.store.getCredential(sub.credentialId);
     if (!reg) return refuse(410, "credential no longer registered");
     const cred: Credential = { v: 1, rootId: reg.rootId, principalId: reg.principalId, caveats: reg.caveats, sig: "" };
     const intent: PaymentIntent = {
@@ -699,11 +743,11 @@ export class PaymentService {
       createdAt: nowIso(),
     };
     const meta = { agentId: sub.agentId, credentialId: sub.credentialId, intentId: intent.id, intentHash: intentHash(intent), subscriptionId: id, rail: "mpp" as const };
-    const decision = this.decide(intent, cred, amount, "mpp");
+    const decision = await this.decide(intent, cred, amount, "mpp");
     const account = this.cfg.principals[sub.principalId]!.account;
     const auth = this.authorizationFor(intent, amount, sub.payee.address as Address);
     const onchain = await this.chain.simulate(account, auth, reg.sessionKey as Address);
-    this.store.putIntent({ intent, amount: amount.toString(), effect: decision.effect, ts: nowIso() });
+    await this.store.putIntent({ intent, amount: amount.toString(), effect: decision.effect, ts: nowIso() });
     await this.receipts.append(sub.principalId, "decision", { stage: "charge", effect: decision.effect, reasons: decision.reasons, checks: decision.checks, matchedRules: decision.matchedRules, amount, onchain, reference: body.reference ?? null, units: body.units ?? null }, { ...meta, policyHash: decision.policyHash });
     if (decision.effect !== "allow") {
       await this.denied(sub.principalId, { stage: "charge", effect: decision.effect, reasons: decision.reasons, amount }, { ...meta, policyHash: decision.policyHash });
@@ -713,35 +757,40 @@ export class PaymentService {
       await this.receipts.append(sub.principalId, "onchain.denied", { stage: "charge", reason: onchain.reason, amount }, meta);
       return refuse(403, `on-chain would reject: ${onchain.reason}`, { amount: amount.toString() });
     }
-    const recheck = this.decide(intent, cred, amount, "mpp"); // synchronous, right before the reservation
-    if (recheck.effect !== "allow") {
+    const checkAgain = await this.decider(intent, cred, amount, "mpp"); // decided again inside the reservation step
+    const reserved = await this.store.reserveIf(
+      {
+        id: randomId("led"),
+        ts: nowIso(),
+        principalId: sub.principalId,
+        intentId: intent.id,
+        agentId: sub.agentId,
+        rootAgentId: rootAgentOf(cred),
+        credentialIds: lineage(cred).map(credentialId),
+        budgetIds: budgetPathFor(checkAgain.policy, rootAgentOf(cred)),
+        amount: amount.toString(),
+      },
+      checkAgain.decide,
+    );
+    const entry = reserved.entry;
+    if (!entry) {
+      const recheck = reserved.decision;
       await this.denied(sub.principalId, { stage: "reserve", effect: recheck.effect, reasons: recheck.reasons, amount }, { ...meta, policyHash: recheck.policyHash });
       return refuse(403, `denied by policy: ${recheck.reasons.join(", ")}`, { reasons: recheck.reasons, amount: amount.toString() });
     }
-    const entry = this.store.reserve({
-      id: randomId("led"),
-      ts: nowIso(),
-      principalId: sub.principalId,
-      intentId: intent.id,
-      agentId: sub.agentId,
-      rootAgentId: rootAgentOf(cred),
-      credentialIds: lineage(cred).map(credentialId),
-      budgetIds: budgetPathFor(this.policies.active(sub.principalId), rootAgentOf(cred)),
-      amount: amount.toString(),
-    });
     const sig = await this.signer.signAuthorization(sub.credentialId, account, this.cfg.chainId, auth);
     const settled = await this.chain.payWithAuthorization(account, auth, sig);
     if (!settled.ok) {
-      this.store.release(entry.id);
+      await this.store.release(entry.id);
       await this.denied(sub.principalId, { stage: "settle", reason: settled.reason, amount }, meta);
       return refuse(502, `settlement failed: ${settled.reason}`, { amount: amount.toString() });
     }
-    this.store.settle(entry.id, settled.txHash, nowIso());
+    await this.store.settle(entry.id, settled.txHash, nowIso());
     sub.charges += 1;
     sub.totalCharged = (BigInt(sub.totalCharged) + amount).toString();
     sub.lastChargedAt = nowIso();
     if (sub.terms.maxCharges !== undefined && sub.charges >= sub.terms.maxCharges) sub.status = "exhausted";
-    this.store.putSubscription(sub);
+    await this.store.putSubscription(sub);
     await this.receipts.append(
       sub.principalId,
       "payment.settled",
@@ -757,31 +806,45 @@ export class PaymentService {
 
   /**
    * Reclaim the on-chain charge of every pending standard-x402 pre-approval whose authorization window has
-   * passed without the token using it (a facilitator that never settled). Safe to run on a schedule.
+   * passed without the token using it (a facilitator that never settled). Safe to run on a schedule, and from several
+   * gateway instances: each pre-approval is reclaimed under its own lease, after a fresh read (ADR-0025).
    */
   async reclaimExpiredPreApprovals(principalId?: string): Promise<Array<{ digest: string; ok: boolean; txHash?: Hex; reason?: string; value: string }>> {
     const now = await this.chain.now(); // chain time: a dev chain under load runs ahead of the wall clock
     const out: Array<{ digest: string; ok: boolean; txHash?: Hex; reason?: string; value: string }> = [];
-    for (const p of this.store.pendingPreApprovals(principalId)) {
-      if (BigInt(p.validBefore) >= now) continue;
-      // the principal's receipt chain must accept this gateway's key before anything happens on-chain (ADR-0022)
-      try {
-        await this.receipts.handOver(p.principalId);
-      } catch (err) {
-        out.push({ digest: p.digest, ok: false, reason: (err as Error).message, value: p.value });
+    for (const listed of await this.store.pendingPreApprovals(principalId)) {
+      if (BigInt(listed.validBefore) >= now) continue;
+      const holder = randomId("rcl");
+      if (!(await this.store.acquireLease(`preapproval:${listed.digest}`, holder, PAYMENT_LEASE_MS))) {
+        out.push({ digest: listed.digest, ok: false, reason: "another reclaim of this pre-approval is running", value: listed.value });
         continue;
       }
-      const r = await this.chain.reclaimApproval(p.account as Address, p.digest as Hex);
-      if (r.ok) {
-        this.store.putPreApproval({ ...p, state: "reclaimed", reclaimTxHash: r.txHash });
-        await this.receipts.append(p.principalId, "preapproval.reclaimed", { digest: p.digest, value: p.value, approvalTxHash: p.approvalTxHash, reclaimTxHash: r.txHash, validBefore: p.validBefore }, { credentialId: p.credentialId, intentId: p.intentId, rail: "x402" });
-      } else if (/ApprovalAlreadyUsed/.test(r.reason)) {
-        // settled after all (confirmation we never saw): close the record without a receipt of our own
-        this.store.putPreApproval({ ...p, state: "settled" });
+      try {
+        const p = await this.store.getPreApproval(listed.digest);
+        if (p?.state === "pending") out.push(await this.reclaimOne(p));
+      } finally {
+        await this.store.releaseLease(`preapproval:${listed.digest}`, holder);
       }
-      out.push({ digest: p.digest, ok: r.ok, ...(r.ok ? { txHash: r.txHash } : { reason: r.reason }), value: p.value });
     }
     return out;
+  }
+
+  private async reclaimOne(p: PreApprovalRecord): Promise<{ digest: string; ok: boolean; txHash?: Hex; reason?: string; value: string }> {
+    // the principal's receipt chain must accept this gateway's key before anything happens on-chain (ADR-0022)
+    try {
+      await this.receipts.handOver(p.principalId);
+    } catch (err) {
+      return { digest: p.digest, ok: false, reason: (err as Error).message, value: p.value };
+    }
+    const r = await this.chain.reclaimApproval(p.account as Address, p.digest as Hex);
+    if (r.ok) {
+      await this.store.putPreApproval({ ...p, state: "reclaimed", reclaimTxHash: r.txHash });
+      await this.receipts.append(p.principalId, "preapproval.reclaimed", { digest: p.digest, value: p.value, approvalTxHash: p.approvalTxHash, reclaimTxHash: r.txHash, validBefore: p.validBefore }, { credentialId: p.credentialId, intentId: p.intentId, rail: "x402" });
+    } else if (/ApprovalAlreadyUsed/.test(r.reason)) {
+      // settled after all (confirmation we never saw): close the record without a receipt of our own
+      await this.store.putPreApproval({ ...p, state: "settled" });
+    }
+    return { digest: p.digest, ok: r.ok, ...(r.ok ? { txHash: r.txHash } : { reason: r.reason }), value: p.value };
   }
 
   // ───────────────────────────── quotes ─────────────────────────────

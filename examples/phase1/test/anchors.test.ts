@@ -63,10 +63,10 @@ describe("anchoring several principals from one gateway key", () => {
 
       const party = privateKeyToAccount(KEY).address;
       for (const [principal, last] of [["acme", acme2], ["globex", globex]] as const) {
-        const genesis = gw.store.receiptsFor(principal)[0]!.hash as Hex;
+        const genesis = (await gw.store.receiptsFor(principal))[0]!.hash as Hex;
         const [head, count] = await net.pub.readContract({ address: core.receiptRegistry, abi: ReceiptRegistryAbi, functionName: "latest", args: [party, genesis] });
         expect([head, count]).toEqual([last.head, BigInt(last.count)]);
-        const report = await verifyEvidence(JSON.parse(JSON.stringify(gw.exportEvidence(principal))), { rpcUrl: net.rpcUrl });
+        const report = await verifyEvidence(JSON.parse(JSON.stringify(await gw.exportEvidence(principal))), { rpcUrl: net.rpcUrl });
         expect(report.ok, JSON.stringify(report.checks)).toBe(true);
         expect(report.checks.find((c) => c.check === "anchors.onchain")?.ok).toBe(true);
       }
@@ -115,7 +115,7 @@ describe("anchoring several principals from one gateway key", () => {
       await gw.anchor("acme");
 
       // a bundle whose first anchor was recorded before anchors named their sender
-      const bundle = JSON.parse(JSON.stringify(gw.exportEvidence("acme"))) as EvidenceBundle;
+      const bundle = JSON.parse(JSON.stringify(await gw.exportEvidence("acme"))) as EvidenceBundle;
       expect(bundle.gateway.address).toBe(newAddress);
       delete bundle.anchors[0]!.party;
       const report = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl, trustedGatewayKeys: [oldAddress, newAddress] });
@@ -164,10 +164,10 @@ describe("anchoring several principals from one gateway key", () => {
         await gw.anchor("acme");
         if (key === runOne) await gw.close();
       }
-      const receipts = gw!.store.receiptsFor("acme");
+      const receipts = await gw!.store.receiptsFor("acme");
       expect(receipts.map((r) => r.kind)).not.toContain("gateway.key.rotated");
       expect(new Set(receipts.map(receiptSigner))).toEqual(new Set([evidence]));
-      const bundle = JSON.parse(JSON.stringify(gw!.exportEvidence("acme"))) as EvidenceBundle;
+      const bundle = JSON.parse(JSON.stringify(await gw!.exportEvidence("acme"))) as EvidenceBundle;
       expect(bundle.anchors.map((a) => a.party)).toEqual([privateKeyToAccount(runOne).address, privateKeyToAccount(runTwo).address]);
       const report = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl, trustedGatewayKeys: [evidence] });
       expect(report.ok, JSON.stringify(report.checks)).toBe(true);

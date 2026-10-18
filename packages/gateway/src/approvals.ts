@@ -12,6 +12,10 @@ import type { ApproverKeys } from "./approvers.js";
  * the approval's principal (its own approvers, or the gateway-wide ones, ADR-0024). Every transition is a receipt, and
  * signed resolutions verify offline in the evidence bundle against the key the approver held at that point in the
  * principal's chain.
+ *
+ * Every status change is a `transitionApproval` in the store, which writes only while the status is still the one this
+ * change starts from: of two resolutions at once (in one gateway or two), one wins and the other gets 409, and only the
+ * winner writes a receipt (ADR-0025).
  */
 export class ApprovalService {
   constructor(
@@ -51,7 +55,7 @@ export class ApprovalService {
       expiresAt: new Date(Date.now() + (this.cfg.approvalTtlSeconds ?? 3600) * 1000).toISOString(),
       request: args.request,
     };
-    this.store.putApproval(a);
+    await this.store.putApproval(a);
     this.metrics?.approvals.inc({ event: "requested" });
     this.metrics?.pendingApprovals.inc();
     await this.receipts.append(
@@ -65,20 +69,20 @@ export class ApprovalService {
 
   /** Reads an approval, lazily expiring it (with a receipt) if its window has passed. */
   async get(id: string): Promise<Approval | undefined> {
-    const a = this.store.getApproval(id);
+    const a = await this.store.getApproval(id);
     if (!a) return undefined;
     if (a.status === "pending" && new Date(a.expiresAt).getTime() < Date.now()) {
-      a.status = "expired";
-      a.resolvedAt = nowIso();
-      this.store.putApproval(a);
+      const expired: Approval = { ...a, status: "expired", resolvedAt: nowIso() };
+      if (!(await this.store.transitionApproval(expired, ["pending"]))) return this.store.getApproval(id); // changed meanwhile
       this.metrics?.approvals.inc({ event: "expired" });
       this.metrics?.pendingApprovals.dec();
-      await this.receipts.append(a.principalId, "approval.expired", { approval: this.publicView(a) }, { agentId: a.agentId, credentialId: a.credentialId, intentId: a.intentId, intentHash: a.intentHash, approvalId: a.id });
+      await this.receipts.append(a.principalId, "approval.expired", { approval: this.publicView(expired) }, { agentId: a.agentId, credentialId: a.credentialId, intentId: a.intentId, intentHash: a.intentHash, approvalId: a.id });
+      return expired;
     }
     return a;
   }
 
-  list(principalId: string, status?: Approval["status"]): Approval[] {
+  list(principalId: string, status?: Approval["status"]): Promise<Approval[]> {
     return this.store.approvalsFor(principalId, status);
   }
 
@@ -101,31 +105,32 @@ export class ApprovalService {
       resolved = { id: approver.id, method: "admin-token" };
     }
 
-    a.status = verdict === "approve" ? "approved" : "rejected";
-    a.resolvedAt = nowIso();
-    a.approver = resolved;
-    if (note) a.note = note;
-    this.store.putApproval(a);
+    const next: Approval = { ...a, status: verdict === "approve" ? "approved" : "rejected", resolvedAt: nowIso(), approver: resolved, ...(note ? { note } : {}) };
+    if (!(await this.store.transitionApproval(next, ["pending"]))) {
+      // resolved (or expired) by someone else since it was read: theirs stands
+      const now = await this.store.getApproval(id);
+      throw Object.assign(new Error(`approval is ${now?.status ?? "gone"}`), { statusCode: 409 });
+    }
     this.metrics?.approvals.inc({ event: verdict === "approve" ? "granted" : "rejected" });
     this.metrics?.pendingApprovals.dec();
     await this.receipts.append(
-      a.principalId,
+      next.principalId,
       verdict === "approve" ? "approval.granted" : "approval.rejected",
-      { approval: this.publicView(a), approver: resolved, note: note ?? null },
-      { agentId: a.agentId, credentialId: a.credentialId, intentId: a.intentId, intentHash: a.intentHash, approvalId: a.id, rail: a.rail },
+      { approval: this.publicView(next), approver: resolved, note: note ?? null },
+      { agentId: next.agentId, credentialId: next.credentialId, intentId: next.intentId, intentHash: next.intentHash, approvalId: next.id, rail: next.rail },
     );
-    return a;
+    return next;
   }
 
-  async consume(id: string, byIntentId: string, txHash: Hex): Promise<void> {
-    const a = this.store.getApproval(id);
-    if (!a) return;
-    a.status = "consumed";
-    a.consumedAt = nowIso();
-    a.consumedByIntentId = byIntentId;
-    this.store.putApproval(a);
+  /** Marks a granted approval used by the payment that settled under it; false if it was not (or no longer) granted. */
+  async consume(id: string, byIntentId: string, txHash: Hex): Promise<boolean> {
+    const a = await this.store.getApproval(id);
+    if (!a) return false;
+    const next: Approval = { ...a, status: "consumed", consumedAt: nowIso(), consumedByIntentId: byIntentId };
+    if (!(await this.store.transitionApproval(next, ["approved"]))) return false;
     this.metrics?.approvals.inc({ event: "consumed" });
-    await this.receipts.append(a.principalId, "approval.consumed", { approval: this.publicView(a), txHash }, { agentId: a.agentId, credentialId: a.credentialId, intentId: byIntentId, intentHash: a.intentHash, approvalId: a.id, rail: a.rail });
+    await this.receipts.append(next.principalId, "approval.consumed", { approval: this.publicView(next), txHash }, { agentId: next.agentId, credentialId: next.credentialId, intentId: byIntentId, intentHash: next.intentHash, approvalId: next.id, rail: next.rail });
+    return true;
   }
 
   /** What goes into receipts: the signed fields plus context, never the request body. */

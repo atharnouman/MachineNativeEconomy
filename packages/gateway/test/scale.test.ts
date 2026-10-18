@@ -19,16 +19,16 @@ for (const driver of ["json", "sqlite"] as StoreDriver[]) {
       const signer = new LocalSigner(PK, "secret");
       const log = new ReceiptLog(store, signer);
       await Promise.all(Array.from({ length: 60 }, (_, i) => log.append(i % 2 ? "a" : "b", "external", { i })));
-      expect((await verifyChain(store.receiptsFor("a"), signer.address)).ok).toBe(true);
-      expect((await verifyChain(store.receiptsFor("b"), signer.address)).ok).toBe(true);
-      expect(store.lastReceipt("a")?.seq).toBe(29);
+      expect((await verifyChain((await store.receiptsFor("a")), signer.address)).ok).toBe(true);
+      expect((await verifyChain((await store.receiptsFor("b")), signer.address)).ok).toBe(true);
+      expect((await store.lastReceipt("a"))?.seq).toBe(29);
       // a new log over the same store (process restart) continues the chain from the stored head
       const again = new ReceiptLog(store, signer);
       const r = await again.append("a", "external", { after: "restart" });
       expect(r.seq).toBe(30);
-      expect(r.prev).toBe(store.receiptsFor("a")[29]!.hash);
-      expect((await verifyChain(store.receiptsFor("a"), signer.address)).ok).toBe(true);
-      expect(store.lastReceipt("nobody")).toBeUndefined();
+      expect(r.prev).toBe((await store.receiptsFor("a"))[29]!.hash);
+      expect((await verifyChain((await store.receiptsFor("a")), signer.address)).ok).toBe(true);
+      expect((await store.lastReceipt("nobody"))).toBeUndefined();
     });
   });
 
