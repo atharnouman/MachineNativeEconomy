@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import { isAddress, type Hex } from "viem";
@@ -19,7 +20,7 @@ import {
   type EvidenceBundle,
   type Receipt,
 } from "@spendmarshal/core";
-import type { GatewayConfig } from "./config.js";
+import { approversFor, type GatewayConfig } from "./config.js";
 import { openStore, type Store } from "./store.js";
 import { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 import { ChainClient } from "./chain.js";
@@ -83,8 +84,17 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   });
 
   const publicUrl = (cfg.publicUrl ?? `http://${cfg.host}:${cfg.port}`).replace(/\/$/, "");
-  const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
   for (const a of cfg.previousGatewayAddresses ?? []) if (!isAddress(a, { strict: false })) throw new Error(`previous gateway address ${a} is not an address`);
+  // every admin token must name one scope: no principal's token may equal the operator's or another principal's (ADR-0024)
+  const tokenOwners = new Map<string, string>([[cfg.adminToken, "the gateway admin token"]]);
+  for (const [p, pc] of Object.entries(cfg.principals)) {
+    if (pc.adminToken === undefined) continue;
+    if (pc.adminToken.length < 16) throw new Error(`the admin token of ${p} is shorter than 16 characters`);
+    const owner = tokenOwners.get(pc.adminToken);
+    if (owner) throw new Error(`the admin token of ${p} is the same as ${owner}`); // never echo the token
+    tokenOwners.set(pc.adminToken, `the admin token of ${p}`);
+  }
+  const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
   const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys, cfg.evidencePrivateKey);
   const chain = new ChainClient(cfg);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
@@ -104,8 +114,27 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   });
 
   // ───────── auth helpers ─────────
-  const requireAdmin = (req: FastifyRequest) => {
-    if (req.headers["x-admin-token"] !== cfg.adminToken) throw Object.assign(new Error("admin token required"), { statusCode: 401 });
+  // Admin tokens are scoped (ADR-0024): the gateway-wide token acts on every principal, a principal's own token on that
+  // principal only. Comparisons take the same time whatever the token holds.
+  const sameToken = (given: string, expected: string) => {
+    const a = Buffer.from(given);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
+  type AdminScope = { all: true } | { all: false; principalId: string };
+  /** The scope of the request's admin token; 401 without a valid one. */
+  const requireAdmin = (req: FastifyRequest): AdminScope => {
+    const token = req.headers["x-admin-token"];
+    if (typeof token === "string" && token) {
+      if (sameToken(token, cfg.adminToken)) return { all: true };
+      for (const [principalId, pc] of Object.entries(cfg.principals)) if (pc.adminToken && sameToken(token, pc.adminToken)) return { all: false, principalId };
+    }
+    throw Object.assign(new Error("admin token required"), { statusCode: 401 });
+  };
+  /** 403 unless the scope covers `principalId`; a gateway-wide action (`principalId` undefined) needs the gateway-wide token. */
+  const allow = (scope: AdminScope, principalId: string | undefined) => {
+    if (scope.all || scope.principalId === principalId) return;
+    throw Object.assign(new Error(`this admin token acts on ${scope.principalId} only`), { statusCode: 403 });
   };
   const requireCredential = async (req: FastifyRequest): Promise<Credential> => {
     const h = req.headers.authorization;
@@ -172,8 +201,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   // ───────── credentials ─────────
   app.post("/v1/credentials", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const b = z.object({ principalId: z.string(), agentId: z.string(), caveats: z.array(CaveatSchema).default([]) }).parse(req.body);
+    allow(scope, b.principalId);
     const nonDelegate = b.caveats.filter((c) => c.type !== "delegate") as Exclude<(typeof b.caveats)[number], { type: "delegate" }>[];
     const cred = await credentials.issue({ principalId: b.principalId, agentId: b.agentId, caveats: nonDelegate });
     const reg = await credentials.register(cred);
@@ -232,10 +262,12 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     return reply.code(result.ok ? 200 : result.status).send(replayed ? { ...result, replayed: true } : result);
   });
 
-  /** Agents see their own subtree; the admin token sees a whole principal (`?principalId=`). */
+  /** Agents see their own subtree; an admin token sees a whole principal it covers (`?principalId=`). */
   app.get("/v1/subscriptions", async (req) => {
-    if (req.headers["x-admin-token"] === cfg.adminToken) {
+    if (req.headers["x-admin-token"] !== undefined) {
+      const scope = requireAdmin(req);
       const q = z.object({ principalId: z.string() }).parse(req.query);
+      allow(scope, q.principalId);
       return { subscriptions: payments.listSubscriptions({ admin: true, principalId: q.principalId }) };
     }
     const c = await requireCredential(req);
@@ -244,8 +276,10 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
 
   app.post("/v1/subscriptions/:id/cancel", async (req) => {
     const id = (req.params as { id: string }).id;
-    if (req.headers["x-admin-token"] === cfg.adminToken) {
+    if (req.headers["x-admin-token"] !== undefined) {
+      const scope = requireAdmin(req);
       const b = z.object({ principalId: z.string() }).parse(req.body ?? {});
+      allow(scope, b.principalId);
       return { subscription: await payments.cancelSubscription({ admin: true, principalId: b.principalId }, id) };
     }
     const c = await requireCredential(req);
@@ -269,32 +303,37 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   });
 
   app.get("/v1/approvals", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const q = z.object({ principalId: z.string(), status: z.enum(["pending", "approved", "rejected", "expired", "consumed"]).optional() }).parse(req.query);
+    allow(scope, q.principalId);
     const list = await Promise.all(approvals.list(q.principalId, q.status).map((a) => approvals.get(a.id)));
     return { approvals: list.filter((a): a is NonNullable<typeof a> => !!a && (!q.status || a.status === q.status)).map((a) => approvals.publicView(a)) };
   });
 
   for (const verdict of ["approve", "reject"] as const) {
     app.post(`/v1/approvals/:id/${verdict}`, async (req) => {
-      requireAdmin(req);
+      const scope = requireAdmin(req);
       const b = z.object({ approverId: z.string().min(1), signature: z.string().regex(/^0x[0-9a-f]+$/).optional(), note: z.string().optional() }).parse(req.body);
-      const a = await approvals.resolve((req.params as { id: string }).id, verdict, { id: b.approverId, signature: b.signature as Hex | undefined }, b.note);
+      const id = (req.params as { id: string }).id;
+      const pending = store.getApproval(id); // read without side effects: the scope is checked before anything changes
+      if (!pending) throw Object.assign(new Error("approval not found"), { statusCode: 404 });
+      allow(scope, pending.principalId);
+      const a = await approvals.resolve(id, verdict, { id: b.approverId, signature: b.signature as Hex | undefined }, b.note);
       return { approval: approvals.publicView(a) };
     });
   }
 
   // ───────── policies ─────────
   app.get("/v1/policies/:principalId", async (req) => {
-    requireAdmin(req);
     const p = (req.params as { principalId: string }).principalId;
+    allow(requireAdmin(req), p);
     const active = policies.activeVersion(p);
     return { active, versions: policies.versions(p).map(({ document: _d, ...meta }) => meta) };
   });
 
   app.put("/v1/policies/:principalId", async (req) => {
-    requireAdmin(req);
     const p = (req.params as { principalId: string }).principalId;
+    allow(requireAdmin(req), p);
     const b = z.object({ yaml: z.string().min(1), by: z.string().min(1) }).parse(req.body);
     const r = await policies.update(p, b.yaml, b.by);
     const { document: _d, ...meta } = r.version;
@@ -308,8 +347,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   });
 
   app.post("/v1/receipts/external", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const b = z.object({ principalId: z.string(), source: z.string(), data: z.record(z.unknown()), credentialId: z.string().optional(), intentId: z.string().optional() }).parse(req.body);
+    allow(scope, b.principalId);
     const r = await receipts.append(b.principalId, "external", { source: b.source, ...b.data }, { credentialId: b.credentialId, intentId: b.intentId });
     return { receipt: r };
   });
@@ -343,7 +383,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       },
       policy: { hash: active.hash, document: active.document },
       policyVersions: policies.versions(principalId),
-      approvers: cfg.approvers ?? {},
+      approvers: approversFor(cfg, principalId), // this principal's approvers as configured at export (ADR-0024)
       approverHistory: approverKeyHistory(rs),
       credentials: store.credentialsFor(principalId).map(({ sessionKey: _s, parentSessionKey: _p, registeredAt: _r, txHash: _t, ...pub }) => pub),
       receipts: rs,
@@ -352,8 +392,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   };
 
   app.get("/v1/evidence/:principalId", async (req) => {
-    requireAdmin(req);
-    return exportEvidence((req.params as { principalId: string }).principalId);
+    const p = (req.params as { principalId: string }).principalId;
+    allow(requireAdmin(req), p);
+    return exportEvidence(p);
   });
 
   // The registry chains anchors per sending key and receipt chain, and names a principal's chain by the hash of its first
@@ -382,23 +423,26 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   };
 
   app.post("/v1/evidence/anchor", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const b = z.object({ principalId: z.string() }).parse(req.body);
+    allow(scope, b.principalId);
     return anchor(b.principalId);
   });
 
   // ───────── maintenance ─────────
   app.post("/v1/maintenance/reclaim", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const b = z.object({ principalId: z.string().optional() }).parse(req.body ?? {});
+    allow(scope, b.principalId); // every principal at once needs the gateway-wide token
     const results = await payments.reclaimExpiredPreApprovals(b.principalId);
     return { reclaimed: results.filter((r) => r.ok).length, results, pending: store.pendingPreApprovals(b.principalId).length };
   });
 
   // ───────── kill switch ─────────
   app.post("/v1/killswitch", async (req) => {
-    requireAdmin(req);
+    const scope = requireAdmin(req);
     const b = z.object({ principalId: z.string(), on: z.boolean(), reason: z.string().optional() }).parse(req.body);
+    allow(scope, b.principalId);
     const account = cfg.principals[b.principalId]?.account;
     if (!account) throw Object.assign(new Error("unknown principal"), { statusCode: 404 });
     store.setKillSwitch(b.principalId, b.on); // gateway refuses first (one request cycle)

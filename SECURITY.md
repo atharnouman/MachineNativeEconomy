@@ -15,6 +15,7 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). In one line: the model never s
 | Evidence key (optional, ADR-0023) | gateway signer (prod: KMS/HSM) | signs receipts only; never transacts, so it needs no funds and stays put while the gateway key changes |
 | Session-key secret | gateway signer | derives one session key per credential (HMAC) |
 | Credential root key | gateway | HMAC root of credential chains |
+| Admin tokens | gateway config: one gateway-wide, optionally one per principal | the gateway-wide token administers every principal; a principal's own token only that principal (ADR-0024). At least 16 characters, all distinct, compared in constant time |
 | Account owner key | the principal (dev: = gateway key) | grants sessions, pause, treasury |
 | Payee relayer key | payee | gas for MPP settlement only |
 | Gateway Ed25519 signing key | derived from the session-key secret | signs outbound requests to payees (Web Bot Auth) and the key directory; published as a public JWK |

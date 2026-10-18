@@ -16,6 +16,28 @@ export interface PrincipalConfig {
    * registers becomes a child of that session and is bounded by it. Unpausing then needs the owner key.
    */
   ownerIsGateway?: boolean;
+  /**
+   * This principal's approvers: approver id -> address whose EIP-191 signature resolves its escalations (ADR-0024). When
+   * set, it replaces the gateway-wide `approvers` for this principal; nobody else's approvers can resolve its approvals.
+   */
+  approvers?: Record<string, Address>;
+  /**
+   * An admin token for this principal only: its credentials, policy, approvals, subscriptions, receipts, evidence,
+   * anchors and kill switch (ADR-0024). The gateway-wide `adminToken` keeps access to every principal.
+   */
+  adminToken?: string;
+}
+
+/** The approvers whose signatures resolve a principal's escalations: its own map, else the gateway-wide one (ADR-0024). */
+export function approversFor(cfg: Pick<GatewayConfig, "approvers" | "principals">, principalId: string): Record<string, Address> {
+  const own = Object.hasOwn(cfg.principals, principalId) ? cfg.principals[principalId]?.approvers : undefined;
+  return own ?? cfg.approvers ?? {};
+}
+
+/** The key of `approverId` among a principal's approvers, if it is one (never an inherited object property). */
+export function approverKeyFor(cfg: Pick<GatewayConfig, "approvers" | "principals">, principalId: string, approverId: string): Address | undefined {
+  const approvers = approversFor(cfg, principalId);
+  return Object.hasOwn(approvers, approverId) ? approvers[approverId] : undefined;
 }
 
 export interface GatewayConfig {
@@ -50,6 +72,7 @@ export interface GatewayConfig {
   sessionSecret: string;
   /** Root key for credential HMAC chains. */
   credentialRootKey: string;
+  /** The operator's admin token: every principal, and the gateway-wide maintenance routes. A principal may also have its own (ADR-0024). */
   adminToken: string;
   dataDir: string;
   /** `json` (zero-dependency file, default for demos) or `sqlite` (WAL file, recommended for self-hosting). */
@@ -61,7 +84,7 @@ export interface GatewayConfig {
   facilitator: { enabled: boolean };
   /** Seconds a signed authorization stays valid. */
   authorizationTtlSeconds: number;
-  /** Approver id -> address whose EIP-191 signature resolves escalations. */
+  /** Gateway-wide approvers (approver id -> address whose EIP-191 signature resolves escalations), for every principal without its own (ADR-0024). */
   approvers?: Record<string, Address>;
   /** When true, approvals must carry a valid approver signature; the admin token alone is not enough. */
   requireSignedApprovals?: boolean;

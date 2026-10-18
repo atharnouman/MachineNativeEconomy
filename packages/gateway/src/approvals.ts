@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import { randomId, nowIso, intentHash, verifyApprovalSignature, type Approval, type Approver, type ApprovalVerdict, type Decision, type PaymentIntent } from "@spendmarshal/core";
-import type { GatewayConfig } from "./config.js";
+import { approverKeyFor, type GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
 import type { ReceiptLog } from "./receipts.js";
 import type { Metrics } from "./metrics.js";
@@ -9,8 +9,9 @@ import type { ApproverKeys } from "./approvers.js";
 /**
  * Human-in-the-loop approvals. An escalated intent becomes a pending approval; an operator resolves it with
  * the admin token or, when the gateway is configured with approver keys, with an EIP-191 signature from one of
- * them. Every transition is a receipt, and signed resolutions verify offline in the evidence bundle against the
- * key the approver held at that point in the principal's chain.
+ * the approval's principal (its own approvers, or the gateway-wide ones, ADR-0024). Every transition is a receipt, and
+ * signed resolutions verify offline in the evidence bundle against the key the approver held at that point in the
+ * principal's chain.
  */
 export class ApprovalService {
   constructor(
@@ -87,9 +88,9 @@ export class ApprovalService {
     if (a.status !== "pending") throw Object.assign(new Error(`approval is ${a.status}`), { statusCode: 409 });
 
     let resolved: Approver;
-    const registered = this.cfg.approvers?.[approver.id];
+    const registered = approverKeyFor(this.cfg, a.principalId, approver.id);
     if (approver.signature) {
-      if (!registered) throw Object.assign(new Error(`approver ${approver.id} has no registered key`), { statusCode: 403 });
+      if (!registered) throw Object.assign(new Error(`approver ${approver.id} has no registered key for ${a.principalId}`), { statusCode: 403 });
       const ok = await verifyApprovalSignature(a, verdict, approver.signature, registered as Address);
       if (!ok) throw Object.assign(new Error("approver signature invalid"), { statusCode: 403 });
       resolved = { id: approver.id, method: "signature", address: registered, signature: approver.signature };

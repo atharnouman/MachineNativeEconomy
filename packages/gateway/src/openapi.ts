@@ -35,7 +35,7 @@ export function buildOpenApi(info: { url: string; version: string }) {
     components: {
       securitySchemes: {
         credential: { type: "http", scheme: "bearer", description: "base64url credential (macaroon-style). If the credential carries a holder_key caveat, the request must also carry Signature-Input/Signature (RFC 9421, Ed25519, tag spendmarshal-holder) and Content-Digest for bodies." },
-        adminToken: { type: "apiKey", in: "header", name: "x-admin-token" },
+        adminToken: { type: "apiKey", in: "header", name: "x-admin-token", description: "The gateway-wide admin token (every principal), or a principal's own admin token (that principal only)." },
       },
       schemas: {
         PayRequest: schema(PayBodySchema, "PayRequest"),

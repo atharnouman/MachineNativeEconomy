@@ -1,6 +1,6 @@
 import { isAddress, type Address } from "viem";
 import type { Receipt, ApproverRegisteredData, ApproverRemovedData } from "@spendmarshal/core";
-import type { GatewayConfig } from "./config.js";
+import { approversFor, type GatewayConfig } from "./config.js";
 import type { Store } from "./store.js";
 import type { ReceiptLog } from "./receipts.js";
 
@@ -10,6 +10,8 @@ import type { ReceiptLog } from "./receipts.js";
  * `approver.registered` receipt whenever an approver's configured key differs from the last one registered in that chain,
  * and an `approver.removed` receipt when an approver that holds a key there leaves the configuration. The verifier checks
  * each signed resolution against the key in force at its position in the chain.
+ *
+ * Each principal registers its own approvers, or the gateway-wide ones when it has none (ADR-0024).
  *
  * `sync()` runs for every configured principal at startup, and again right before a signed resolution is receipted, which
  * also covers a principal that is no longer configured but still has pending approvals. A principal's keys are read from
@@ -22,12 +24,17 @@ export class ApproverKeys {
   private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(
-    private readonly cfg: Pick<GatewayConfig, "approvers">,
+    private readonly cfg: Pick<GatewayConfig, "approvers" | "principals">,
     private readonly store: Store,
     private readonly receipts: ReceiptLog,
   ) {
     for (const [id, address] of Object.entries(cfg.approvers ?? {})) {
       if (!isAddress(address, { strict: false })) throw new Error(`approver ${id}: ${address} is not an address`);
+    }
+    for (const [principalId, pc] of Object.entries(cfg.principals)) {
+      for (const [id, address] of Object.entries(pc.approvers ?? {})) {
+        if (!isAddress(address, { strict: false })) throw new Error(`approver ${id} of ${principalId}: ${address} is not an address`);
+      }
     }
   }
 
@@ -35,7 +42,7 @@ export class ApproverKeys {
   sync(principalId: string): Promise<Receipt[]> {
     const run = async (): Promise<Receipt[]> => {
       const held = this.heldIn(principalId);
-      const wanted = this.cfg.approvers ?? {};
+      const wanted = approversFor(this.cfg, principalId);
       const written: Receipt[] = [];
       for (const [approverId, address] of Object.entries(wanted)) {
         const prevAddress = held.get(approverId) ?? null;

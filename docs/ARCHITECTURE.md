@@ -232,7 +232,8 @@ sequenceDiagram
 | Evidence key (optional) | signs receipts and nothing else | can write receipts into the chains it is in force for; cannot move funds or send a transaction (ADR-0023) |
 | Earlier gateway key (only while rotating) | signs the handover of the receipt chains it signed | can hand the chains it still signs to a key of its choosing; nothing once they are handed over (ADR-0020) |
 | Session key (derived) | nothing stored | its own `perTxMax` × remaining `spendCap`, bounded further by every ancestor, only to allowlisted targets, only until `validUntil` |
-| Approver key | signs resolutions | can approve escalations within the policy's other limits; cannot move funds |
+| Approver key | signs resolutions | can approve the escalations of the principals that list it (their own approvers, or the gateway-wide ones), within the policy's other limits; cannot move funds (ADR-0024) |
+| A principal's admin token (optional) | administers that principal | its credentials, policy, approvals, subscriptions, receipts, evidence, anchors and kill switch; nothing of another principal's (ADR-0024) |
 | Holder key (agent process) | proves possession of a holder-bound credential on every gateway request | without it the credential is refused; with it, still only what the credential's caveats allow |
 | Gateway Ed25519 key | signs outbound payee requests and the key directory | identifies the gateway to payees; cannot authorise payments by itself |
 | Facilitator | nothing | nothing: it can refuse to settle, not steal; the gateway confirms on-chain |
