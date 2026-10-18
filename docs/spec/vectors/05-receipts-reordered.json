@@ -1,0 +1,334 @@
+{
+  "format": "evidence-v1",
+  "name": "receipts-reordered",
+  "description": "Two receipts trade places.",
+  "expected": {
+    "ok": false,
+    "checks": [
+      {
+        "check": "schema",
+        "ok": true
+      },
+      {
+        "check": "policy.hash",
+        "ok": true
+      },
+      {
+        "check": "policy.versions",
+        "ok": true
+      },
+      {
+        "check": "receipts.chain",
+        "ok": false
+      },
+      {
+        "check": "receipts.policyHash",
+        "ok": true
+      },
+      {
+        "check": "credentials.ids",
+        "ok": true
+      },
+      {
+        "check": "credentials.monotonic",
+        "ok": true
+      },
+      {
+        "check": "anchors.match",
+        "ok": true
+      },
+      {
+        "check": "settlements.have_allow_decision",
+        "ok": true
+      },
+      {
+        "check": "approvers.history",
+        "ok": true
+      },
+      {
+        "check": "approvals",
+        "ok": true
+      }
+    ]
+  },
+  "bundle": {
+    "v": 1,
+    "principalId": "org",
+    "exportedAt": "2026-10-18T09:00:53.000Z",
+    "gateway": {
+      "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "chain": "eip155:31337"
+    },
+    "gatewayKeyHistory": [],
+    "contracts": {
+      "agentAccount": "0x0000000000000000000000000000000000000000",
+      "usdc": "0x0000000000000000000000000000000000000000",
+      "receiptRegistry": "0x0000000000000000000000000000000000000000",
+      "enforcer.spendLimit": "0x0000000000000000000000000000000000000000",
+      "enforcer.timeWindow": "0x0000000000000000000000000000000000000000",
+      "enforcer.allowedTargets": "0x0000000000000000000000000000000000000000"
+    },
+    "policy": {
+      "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+      "document": {
+        "version": 1,
+        "principalId": "org",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "1.00",
+            "period": "daily"
+          },
+          "research": {
+            "cap": "0.50",
+            "parent": "org",
+            "period": "lifetime"
+          }
+        },
+        "agents": {
+          "analyst": {
+            "budget": "research"
+          }
+        },
+        "velocity": [
+          {
+            "id": "burst",
+            "scope": "agent",
+            "window": "1m",
+            "max_count": 5
+          }
+        ],
+        "rules": [
+          {
+            "id": "big",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-all",
+            "effect": "allow",
+            "match": {}
+          }
+        ]
+      }
+    },
+    "policyVersions": [
+      {
+        "version": 1,
+        "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "prevHash": null,
+        "activatedAt": "2026-10-18T09:00:45.000Z",
+        "activatedBy": "config",
+        "document": {
+          "version": 1,
+          "principalId": "org",
+          "currency": {
+            "asset": "USDC",
+            "decimals": 6
+          },
+          "budgets": {
+            "org": {
+              "cap": "1.00",
+              "period": "daily"
+            },
+            "research": {
+              "cap": "0.50",
+              "parent": "org",
+              "period": "lifetime"
+            }
+          },
+          "agents": {
+            "analyst": {
+              "budget": "research"
+            }
+          },
+          "velocity": [
+            {
+              "id": "burst",
+              "scope": "agent",
+              "window": "1m",
+              "max_count": 5
+            }
+          ],
+          "rules": [
+            {
+              "id": "big",
+              "effect": "escalate",
+              "match": {
+                "amount_gt": "0.03"
+              }
+            },
+            {
+              "id": "allow-all",
+              "effect": "allow",
+              "match": {}
+            }
+          ]
+        }
+      }
+    ],
+    "approvers": {},
+    "approverHistory": {},
+    "credentials": [],
+    "receipts": [
+      {
+        "v": 1,
+        "id": "rcpt_97ea22afc64a27227f8fa063",
+        "principalId": "org",
+        "seq": 0,
+        "prev": null,
+        "ts": "2026-10-18T09:00:46.000Z",
+        "kind": "policy.updated",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "version": 1,
+          "prevHash": null,
+          "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+          "activatedBy": "config",
+          "diff": null,
+          "impact": []
+        },
+        "hash": "0xba780b148492342ef19549ff05e67e443e1095cbe109c05c59f6b0d7bdc487ef",
+        "sig": "0x0e87bca3b89f53f2f1380ce9aa38af23065aca62d096fa4c740606a89b1ab4051a807d6603b30f40cc2e9a30bd786cd9998a700869cf124be07729d4e93b68ae1b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_ea910a2f27fe828a69ff8624",
+        "principalId": "org",
+        "seq": 1,
+        "prev": "0xba780b148492342ef19549ff05e67e443e1095cbe109c05c59f6b0d7bdc487ef",
+        "ts": "2026-10-18T09:00:47.000Z",
+        "kind": "decision",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0001",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "stage": "quote",
+          "effect": "allow",
+          "reasons": [],
+          "checks": [],
+          "matchedRules": [
+            "allow-all"
+          ],
+          "amount": "20000"
+        },
+        "hash": "0x9df0a37c2c668702af7e5770ba9ebf0738f1f50db1cbc46f45577edbac8d40f3",
+        "sig": "0xad8ee0ab015c935de6348eb50575e8a5b04fdc30b2cfdbf7e5214f335f8a2a996d4da9b40e44e04eaa3030c1794cc3f81fa8cbb024028a86144877054220303d1c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_77e53c5b8ce4364271cf52fc",
+        "principalId": "org",
+        "seq": 2,
+        "prev": "0x9df0a37c2c668702af7e5770ba9ebf0738f1f50db1cbc46f45577edbac8d40f3",
+        "ts": "2026-10-18T09:00:48.000Z",
+        "kind": "payment.settled",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0001",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "txHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "blockNumber": "7",
+          "amount": "20000",
+          "payee": "0x0000000000000000000000000000000000000000",
+          "payloadKind": "agent-account",
+          "ledgerEntryId": "led_int_0001",
+          "approvalId": null
+        },
+        "hash": "0x3218b273ec06eb841632f8b8ffcf6608dd5aaaa5660d73e9c0b51179a96650f8",
+        "sig": "0x1f62f688baa64f643e90042bdc348933afecc8e468112b8e00126bb503ddfc262e411dfc9bef0062fa234f327d912999e5b11dc2e4793b665165b919377583171b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_5019e11e04536e56924b81a8",
+        "principalId": "org",
+        "seq": 4,
+        "prev": "0xd322d85ad6c30140c03ba9dcf228a6414fe7c0eb656120a4d4d07b74ffbf254c",
+        "ts": "2026-10-18T09:00:50.000Z",
+        "kind": "external",
+        "data": {
+          "source": "operator",
+          "note": "budget unchanged"
+        },
+        "hash": "0x3964e8cd8deb123e6a8c9a7a1218c21634383bcffc62446efc7e6ef3fd95c1a3",
+        "sig": "0x021790ba41a41c609fdcb18cacd4358fb91b2466605321d47b0738cc8b01e7f665858ad202b484173c39fc060c55122d1e2a2219860ddefe9098035690b287db1c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_555e315db765628b62133425",
+        "principalId": "org",
+        "seq": 3,
+        "prev": "0x3218b273ec06eb841632f8b8ffcf6608dd5aaaa5660d73e9c0b51179a96650f8",
+        "ts": "2026-10-18T09:00:49.000Z",
+        "kind": "external",
+        "data": {
+          "source": "operator",
+          "note": "monthly review"
+        },
+        "hash": "0xd322d85ad6c30140c03ba9dcf228a6414fe7c0eb656120a4d4d07b74ffbf254c",
+        "sig": "0x9e07f78b28e369fea99a1d9f89dc39f25b9a3afd286937e42df0c501208ff22024f72aeb67d7cb1467b40b24f16d7484fa74e3f48782e9d3b2a41eedf7f19bde1b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_84b702de3fd34bdb98233bec",
+        "principalId": "org",
+        "seq": 5,
+        "prev": "0x3964e8cd8deb123e6a8c9a7a1218c21634383bcffc62446efc7e6ef3fd95c1a3",
+        "ts": "2026-10-18T09:00:51.000Z",
+        "kind": "decision",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0002",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "stage": "quote",
+          "effect": "allow",
+          "reasons": [],
+          "checks": [],
+          "matchedRules": [
+            "allow-all"
+          ],
+          "amount": "15000"
+        },
+        "hash": "0x410615306e2209446d74760931615f44885ad5a1a1268fc6265a4f5af515c20f",
+        "sig": "0x66c329cfe861f391978df0bfbf3086b8d7eba976376466aed3e35c0022686e5a40bbba4de19a87fb82bd08bd48d1297b2113f4599656d31f057db8c50b7931621c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_d2086bf10c3f6af80025a665",
+        "principalId": "org",
+        "seq": 6,
+        "prev": "0x410615306e2209446d74760931615f44885ad5a1a1268fc6265a4f5af515c20f",
+        "ts": "2026-10-18T09:00:52.000Z",
+        "kind": "payment.settled",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0002",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "txHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "blockNumber": "7",
+          "amount": "15000",
+          "payee": "0x0000000000000000000000000000000000000000",
+          "payloadKind": "agent-account",
+          "ledgerEntryId": "led_int_0002",
+          "approvalId": null
+        },
+        "hash": "0x3fb6494db7ecd165c85b04bb1739e8e157837ce7e1051bc002171a3282682003",
+        "sig": "0x16457d071a805d0f2ccb671074335f6e7b9dce9eb5a6ad0f0e97e8f5585ed87133c528b2ed27b13bea0f9bdf95f74cdd5e5518d196c19bbdbf7dcae523faf96e1c"
+      }
+    ],
+    "anchors": []
+  }
+}

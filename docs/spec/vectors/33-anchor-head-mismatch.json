@@ -1,0 +1,323 @@
+{
+  "format": "evidence-v1",
+  "name": "anchor-head-mismatch",
+  "description": "An anchor's head is not the receipt at its count.",
+  "expected": {
+    "ok": false,
+    "checks": [
+      {
+        "check": "schema",
+        "ok": true
+      },
+      {
+        "check": "policy.hash",
+        "ok": true
+      },
+      {
+        "check": "policy.versions",
+        "ok": true
+      },
+      {
+        "check": "receipts.chain",
+        "ok": true
+      },
+      {
+        "check": "receipts.policyHash",
+        "ok": true
+      },
+      {
+        "check": "credentials.ids",
+        "ok": true
+      },
+      {
+        "check": "credentials.monotonic",
+        "ok": true
+      },
+      {
+        "check": "anchors.match",
+        "ok": false
+      },
+      {
+        "check": "settlements.have_allow_decision",
+        "ok": true
+      },
+      {
+        "check": "approvers.history",
+        "ok": true
+      },
+      {
+        "check": "approvals",
+        "ok": true
+      }
+    ]
+  },
+  "bundle": {
+    "v": 1,
+    "principalId": "org",
+    "exportedAt": "2026-10-18T09:36:49.000Z",
+    "gateway": {
+      "address": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+      "chain": "eip155:31337"
+    },
+    "gatewayKeyHistory": [],
+    "contracts": {
+      "agentAccount": "0x0000000000000000000000000000000000000000",
+      "usdc": "0x0000000000000000000000000000000000000000",
+      "receiptRegistry": "0x0000000000000000000000000000000000000000",
+      "enforcer.spendLimit": "0x0000000000000000000000000000000000000000",
+      "enforcer.timeWindow": "0x0000000000000000000000000000000000000000",
+      "enforcer.allowedTargets": "0x0000000000000000000000000000000000000000"
+    },
+    "policy": {
+      "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+      "document": {
+        "version": 1,
+        "principalId": "org",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "1.00",
+            "period": "daily"
+          },
+          "research": {
+            "cap": "0.50",
+            "parent": "org",
+            "period": "lifetime"
+          }
+        },
+        "agents": {
+          "analyst": {
+            "budget": "research"
+          }
+        },
+        "velocity": [
+          {
+            "id": "burst",
+            "scope": "agent",
+            "window": "1m",
+            "max_count": 5
+          }
+        ],
+        "rules": [
+          {
+            "id": "big",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-all",
+            "effect": "allow",
+            "match": {}
+          }
+        ]
+      }
+    },
+    "policyVersions": [
+      {
+        "version": 1,
+        "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "prevHash": null,
+        "activatedAt": "2026-10-18T09:36:38.000Z",
+        "activatedBy": "config",
+        "document": {
+          "version": 1,
+          "principalId": "org",
+          "currency": {
+            "asset": "USDC",
+            "decimals": 6
+          },
+          "budgets": {
+            "org": {
+              "cap": "1.00",
+              "period": "daily"
+            },
+            "research": {
+              "cap": "0.50",
+              "parent": "org",
+              "period": "lifetime"
+            }
+          },
+          "agents": {
+            "analyst": {
+              "budget": "research"
+            }
+          },
+          "velocity": [
+            {
+              "id": "burst",
+              "scope": "agent",
+              "window": "1m",
+              "max_count": 5
+            }
+          ],
+          "rules": [
+            {
+              "id": "big",
+              "effect": "escalate",
+              "match": {
+                "amount_gt": "0.03"
+              }
+            },
+            {
+              "id": "allow-all",
+              "effect": "allow",
+              "match": {}
+            }
+          ]
+        }
+      }
+    ],
+    "approvers": {},
+    "approverHistory": {},
+    "credentials": [],
+    "receipts": [
+      {
+        "v": 1,
+        "id": "rcpt_08dc8a899543238aaa77d415",
+        "principalId": "org",
+        "seq": 0,
+        "prev": null,
+        "ts": "2026-10-18T09:36:39.000Z",
+        "kind": "policy.updated",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "version": 1,
+          "prevHash": null,
+          "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+          "activatedBy": "config",
+          "diff": null,
+          "impact": []
+        },
+        "hash": "0x7ac0961ddaf4b9faabbf8fb2907a9ed4d4a7fdd217743be39f91561f40b06ca3",
+        "sig": "0xa3b1172393db4bd0444c71193e72d04d62376b983058bf94f0104b53ea5a95b23b43228e1ac43290c9824bafc9b5889d991b120c9472faf4bcff7232c0f2943e1c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_19487050cd6bde3f75cf48e5",
+        "principalId": "org",
+        "seq": 1,
+        "prev": "0x7ac0961ddaf4b9faabbf8fb2907a9ed4d4a7fdd217743be39f91561f40b06ca3",
+        "ts": "2026-10-18T09:36:40.000Z",
+        "kind": "decision",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0801",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "stage": "quote",
+          "effect": "allow",
+          "reasons": [],
+          "checks": [],
+          "matchedRules": [
+            "allow-all"
+          ],
+          "amount": "20000"
+        },
+        "hash": "0x89565016de589db4f2af7f8a780f23b0bdb029cd8f18eba02c2f407b955a2273",
+        "sig": "0xa2e6055d2599e00dc7d7dc6ad256dcd5f25f8274a56430cac6a8a469b5626b51294e389f2b2c9e4a7da74bb3874955e0985935d1f53590f69117befe327334011b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_f337809122ba0437377bcc9f",
+        "principalId": "org",
+        "seq": 2,
+        "prev": "0x89565016de589db4f2af7f8a780f23b0bdb029cd8f18eba02c2f407b955a2273",
+        "ts": "2026-10-18T09:36:41.000Z",
+        "kind": "payment.settled",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0801",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "txHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "blockNumber": "7",
+          "amount": "20000",
+          "payee": "0x0000000000000000000000000000000000000000",
+          "payloadKind": "agent-account",
+          "ledgerEntryId": "led_int_0801",
+          "approvalId": null
+        },
+        "hash": "0x96a841aaa9fc47399159e36e23bbaf428146b8532a75e674762a62e41f51cf31",
+        "sig": "0x5c24e297a43d27083f8008023f5ce470d2bef0cb5f798caaebe8165e847dfcfb56e63fa18a2b791abcac0921bb5c8c51132b557f8e99057426caf4f4faaf36371b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_04dfabe68586c37994e1a68d",
+        "principalId": "org",
+        "seq": 3,
+        "prev": "0x96a841aaa9fc47399159e36e23bbaf428146b8532a75e674762a62e41f51cf31",
+        "ts": "2026-10-18T09:36:44.000Z",
+        "kind": "evidence.anchored",
+        "data": {
+          "head": "0x96a841aaa9fc47399159e36e23bbaf428146b8532a75e674762a62e41f51cf31",
+          "count": 3,
+          "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+          "blockNumber": "101",
+          "registry": "0x0000000000000000000000000000000000000000",
+          "party": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        },
+        "hash": "0xd71588f5a5567cb27cc46baec53471038dc06825ffa218b4411fe764e1e557ce",
+        "sig": "0x3d0d88620873543d0e0f81977c25347a39ea3bd6c7c7a7416da8e4c33b9cf74f7d5a2d8782ee80caec3a90e65a011be7e5a30636af9c945d78653daf44abc6001c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_79314e4ffbef43af5a9f06cf",
+        "principalId": "org",
+        "seq": 4,
+        "prev": "0xd71588f5a5567cb27cc46baec53471038dc06825ffa218b4411fe764e1e557ce",
+        "ts": "2026-10-18T09:36:45.000Z",
+        "kind": "external",
+        "data": {
+          "source": "operator",
+          "note": "after the first anchor"
+        },
+        "hash": "0x1e98bbc9394cda4ae7f65a64ae45b8a2e594da9e7bb4ac1f3b0f00dbfbf7630b",
+        "sig": "0x561bb524587970fac92d668e19fa589aa97e92adcb903f3d1d9e33697ed0596b7724b1b17230ddf9a7e75c469224fcc99a6f3c6175eef8d74265986ee5bbb1a71c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_18a88cec75f1877b73da32e1",
+        "principalId": "org",
+        "seq": 5,
+        "prev": "0x1e98bbc9394cda4ae7f65a64ae45b8a2e594da9e7bb4ac1f3b0f00dbfbf7630b",
+        "ts": "2026-10-18T09:36:48.000Z",
+        "kind": "evidence.anchored",
+        "data": {
+          "head": "0x1e98bbc9394cda4ae7f65a64ae45b8a2e594da9e7bb4ac1f3b0f00dbfbf7630b",
+          "count": 5,
+          "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2",
+          "blockNumber": "102",
+          "registry": "0x0000000000000000000000000000000000000000",
+          "party": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        },
+        "hash": "0xb9ca7a355e3add6dee23e81dbea66f77f1f9e022912d74731318b45e5533ce87",
+        "sig": "0x9f180e7bfcf44e29b0f9f008e4318b1f36fa2c6edfd3978999e59b5f0f35305f3da051b26a6f55dd790b8d4a26e7ef207be22748e617b4344666fdd59b15d4631c"
+      }
+    ],
+    "anchors": [
+      {
+        "head": "0x7ac0961ddaf4b9faabbf8fb2907a9ed4d4a7fdd217743be39f91561f40b06ca3",
+        "count": 3,
+        "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+        "blockNumber": "101",
+        "registry": "0x0000000000000000000000000000000000000000",
+        "party": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      },
+      {
+        "head": "0x1e98bbc9394cda4ae7f65a64ae45b8a2e594da9e7bb4ac1f3b0f00dbfbf7630b",
+        "count": 5,
+        "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2",
+        "blockNumber": "102",
+        "registry": "0x0000000000000000000000000000000000000000",
+        "party": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      }
+    ]
+  }
+}

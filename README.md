@@ -214,7 +214,7 @@ Credential caveats (`spend_cap`, `per_tx_max`, `allowed_payees`, `allowed_rails`
 2. **Rail-agnostic core, adapters at the edge.** One `PaymentIntent`, one `Receipt`.
 3. **Monotonic delegation.** A sub-agent's authority is a strict subset of its parent's, verifiable offline and re-checked on-chain, with spend charged to every ancestor.
 4. **Minimise facilitator trust.** Every settlement is confirmed on-chain by the gateway itself.
-5. **Evidence by default.** Every decision, settlement, approval and policy change is a signed, hash-chained receipt.
+5. **Evidence by default.** Every decision, settlement, approval and policy change is a signed, hash-chained receipt. The bundle format is an open specification ([docs/spec/evidence-v1.md](docs/spec/evidence-v1.md)) with test vectors and a standard-library Python verifier, so an auditor needs none of this code to check it.
 6. **Human escalation is a first-class path.** Signed approvals, resume, expiry.
 7. **Fail closed.** Kill switch from the gateway flag or any root session key, owner-only unpause, expiry on everything. The gateway refuses private destinations and never follows a payee redirect.
 8. **Self-hostable in one command.** Apache-2.0.

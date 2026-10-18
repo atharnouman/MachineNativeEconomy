@@ -64,7 +64,7 @@ flowchart LR
 * **Policy version** — a hashed document with activation time, `prevHash` link, diff and impact. Decisions cite the hash active at their time.
 * **Approval** — a pending/approved/rejected/expired/consumed record bound to one intent hash and amount; resolutions may carry an EIP-191 signature from a registered approver, verified against the key that approver held at that point in the chain (ADR-0019).
 * **Receipt** — one per decision, settlement, denial, credential event, approval transition, approver key change, policy change, kill-switch flip, anchor and gateway key change. Hash-chained per principal and signed by the receipt-signing key in force at its position (the gateway key, or a separate evidence key, ADR-0023); a key change is a `gateway.key.rotated` receipt, carrying the old key's handover when the gateway still holds it (ADR-0020).
-* **EvidenceBundle** — policy versions, approvers and their key history, public credentials, receipt chain with its gateway key history, anchors with their sender. `verifyBundle()` runs offline; `--rpc` adds anchor existence; `--gateway-key` pins the gateway keys an auditor trusts.
+* **EvidenceBundle** — policy versions, approvers and their key history, public credentials, receipt chain with its gateway key history, anchors with their sender. `verifyBundle()` runs offline; `--rpc` adds anchor existence; `--gateway-key` pins the gateway keys an auditor trusts. The format is specified in [docs/spec/evidence-v1.md](spec/evidence-v1.md), with a JSON Schema, test vectors and an independent Python verifier (ADR-0026).
 
 ## Sequences
 

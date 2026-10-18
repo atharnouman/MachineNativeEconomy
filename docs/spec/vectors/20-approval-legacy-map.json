@@ -1,0 +1,307 @@
+{
+  "format": "evidence-v1",
+  "name": "approval-legacy-map",
+  "description": "A signed approval in a chain without approver receipts verifies against the approvers map, as bundles from before key history do.",
+  "expected": {
+    "ok": true,
+    "checks": [
+      {
+        "check": "schema",
+        "ok": true
+      },
+      {
+        "check": "policy.hash",
+        "ok": true
+      },
+      {
+        "check": "policy.versions",
+        "ok": true
+      },
+      {
+        "check": "receipts.chain",
+        "ok": true
+      },
+      {
+        "check": "receipts.policyHash",
+        "ok": true
+      },
+      {
+        "check": "credentials.ids",
+        "ok": true
+      },
+      {
+        "check": "credentials.monotonic",
+        "ok": true
+      },
+      {
+        "check": "anchors.match",
+        "ok": true
+      },
+      {
+        "check": "settlements.have_allow_decision",
+        "ok": true
+      },
+      {
+        "check": "approvers.history",
+        "ok": true
+      },
+      {
+        "check": "approvals",
+        "ok": true
+      }
+    ]
+  },
+  "bundle": {
+    "v": 1,
+    "principalId": "org",
+    "exportedAt": "2026-10-18T09:19:10.000Z",
+    "gateway": {
+      "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "chain": "eip155:31337"
+    },
+    "gatewayKeyHistory": [],
+    "contracts": {
+      "agentAccount": "0x0000000000000000000000000000000000000000",
+      "usdc": "0x0000000000000000000000000000000000000000",
+      "receiptRegistry": "0x0000000000000000000000000000000000000000",
+      "enforcer.spendLimit": "0x0000000000000000000000000000000000000000",
+      "enforcer.timeWindow": "0x0000000000000000000000000000000000000000",
+      "enforcer.allowedTargets": "0x0000000000000000000000000000000000000000"
+    },
+    "policy": {
+      "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+      "document": {
+        "version": 1,
+        "principalId": "org",
+        "currency": {
+          "asset": "USDC",
+          "decimals": 6
+        },
+        "budgets": {
+          "org": {
+            "cap": "1.00",
+            "period": "daily"
+          },
+          "research": {
+            "cap": "0.50",
+            "parent": "org",
+            "period": "lifetime"
+          }
+        },
+        "agents": {
+          "analyst": {
+            "budget": "research"
+          }
+        },
+        "velocity": [
+          {
+            "id": "burst",
+            "scope": "agent",
+            "window": "1m",
+            "max_count": 5
+          }
+        ],
+        "rules": [
+          {
+            "id": "big",
+            "effect": "escalate",
+            "match": {
+              "amount_gt": "0.03"
+            }
+          },
+          {
+            "id": "allow-all",
+            "effect": "allow",
+            "match": {}
+          }
+        ]
+      }
+    },
+    "policyVersions": [
+      {
+        "version": 1,
+        "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "prevHash": null,
+        "activatedAt": "2026-10-18T09:19:03.000Z",
+        "activatedBy": "config",
+        "document": {
+          "version": 1,
+          "principalId": "org",
+          "currency": {
+            "asset": "USDC",
+            "decimals": 6
+          },
+          "budgets": {
+            "org": {
+              "cap": "1.00",
+              "period": "daily"
+            },
+            "research": {
+              "cap": "0.50",
+              "parent": "org",
+              "period": "lifetime"
+            }
+          },
+          "agents": {
+            "analyst": {
+              "budget": "research"
+            }
+          },
+          "velocity": [
+            {
+              "id": "burst",
+              "scope": "agent",
+              "window": "1m",
+              "max_count": 5
+            }
+          ],
+          "rules": [
+            {
+              "id": "big",
+              "effect": "escalate",
+              "match": {
+                "amount_gt": "0.03"
+              }
+            },
+            {
+              "id": "allow-all",
+              "effect": "allow",
+              "match": {}
+            }
+          ]
+        }
+      }
+    ],
+    "approvers": {
+      "cfo": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+    },
+    "approverHistory": {},
+    "credentials": [],
+    "receipts": [
+      {
+        "v": 1,
+        "id": "rcpt_3d9ad8d27985ab7dd0e22b99",
+        "principalId": "org",
+        "seq": 0,
+        "prev": null,
+        "ts": "2026-10-18T09:19:04.000Z",
+        "kind": "policy.updated",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "version": 1,
+          "prevHash": null,
+          "hash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+          "activatedBy": "config",
+          "diff": null,
+          "impact": []
+        },
+        "hash": "0x4ca292572c72108a72928a60c8887e4e222a9a4c83505ad17411772e14920336",
+        "sig": "0x6982da209f70c6b3f7976a2a64d1cb349d33dfbba1a913852eb46bedb1b00d20748ad957aeb22974a23c3fe0dec597d82faafd605f6449d1b323f5b35db181d71b"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_9703b7e618a9f98dc1d424fb",
+        "principalId": "org",
+        "seq": 1,
+        "prev": "0x4ca292572c72108a72928a60c8887e4e222a9a4c83505ad17411772e14920336",
+        "ts": "2026-10-18T09:19:08.000Z",
+        "kind": "approval.requested",
+        "agentId": "analyst",
+        "credentialId": "cred_vectors",
+        "intentId": "int_0501",
+        "intentHash": "0x0ff636e4904ba63816e01cb1b6226f99b6323fb5b4bee3074c28007b9102e27a",
+        "approvalId": "apr_c24ad347b063873fffd78b43",
+        "rail": "x402",
+        "policyHash": "0xde20f936b49fba297874605038606a84fbfac810f0fac3c05b9715874cc22dc1",
+        "data": {
+          "approval": {
+            "v": 1,
+            "id": "apr_c24ad347b063873fffd78b43",
+            "principalId": "org",
+            "intentId": "int_0501",
+            "intentHash": "0x0ff636e4904ba63816e01cb1b6226f99b6323fb5b4bee3074c28007b9102e27a",
+            "credentialId": "cred_vectors",
+            "agentId": "analyst",
+            "amount": "40000",
+            "token": "0x0000000000000000000000000000000000000000",
+            "chain": "eip155:31337",
+            "payee": {
+              "host": "payee.example",
+              "address": "0x0000000000000000000000000000000000000000",
+              "url": "https://payee.example/v1/report"
+            },
+            "resource": "/v1/report",
+            "purpose": "research",
+            "rail": "x402",
+            "reasons": [
+              "RULE_ESCALATE:big"
+            ],
+            "status": "pending",
+            "requestedAt": "2026-10-18T09:19:06.000Z",
+            "expiresAt": "2026-10-18T10:19:07.000Z"
+          },
+          "decision": {
+            "effect": "escalate",
+            "reasons": [
+              "RULE_ESCALATE:big"
+            ],
+            "matchedRules": [
+              "big"
+            ]
+          }
+        },
+        "hash": "0x00d52cd8edd64d2d71ea84d58af5550bcb97546885f7d2b6deba4ebb2ff84983",
+        "sig": "0x700ccbcb49ccfbb5e64c10da41021b6378cf6dd485b6da2b344a9d2540ecb19b554f84eaaa09c7ca6793ac1a623bb786b9f994fa7511c835c695f8cb4b9fb2271c"
+      },
+      {
+        "v": 1,
+        "id": "rcpt_dfc5b2c94a76e3ab4223654d",
+        "principalId": "org",
+        "seq": 2,
+        "prev": "0x00d52cd8edd64d2d71ea84d58af5550bcb97546885f7d2b6deba4ebb2ff84983",
+        "ts": "2026-10-18T09:19:09.000Z",
+        "kind": "approval.granted",
+        "intentId": "int_0501",
+        "approvalId": "apr_c24ad347b063873fffd78b43",
+        "data": {
+          "approval": {
+            "v": 1,
+            "id": "apr_c24ad347b063873fffd78b43",
+            "principalId": "org",
+            "intentId": "int_0501",
+            "intentHash": "0x0ff636e4904ba63816e01cb1b6226f99b6323fb5b4bee3074c28007b9102e27a",
+            "credentialId": "cred_vectors",
+            "agentId": "analyst",
+            "amount": "40000",
+            "token": "0x0000000000000000000000000000000000000000",
+            "chain": "eip155:31337",
+            "payee": {
+              "host": "payee.example",
+              "address": "0x0000000000000000000000000000000000000000",
+              "url": "https://payee.example/v1/report"
+            },
+            "resource": "/v1/report",
+            "purpose": "research",
+            "rail": "x402",
+            "reasons": [
+              "RULE_ESCALATE:big"
+            ],
+            "status": "approved",
+            "requestedAt": "2026-10-18T09:19:06.000Z",
+            "expiresAt": "2026-10-18T10:19:07.000Z"
+          },
+          "approver": {
+            "id": "cfo",
+            "method": "signature",
+            "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+            "signature": "0x27a5e1b46973338bc957eab5683a95bff215b50f1e4adb4eee33eea220bcc67269295d83f1ba331b7d30772cec62897b93bb494f91e8434da7eaf4f84a8777751b"
+          },
+          "note": null
+        },
+        "hash": "0x8ae9665df70bb5c5ddd025c300fbdde5a6fe254881a6fa62120056815a6cc201",
+        "sig": "0x57c33eb62a832d1cf6cf2f691f7c63a3d86a5d4488e6646a24660c71df3ab69b1a3df0e7c6c8148e9233a64041fd6a82ec91227fa6971a0f66be222462011d9a1c"
+      }
+    ],
+    "anchors": []
+  }
+}

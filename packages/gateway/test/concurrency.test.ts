@@ -73,9 +73,31 @@ const kinds = async (gw: Gateway) => (await gw.store.receiptsFor("org")).map((r)
 const exported = async (gw: Gateway) => JSON.parse(JSON.stringify(await gw.exportEvidence("org"))) as EvidenceBundle;
 
 /** Replaces a private step of the payment service, to hold a lease for a while without a payee or a chain. */
-function stub<T>(gw: Gateway, method: "payOnce" | "chargeLeased", run: () => Promise<T>) {
-  (gw.payments as unknown as Record<string, () => Promise<T>>)[method] = run;
+function stub<T>(gw: Gateway, method: "payOnce" | "chargeLeased", run: (...args: never[]) => Promise<T>) {
+  (gw.payments as unknown as Record<string, unknown>)[method] = run;
 }
+
+/** A step that holds until released and tells when it has started, so a lease stays held while another call tries for it. */
+function gate() {
+  let release!: () => void;
+  const released = new Promise<void>((r) => (release = r));
+  let entered = false;
+  return {
+    hold: async () => {
+      entered = true;
+      await released;
+    },
+    entered: () => entered,
+    release: () => release(),
+  };
+}
+
+async function until(cond: () => boolean) {
+  for (const end = Date.now() + 10_000; !cond(); await sleep(5)) if (Date.now() > end) throw new Error("timed out waiting");
+}
+
+const unreachable = (): PayResult => ({ ok: false, status: 502, intent: {} as PaymentIntent, receipts: [], error: "payee unreachable" });
+const charged = (s: Subscription): ChargeResult => ({ ok: true, status: 200, subscriptionId: s.id, subscriptionStatus: "active" });
 
 for (const driver of drivers()) {
   describe(`races fixed within one gateway [${driver}]`, () => {
@@ -96,20 +118,18 @@ for (const driver of drivers()) {
 
     it("runs one payment at a time under an approval: a second one at the same time gets 409", async () => {
       const gw = await start(await freshStoreOptions(driver, "race-approval-use"));
-      let running = 0;
-      let most = 0;
+      const first = gate();
       stub<PayResult>(gw, "payOnce", async () => {
-        most = Math.max(most, ++running);
-        await sleep(100);
-        running--;
-        return { ok: false, status: 502, intent: {} as PaymentIntent, receipts: [], error: "payee unreachable" };
+        await first.hold();
+        return unreachable();
       });
       const cred = { principalId: "org" } as Credential;
       const req = { url: "https://payee.example/v1/report", maxAmount: "0.04", purpose: "research", approvalId: "apr_shared" };
-      const outcomes = await Promise.allSettled([gw.payments.pay(cred, req), gw.payments.pay(cred, req)]);
-      expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
-      expect(((outcomes.find((o) => o.status === "rejected") as PromiseRejectedResult).reason as Error).message).toBe("approval apr_shared is in use by another payment");
-      expect(most).toBe(1);
+      const paying = gw.payments.pay(cred, req);
+      await until(first.entered); // the first payment holds the approval's lease
+      await expect(gw.payments.pay(cred, req)).rejects.toThrow("approval apr_shared is in use by another payment");
+      first.release();
+      expect((await paying).status).toBe(502);
       // the lease is given up when the payment ends, so a retry may run
       expect((await gw.payments.pay(cred, req)).status).toBe(502);
       await gw.close();
@@ -121,14 +141,18 @@ for (const driver of drivers()) {
       const sub = { v: 1, id: "sub_1", principalId: "org", agentId: "a", credentialId: "cred_test", payee: { url: "https://payee.example/v1/feed", host: "payee.example", address: ZERO }, resource: "/v1/feed", purpose: "feed", token: ZERO, chain: "eip155:31337", terms: { kind: "fixed", amountPerCharge: "1000", interval: "1h", expiresAt: new Date(Date.now() + 86_400_000).toISOString() }, chargeTokenHash: createHash("sha256").update(token).digest("hex"), chargeUrl: "http://127.0.0.1/v1/subscriptions/sub_1/charges", status: "active", createdAt: nowIso(), charges: 1, totalCharged: "1000" } as Subscription;
       await gw.store.putSubscription(sub);
       let seen: Subscription | undefined;
-      (gw.payments as unknown as { chargeLeased: (s: Subscription) => Promise<ChargeResult> }).chargeLeased = async (s) => {
+      const first = gate();
+      stub<ChargeResult>(gw, "chargeLeased", async (s: Subscription) => {
         seen = s;
-        await sleep(100);
-        return { ok: true, status: 200, subscriptionId: s.id, subscriptionStatus: "active" };
-      };
-      const [x, y] = await Promise.all([gw.payments.charge("sub_1", token, {}), gw.payments.charge("sub_1", token, {})]);
-      expect([x.status, y.status].sort()).toEqual([200, 409]);
-      expect([x, y].find((r) => r.status === 409)?.error).toBe("another charge of this subscription is in progress");
+        await first.hold();
+        return charged(s);
+      });
+      const charging = gw.payments.charge("sub_1", token, {});
+      await until(first.entered); // the first charge holds the subscription's lease
+      const second = await gw.payments.charge("sub_1", token, {});
+      expect(second).toMatchObject({ status: 409, error: "another charge of this subscription is in progress" });
+      first.release();
+      expect((await charging).status).toBe(200);
       expect(seen?.charges).toBe(1); // read under the lease
       expect((await gw.payments.charge("sub_1", "wrong-token", {})).status).toBe(401);
       await gw.close();
@@ -201,25 +225,33 @@ for (const driver of drivers().filter((d): d is Exclude<StoreDriver, "json"> => 
       const opts = await freshStoreOptions(driver, "two-instances-leases");
       const one = await start(opts);
       const two = await start(opts);
-      for (const gw of [one, two]) {
-        stub<PayResult>(gw, "payOnce", async () => {
-          await sleep(150);
-          return { ok: false, status: 502, intent: {} as PaymentIntent, receipts: [], error: "payee unreachable" };
-        });
-        (gw.payments as unknown as { chargeLeased: (s: Subscription) => Promise<ChargeResult> }).chargeLeased = async (s) => {
-          await sleep(150);
-          return { ok: true, status: 200, subscriptionId: s.id, subscriptionStatus: "active" };
-        };
-      }
+      const payment = gate();
+      const charge = gate();
+      stub<PayResult>(one, "payOnce", async () => {
+        await payment.hold();
+        return unreachable();
+      });
+      stub<ChargeResult>(one, "chargeLeased", async (s: Subscription) => {
+        await charge.hold();
+        return charged(s);
+      });
+      stub<PayResult>(two, "payOnce", async () => unreachable());
+      stub<ChargeResult>(two, "chargeLeased", async (s: Subscription) => charged(s));
       const cred = { principalId: "org" } as Credential;
       const req = { url: "https://payee.example/v1/report", maxAmount: "0.04", purpose: "research", approvalId: "apr_shared" };
-      const paid = await Promise.allSettled([one.payments.pay(cred, req), two.payments.pay(cred, req)]);
-      expect(paid.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+      const paying = one.payments.pay(cred, req);
+      await until(payment.entered);
+      await expect(two.payments.pay(cred, req)).rejects.toThrow("approval apr_shared is in use by another payment");
+      payment.release();
+      expect((await paying).status).toBe(502);
 
       const token = "charge-token";
       await one.store.putSubscription({ v: 1, id: "sub_2", principalId: "org", agentId: "a", credentialId: "cred_test", payee: { url: "https://payee.example/v1/feed", host: "payee.example", address: ZERO }, resource: "/v1/feed", purpose: "feed", token: ZERO, chain: "eip155:31337", terms: { kind: "fixed", amountPerCharge: "1000", interval: "1h", expiresAt: new Date(Date.now() + 86_400_000).toISOString() }, chargeTokenHash: createHash("sha256").update(token).digest("hex"), chargeUrl: "http://127.0.0.1/v1/subscriptions/sub_2/charges", status: "active", createdAt: nowIso(), charges: 1, totalCharged: "1000" } as Subscription);
-      const charged = await Promise.all([one.payments.charge("sub_2", token, {}), two.payments.charge("sub_2", token, {})]);
-      expect(charged.map((r) => r.status).sort()).toEqual([200, 409]);
+      const charging = one.payments.charge("sub_2", token, {});
+      await until(charge.entered);
+      expect((await two.payments.charge("sub_2", token, {})).status).toBe(409);
+      charge.release();
+      expect((await charging).status).toBe(200);
       await one.close();
       await two.close();
     });

@@ -16,6 +16,7 @@ Done:
 * Approval workflow with EIP-191-signed resolutions, resume, expiry, offline verification.
 * Policy versions with diff, impact analysis and activation-time verification.
 * `@spendmarshal/devnet`; Phase 1 demo and end-to-end test.
+* Evidence format v1 as a specification, with a JSON Schema, 34 test vectors and an independent Python verifier (ADR-0026).
 * Store interface with JSON and SQLite drivers (ADR-0010); an asynchronous store with atomic check-then-act, versioned migrations, and a Postgres driver for several gateway instances on one database (ADR-0025).
 * Standard x402 interop: EIP-3009 payloads for EOAs and, via on-chain pre-approval + ERC-1271, for AgentAccounts and delegated EOAs, so any public facilitator can settle (ADR-0009).
 * RFC 9421: outbound Web Bot Auth with a signed key directory, payee-side verification, holder-bound credentials (ADR-0011).

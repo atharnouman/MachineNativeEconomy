@@ -154,12 +154,18 @@ export async function verifyReceipt(
   r: Receipt,
   gatewayAddress: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const parsed = ReceiptSchema.safeParse(r);
+  // strict: every member of a receipt is covered by its hash, so one the schema does not know is refused, never dropped
+  const parsed = ReceiptSchema.strict().safeParse(r);
   if (!parsed.success) return { ok: false, reason: `schema: ${parsed.error.issues[0]?.message}` };
   const { hash, sig, ...body } = r;
   const expected = receiptHash(body);
   if (expected !== hash) return { ok: false, reason: `hash mismatch (expected ${expected})` };
-  const signer = await recoverMessageAddress({ message: { raw: hash as Hex }, signature: sig as Hex });
+  let signer: string;
+  try {
+    signer = await recoverMessageAddress({ message: { raw: hash as Hex }, signature: sig as Hex });
+  } catch {
+    return { ok: false, reason: "signature is malformed" }; // reported as a failed check, never thrown at the caller
+  }
   if (signer.toLowerCase() !== gatewayAddress.toLowerCase()) return { ok: false, reason: `signer ${signer} is not gateway` };
   return { ok: true };
 }

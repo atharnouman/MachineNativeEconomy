@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Address, Hex } from "viem";
-import { canonicalize } from "./canonical.js";
+import { canonicalize, hashJson } from "./canonical.js";
 import { PolicySchema, policyHash } from "./policy.js";
 import { GatewayKeyChangeSchema, ReceiptSchema, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
@@ -12,6 +12,10 @@ import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
  * keys (the current ones, and every key each approver held in this chain), the signed receipt chain with every
  * change of the gateway key in it, and the on-chain anchors. It deliberately omits credential signatures (bearer
  * secrets) and session private keys.
+ *
+ * The format is specified in docs/spec/evidence-v1.md (ADR-0026). Every hash and every equality check runs on the bundle
+ * exactly as given; the schema only checks types. A receipt may hold only the members the schema names, since anything
+ * else would not be covered by its signature.
  */
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -86,7 +90,7 @@ export const EvidenceBundleSchema = z.object({
   approvers: z.record(z.string()).default({}), // approver id -> address, as configured at export
   approverHistory: z.record(z.array(ApproverKeySchema)).default({}), // approver id -> every key it held in this chain
   credentials: z.array(CredentialPublicSchema),
-  receipts: z.array(ReceiptSchema),
+  receipts: z.array(ReceiptSchema.strict()),
   anchors: z.array(
     // party: the address that sent the anchor, under which the registry keeps it (absent on anchors from before ADR-0020)
     z.object({ head: z.string(), count: z.number().int(), txHash: z.string(), blockNumber: z.string(), registry: z.string(), party: z.string().optional() }),
@@ -116,17 +120,20 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
   const parsed = EvidenceBundleSchema.safeParse(bundle);
   push("schema", parsed.success, parsed.success ? undefined : parsed.error.issues[0]?.message);
   if (!parsed.success) return { ok: false, checks };
+  // hashes and equality checks read the bundle as given: the parsed copy has unknown members dropped and defaults filled
+  const raw = bundle as unknown as RawBundle;
   bundle = parsed.data;
 
   // active policy hash
-  const ph = policyHash(bundle.policy.document);
+  const ph = policyHash(raw.policy.document as EvidenceBundle["policy"]["document"]);
   push("policy.hash", ph === bundle.policy.hash, `${ph} vs ${bundle.policy.hash}`);
 
   // policy versions: hashes recompute, prev links chain, numbering is sequential, active = last
-  const versions = [...bundle.policyVersions].sort((a, b) => a.version - b.version);
+  const rawVersions = raw.policyVersions ?? [];
+  const versions = bundle.policyVersions.map((v, i) => ({ ...v, rawDocument: rawVersions[i]?.document })).sort((a, b) => a.version - b.version);
   const vProblems: string[] = [];
   versions.forEach((v, i) => {
-    if (policyHash(v.document) !== v.hash) vProblems.push(`v${v.version}: hash mismatch`);
+    if (hashJson(v.rawDocument) !== v.hash) vProblems.push(`v${v.version}: hash mismatch`);
     if (v.version !== i + 1) vProblems.push(`v${v.version}: expected v${i + 1}`);
     const expectedPrev = i === 0 ? null : versions[i - 1]!.hash;
     if (v.prevHash !== expectedPrev) vProblems.push(`v${v.version}: prevHash link broken`);
@@ -142,7 +149,7 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
   // gateway key history (ADR-0020): the export must match the rotations in the receipts. Reported only when there is a
   // rotation or an exported change, so a bundle without either gets exactly the report it got before key history.
   if (chain.keys.length > 0 || bundle.gatewayKeyHistory.length > 0) {
-    const matches = canonicalize(bundle.gatewayKeyHistory) === canonicalize(chain.keys);
+    const matches = canonicalize(raw.gatewayKeyHistory ?? []) === canonicalize(chain.keys);
     push("gateway.keys", matches, matches ? describeKeys(chain.keys) : "gatewayKeyHistory does not match the receipts");
   }
   if (opts.trustedGatewayKeys) {
@@ -159,20 +166,21 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
   const activeAt = (ts: string): string | null => {
     if (versions.length === 0) return bundle.policy.hash;
     const t = new Date(ts).getTime();
-    let cur: PolicyVersion | null = null;
+    let cur: (typeof versions)[number] | null = null;
     for (const v of versions) if (new Date(v.activatedAt).getTime() <= t) cur = v;
     return cur ? cur.hash : null;
   };
   const stale = bundle.receipts.filter((r) => r.policyHash && r.policyHash !== activeAt(r.ts));
   push("receipts.policyHash", stale.length === 0, stale.length ? `${stale.length} receipts cite a policy that was not active at their time (e.g. ${stale[0]!.id})` : undefined);
 
-  // credentials: ids derive from caveats; every child is a subset of its parent
+  // credentials: ids derive from caveats (as given); every child is a subset of its parent and extends its caveat chain
+  const rawCaveats = new Map(bundle.credentials.map((c, i) => [c, (raw.credentials[i]?.caveats ?? []) as unknown[]]));
   const byId = new Map(bundle.credentials.map((c) => [c.id, c]));
   let idOk = true;
   let monoOk = true;
   const monoDetail: string[] = [];
   for (const c of bundle.credentials) {
-    if (credentialId(c) !== c.id) idOk = false;
+    if (credentialId({ rootId: c.rootId, caveats: rawCaveats.get(c) as CredentialPublic["caveats"] }) !== c.id) idOk = false;
     if (c.parentId) {
       const p = byId.get(c.parentId);
       if (!p) {
@@ -185,7 +193,8 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
         monoOk = false;
         monoDetail.push(`${c.id}: wider than parent in ${r.violations.join(",")}`);
       }
-      const prefix = p.caveats.every((pc, i) => JSON.stringify(pc) === JSON.stringify(c.caveats[i]));
+      const mine = rawCaveats.get(c)!;
+      const prefix = rawCaveats.get(p)!.every((pc, i) => canonicalize(pc) === canonicalize(mine[i]));
       if (!prefix) {
         monoOk = false;
         monoDetail.push(`${c.id}: caveat chain does not extend parent`);
@@ -214,11 +223,12 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
   }
   push("anchors.match", anchorsOk, anchorDetail.join("; ") || `${bundle.anchors.length} anchors`);
 
-  // settlements: each settled payment must be preceded by an allow decision for the same intent
-  const allowed = new Set(
-    bundle.receipts.filter((r) => r.kind === "decision" && (r.data as { effect?: string }).effect === "allow").map((r) => r.intentId),
-  );
-  const orphan = bundle.receipts.filter((r) => r.kind === "payment.settled" && !allowed.has(r.intentId));
+  // settlements: each settled payment names its intent, and an allow decision for that intent comes before it
+  const allowedFrom = new Map<string, number>();
+  bundle.receipts.forEach((r, i) => {
+    if (r.kind === "decision" && (r.data as { effect?: string }).effect === "allow" && r.intentId && !allowedFrom.has(r.intentId)) allowedFrom.set(r.intentId, i);
+  });
+  const orphan = bundle.receipts.filter((r, i) => r.kind === "payment.settled" && !(r.intentId && (allowedFrom.get(r.intentId) ?? Infinity) < i));
   push("settlements.have_allow_decision", orphan.length === 0, orphan.map((r) => r.id).join(",") || undefined);
 
   // approver key history (ADR-0019): `approver.registered` / `approver.removed` receipts say which key each approver
@@ -239,7 +249,7 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
     else if (!sameAddress(typeof prev === "string" ? prev : null, before)) historyProblems.push(`${r.id}: prevAddress is not the key ${k.approverId} held before it`);
     held.set(k.approverId, k.key.address);
   }
-  const exportedHistory = new Map(Object.entries(bundle.approverHistory));
+  const exportedHistory = new Map(Object.entries(raw.approverHistory ?? {}));
   for (const id of new Set([...keyHistory.keys(), ...exportedHistory.keys()])) {
     if (canonicalize(exportedHistory.get(id) ?? []) !== canonicalize(keyHistory.get(id) ?? [])) historyProblems.push(`approverHistory.${id} does not match the receipts`);
   }
@@ -260,12 +270,15 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
     return mapped ? { address: mapped, basis: "map" } : { address: null, why: `approver ${approverId} not registered` };
   };
 
-  // approvals: each signed resolution verifies against the key its approver held at that point; consumed approvals were granted
+  // approvals: each signed resolution verifies against the key its approver held at that point; an approval is consumed
+  // only after a grant of it earlier in the chain
   const approvalProblems: string[] = [];
   const granted = new Set<string>();
   let signedCount = 0;
+  let consumedWithoutGrant = 0;
   const basisCount = { first: 0, map: 0 };
   for (const r of bundle.receipts) {
+    if (r.kind === "approval.consumed" && (!r.approvalId || !granted.has(r.approvalId))) consumedWithoutGrant++;
     if (r.kind === "approval.granted" || r.kind === "approval.rejected") {
       const d = r.data as { approver?: { id?: unknown; method?: unknown; address?: unknown; signature?: unknown }; approval?: { id: string; principalId: string; intentHash: string; amount: string } };
       if (r.kind === "approval.granted" && r.approvalId) granted.add(r.approvalId);
@@ -285,8 +298,7 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
       }
     }
   }
-  const consumedWithoutGrant = bundle.receipts.filter((r) => r.kind === "approval.consumed" && (!r.approvalId || !granted.has(r.approvalId)));
-  if (consumedWithoutGrant.length) approvalProblems.push(`${consumedWithoutGrant.length} approvals consumed without a grant`);
+  if (consumedWithoutGrant) approvalProblems.push(`${consumedWithoutGrant} approvals consumed without a grant`);
   const basis = [basisCount.first ? `${basisCount.first} from before key history` : "", basisCount.map ? `${basisCount.map} against the approvers map` : ""].filter(Boolean).join(", ");
   push("approvals", approvalProblems.length === 0, approvalProblems.join("; ") || `${granted.size} granted, ${signedCount} signature-verified${basis ? `; ${basis}` : ""}`);
 
@@ -325,6 +337,15 @@ function trustOf(chain: { ok: boolean; keys: GatewayKeyChange[] }, gatewayAddres
   const names = (pinned: boolean) => [...new Set(segments.filter((s) => trusted.has(s.key.toLowerCase()) === pinned).map((s) => short(s.key)))];
   const handed = names(false);
   return { ok: true, detail: `trusted ${names(true).join(", ")}${handed.length ? `; handed over ${handed.join(", ")}` : ""}` };
+}
+
+/** The members of a bundle that hashes and equality checks read as given. */
+interface RawBundle {
+  policy: { document: unknown };
+  policyVersions?: Array<{ document?: unknown }>;
+  gatewayKeyHistory?: unknown[];
+  approverHistory?: Record<string, unknown[]>;
+  credentials: Array<{ caveats?: unknown[] }>;
 }
 
 export type { CredentialPublic, Receipt };
