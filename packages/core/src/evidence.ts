@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Address, Hex } from "viem";
 import { canonicalize } from "./canonical.js";
 import { PolicySchema, policyHash } from "./policy.js";
-import { GatewayKeyChangeSchema, ReceiptSchema, gatewayKeyAt, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
+import { GatewayKeyChangeSchema, ReceiptSchema, verifyChain, type GatewayKeyChange, type Receipt } from "./receipt.js";
 import { CaveatSchema, effectiveLimits, isSubsetOf, credentialId, type CredentialPublic } from "./credential.js";
 import { verifyApprovalSignature, type ApprovalVerdict } from "./approval.js";
 
@@ -195,8 +195,11 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
   push("credentials.ids", idOk);
   push("credentials.monotonic", monoOk, monoDetail.join("; ") || `${bundle.credentials.length} credentials`);
 
-  // anchors reference receipts that exist in the chain at the stated count; an anchor that names its sender was sent by
-  // the gateway key that signed the receipt it anchors (the gateway hands a chain over before it anchors it)
+  // anchors reference receipts that exist in the chain at the stated count. An anchor that names its sender must be one the
+  // chain records: an `evidence.anchored` receipt, signed like every receipt, with the same head, count, sender and
+  // transaction. The sender is the gateway's on-chain key, which need not be the key that signs receipts (ADR-0023).
+  const anchorId = (x: { head?: unknown; count?: unknown; party?: unknown; txHash?: unknown }) => `${String(x.head).toLowerCase()}|${String(x.count)}|${String(x.party).toLowerCase()}|${String(x.txHash).toLowerCase()}`;
+  const recorded = new Set(bundle.receipts.filter((r) => r.kind === "evidence.anchored").map((r) => anchorId(r.data)));
   let anchorsOk = true;
   const anchorDetail: string[] = [];
   for (const a of bundle.anchors) {
@@ -204,9 +207,9 @@ export async function verifyBundle(bundle: EvidenceBundle, opts: BundleVerifyOpt
     if (!r || r.hash !== a.head) {
       anchorsOk = false;
       anchorDetail.push(`anchor ${a.head.slice(0, 10)} does not match receipt #${a.count}`);
-    } else if (a.party !== undefined && !sameAddress(a.party, gatewayKeyAt(chain.keys, bundle.gateway.address, r.seq))) {
+    } else if (a.party !== undefined && !recorded.has(anchorId(a))) {
       anchorsOk = false;
-      anchorDetail.push(`anchor ${a.head.slice(0, 10)} was sent by ${a.party}, not by the key that signed receipt #${a.count}`);
+      anchorDetail.push(`anchor ${a.head.slice(0, 10)} sent by ${a.party} is not recorded by an evidence.anchored receipt`);
     }
   }
   push("anchors.match", anchorsOk, anchorDetail.join("; ") || `${bundle.anchors.length} anchors`);

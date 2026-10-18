@@ -63,7 +63,7 @@ flowchart LR
 * **Session** — the on-chain compilation of a credential's effective limits, with a `parent`. Sessions form a chain: owner → gateway root session → agent → sub-agent. Spend is charged to every ancestor; revoking an ancestor disables the subtree.
 * **Policy version** — a hashed document with activation time, `prevHash` link, diff and impact. Decisions cite the hash active at their time.
 * **Approval** — a pending/approved/rejected/expired/consumed record bound to one intent hash and amount; resolutions may carry an EIP-191 signature from a registered approver, verified against the key that approver held at that point in the chain (ADR-0019).
-* **Receipt** — one per decision, settlement, denial, credential event, approval transition, approver key change, policy change, kill-switch flip, anchor and gateway key change. Hash-chained per principal and signed by the gateway key in force at its position; a key change is a `gateway.key.rotated` receipt, carrying the old key's handover when the gateway still holds it (ADR-0020).
+* **Receipt** — one per decision, settlement, denial, credential event, approval transition, approver key change, policy change, kill-switch flip, anchor and gateway key change. Hash-chained per principal and signed by the receipt-signing key in force at its position (the gateway key, or a separate evidence key, ADR-0023); a key change is a `gateway.key.rotated` receipt, carrying the old key's handover when the gateway still holds it (ADR-0020).
 * **EvidenceBundle** — policy versions, approvers and their key history, public credentials, receipt chain with its gateway key history, anchors with their sender. `verifyBundle()` runs offline; `--rpc` adds anchor existence; `--gateway-key` pins the gateway keys an auditor trusts.
 
 ## Sequences
@@ -229,6 +229,7 @@ sequenceDiagram
 |---|---|---|
 | Model / agent framework | a credential (bearer, attenuable) | nothing: it cannot sign; the gateway decides |
 | Gateway (bounded operator) | gateway key, session-key secret, credential root key | the remaining cap of its root session, to allowlisted payees, until it expires; it cannot unpause |
+| Evidence key (optional) | signs receipts and nothing else | can write receipts into the chains it is in force for; cannot move funds or send a transaction (ADR-0023) |
 | Earlier gateway key (only while rotating) | signs the handover of the receipt chains it signed | can hand the chains it still signs to a key of its choosing; nothing once they are handed over (ADR-0020) |
 | Session key (derived) | nothing stored | its own `perTxMax` × remaining `spendCap`, bounded further by every ancestor, only to allowlisted targets, only until `validUntil` |
 | Approver key | signs resolutions | can approve escalations within the policy's other limits; cannot move funds |

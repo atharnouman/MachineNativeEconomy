@@ -1,6 +1,6 @@
 export { buildGateway, type Gateway } from "./server.js";
 export { configFromEnv, type GatewayConfig, type ContractAddresses, type PrincipalConfig } from "./config.js";
-export { LocalSigner, type Signer } from "./signer.js";
+export { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 export { ChainClient, type SessionCaveatsOnChain } from "./chain.js";
 export { openStore, type Store, type StoreDriver, type StoreOptions, type LedgerEntry, type RegisteredCredential, type AnchorRecord, type IntentRecord } from "./store.js";
 export { JsonStore } from "./store-json.js";

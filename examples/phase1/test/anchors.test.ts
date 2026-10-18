@@ -3,8 +3,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Address, Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { ReceiptRegistryAbi, type EvidenceBundle } from "@spendmarshal/core";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { ReceiptRegistryAbi, receiptSigner, type EvidenceBundle } from "@spendmarshal/core";
 import { ANVIL_KEYS, deployCore, registryAnchorsPerChain, startAnvil } from "@spendmarshal/devnet";
 import { buildGateway, type Gateway, type GatewayConfig } from "@spendmarshal/gateway";
 import { verifyEvidence } from "@spendmarshal/cli";
@@ -125,6 +125,54 @@ describe("anchoring several principals from one gateway key", () => {
       const unpinned = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl });
       expect(unpinned.checks.find((c) => c.check === "gateway.trusted")?.ok).toBe(false);
       expect(unpinned.checks.find((c) => c.check === "anchors.onchain")?.ok).toBe(true);
+    } finally {
+      await gw?.close();
+      net.stop();
+    }
+  });
+
+  it("keeps one evidence key while the gateway key changes between runs, as the testnet runner does (ADR-0023)", async () => {
+    const net = await startAnvil({ port: 18549 });
+    let gw: Gateway | undefined;
+    try {
+      const core = await deployCore(net, KEY);
+      const dir = mkdtempSync(join(tmpdir(), "spendmarshal-anchors-evidence-"));
+      const evidenceKey = generatePrivateKey(); // signs receipts only: never funded, never sends a transaction
+      const evidence = privateKeyToAccount(evidenceKey).address;
+      const [runOne, runTwo] = [ANVIL_KEYS[4]!, ANVIL_KEYS[5]!]; // keys no other test here sent from (one nonce manager per process)
+      const config = (gatewayPrivateKey: Hex): GatewayConfig => ({
+        host: "127.0.0.1",
+        port: 0,
+        rpcUrl: net.rpcUrl,
+        chainId: net.chainId,
+        gatewayPrivateKey,
+        evidencePrivateKey: evidenceKey,
+        sessionSecret: "session-secret",
+        credentialRootKey: "credential-root-key",
+        adminToken: "admin",
+        dataDir: dir,
+        policyYaml: policy("acme"),
+        contracts: { usdc: core.usdc, receiptRegistry: core.receiptRegistry, enforcers: core.enforcers },
+        principals: { acme: { account: ZERO } },
+        asset: { symbol: "USDC", decimals: 6 },
+        facilitator: { enabled: false },
+        authorizationTtlSeconds: 120,
+      });
+      for (const key of [runOne, runTwo]) {
+        gw = await buildGateway(config(key));
+        await gw.ready;
+        await gw.anchor("acme");
+        if (key === runOne) await gw.close();
+      }
+      const receipts = gw!.store.receiptsFor("acme");
+      expect(receipts.map((r) => r.kind)).not.toContain("gateway.key.rotated");
+      expect(new Set(receipts.map(receiptSigner))).toEqual(new Set([evidence]));
+      const bundle = JSON.parse(JSON.stringify(gw!.exportEvidence("acme"))) as EvidenceBundle;
+      expect(bundle.anchors.map((a) => a.party)).toEqual([privateKeyToAccount(runOne).address, privateKeyToAccount(runTwo).address]);
+      const report = await verifyEvidence(bundle, { rpcUrl: net.rpcUrl, trustedGatewayKeys: [evidence] });
+      expect(report.ok, JSON.stringify(report.checks)).toBe(true);
+      expect(report.checks.find((c) => c.check === "anchors.onchain")?.detail).toMatch(/^0x[0-9a-f]{8} @ block \d+; 0x[0-9a-f]{8} @ block \d+$/);
+      expect((await verifyEvidence(bundle, { rpcUrl: net.rpcUrl })).ok).toBe(true); // no rotation, so nothing to pin
     } finally {
       await gw?.close();
       net.stop();

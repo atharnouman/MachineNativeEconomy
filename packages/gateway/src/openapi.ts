@@ -51,7 +51,7 @@ export function buildOpenApi(info: { url: string; version: string }) {
       },
     },
     paths: {
-      "/healthz": { get: { summary: "Liveness, gateway address, active policy versions", responses: { 200: json(obj("ok, gateway, chainId, policies")) } } },
+      "/healthz": { get: { summary: "Liveness, gateway and evidence addresses, active policy versions", responses: { 200: json(obj("ok, gateway, evidenceKey, chainId, policies")) } } },
       "/metrics": { get: { summary: "Prometheus metrics", responses: { 200: { description: "text/plain; version=0.0.4" } } } },
       "/openapi.json": { get: { summary: "This document", responses: { 200: json(obj("OpenAPI 3.1")) } } },
       "/.well-known/http-message-signatures-directory": { get: { summary: "Web Bot Auth key directory (signed response)", responses: { 200: json(obj("{ keys: JWK[] }"), "application/http-message-signatures-directory+json") } } },

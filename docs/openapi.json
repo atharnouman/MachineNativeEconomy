@@ -2463,7 +2463,7 @@
   "paths": {
     "/healthz": {
       "get": {
-        "summary": "Liveness, gateway address, active policy versions",
+        "summary": "Liveness, gateway and evidence addresses, active policy versions",
         "responses": {
           "200": {
             "description": "",
@@ -2471,7 +2471,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "description": "ok, gateway, chainId, policies",
+                  "description": "ok, gateway, evidenceKey, chainId, policies",
                   "additionalProperties": true
                 }
               }

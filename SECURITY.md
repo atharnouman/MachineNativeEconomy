@@ -11,7 +11,8 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). In one line: the model never s
 ## Keys
 | Key | Where | Purpose |
 |---|---|---|
-| Gateway key | gateway signer (dev: env; prod: KMS/HSM) | signs receipts, operates accounts, relays |
+| Gateway key | gateway signer (dev: env; prod: KMS/HSM) | operates accounts, holds the root session, relays, sends anchors; signs receipts unless an evidence key is set |
+| Evidence key (optional, ADR-0023) | gateway signer (prod: KMS/HSM) | signs receipts only; never transacts, so it needs no funds and stays put while the gateway key changes |
 | Session-key secret | gateway signer | derives one session key per credential (HMAC) |
 | Credential root key | gateway | HMAC root of credential chains |
 | Account owner key | the principal (dev: = gateway key) | grants sessions, pause, treasury |
@@ -21,7 +22,7 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). In one line: the model never s
 
 Rotating the session-key secret invalidates every on-chain session (keys change); re-register credentials.
 
-Rotating the gateway key: start the gateway with the new key and the old one in `SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS`. Before it serves, every configured principal's receipt chain records the change, with the old key's handover signature; any other chain records it with its next receipt. Then remove the old key from the configuration and destroy it. Without the old key, declare its address in `SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES`: the change is then recorded without a handover, and auditors must pin both keys. The gateway refuses to continue any chain signed by a key it neither holds nor was told about (ADR-0020, ADR-0022). The new key also needs its own root session from each account owner (in dev mode, ownership).
+Rotating the gateway key: start the gateway with the new key and the old one in `SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS`. Before it serves, every configured principal's receipt chain records the change, with the old key's handover signature; any other chain records it with its next receipt. Then remove the old key from the configuration and destroy it. Without the old key, declare its address in `SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES`: the change is then recorded without a handover, and auditors must pin both keys. The gateway refuses to continue any chain signed by a key it neither holds nor was told about (ADR-0020, ADR-0022). The new key also needs its own root session from each account owner (in dev mode, ownership). With a separate evidence key (`SPENDMARSHAL_EVIDENCE_PRIVATE_KEY`), rotating the gateway key leaves every receipt chain alone, and this paragraph applies to rotating the evidence key instead.
 
 ## Operating modes
 * **Dev (`ownerIsGateway: true`)**: the gateway key owns the account. Convenient, and the gateway can lose everything in the account.

@@ -21,7 +21,7 @@ import {
 } from "@spendmarshal/core";
 import type { GatewayConfig } from "./config.js";
 import { openStore, type Store } from "./store.js";
-import { LocalSigner, type Signer } from "./signer.js";
+import { LocalSigner, receiptKeyOf, type Signer } from "./signer.js";
 import { ChainClient } from "./chain.js";
 import { ReceiptLog } from "./receipts.js";
 import { CredentialService } from "./credentials.js";
@@ -85,7 +85,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   const publicUrl = (cfg.publicUrl ?? `http://${cfg.host}:${cfg.port}`).replace(/\/$/, "");
   const store = await openStore({ driver: cfg.storeDriver, dataDir: cfg.dataDir });
   for (const a of cfg.previousGatewayAddresses ?? []) if (!isAddress(a, { strict: false })) throw new Error(`previous gateway address ${a} is not an address`);
-  const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys);
+  const signer = new LocalSigner(cfg.gatewayPrivateKey, cfg.sessionSecret, cfg.previousGatewayKeys, cfg.evidencePrivateKey);
   const chain = new ChainClient(cfg);
   const metrics = new Metrics({ defaultMetrics: cfg.defaultMetrics });
   const receipts = new ReceiptLog(store, signer, metrics, { previousGatewayAddresses: cfg.previousGatewayAddresses, log: app.log });
@@ -138,6 +138,7 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
     ok: true,
     version: GATEWAY_VERSION,
     gateway: signer.address,
+    evidenceKey: receiptKeyOf(signer), // signs receipts; the same as `gateway` unless a separate evidence key is set (ADR-0023)
     agentKeyId: signer.agentKey.keyid,
     publicUrl,
     chainId: cfg.chainId,
@@ -317,11 +318,11 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   // been written since the key changed. Its rotations are exported as `gatewayKeyHistory` (ADR-0020).
   const keyAtHead = (rs: Receipt[]): string => {
     const head = rs[rs.length - 1];
-    if (!head) return signer.address;
+    if (!head) return receiptKeyOf(signer);
     try {
       return receiptSigner(head);
     } catch {
-      return signer.address; // a malformed head signature: the verifier reports that receipt
+      return receiptKeyOf(signer); // a malformed head signature: the verifier reports that receipt
     }
   };
 
@@ -358,8 +359,9 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
   // The registry chains anchors per sending key and receipt chain, and names a principal's chain by the hash of its first
   // receipt (ADR-0021), so principals never constrain each other's anchors. The previous head comes from the registry (a
   // rotated relayer key or a fresh store would otherwise send a stale one), and anchors go one at a time so two never
-  // claim the same head. The chain is handed over to this gateway's key first, so the key that sends the anchor signed
-  // the head it anchors, and the record names that sender (ADR-0020).
+  // claim the same head. The chain is handed over to this gateway's receipt key first, so this gateway signed the head
+  // it anchors (ADR-0020). The gateway key sends the anchor; the `evidence.anchored` receipt records that sender, and it
+  // is written before the anchor is listed, so an export never lists an anchor its chain does not record (ADR-0023).
   let anchoring: Promise<unknown> = Promise.resolve();
   const anchor = (principalId: string) => {
     const run = anchoring.then(async () => {
@@ -371,8 +373,8 @@ export async function buildGateway(cfg: GatewayConfig): Promise<Gateway> {
       const prev = await chain.latestAnchorHead(cfg.contracts.receiptRegistry, receiptChain);
       const { txHash, blockNumber } = await chain.anchor(cfg.contracts.receiptRegistry, receiptChain, head, prev, BigInt(rs.length));
       const rec = { head, count: rs.length, txHash, blockNumber: blockNumber.toString(), registry: cfg.contracts.receiptRegistry, party: chain.wallet.account.address };
-      store.addAnchor({ principalId, ...rec });
       await receipts.append(principalId, "evidence.anchored", rec);
+      store.addAnchor({ principalId, ...rec });
       return rec;
     });
     anchoring = run.catch(() => undefined);

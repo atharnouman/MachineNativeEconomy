@@ -36,8 +36,10 @@ interface Secrets {
   sessionSecret: string;
   credentialRootKey: string;
   adminToken: string;
+  /** signs every run's receipts (ADR-0023): one evidence key for all runs, while the session key changes per run */
+  evidenceKey: Hex;
 }
-const newSecrets = (): Secrets => ({ sessionSecret: randomBytes(32).toString("hex"), credentialRootKey: randomBytes(32).toString("hex"), adminToken: randomBytes(16).toString("hex") });
+const newSecrets = (): Secrets => ({ sessionSecret: randomBytes(32).toString("hex"), credentialRootKey: randomBytes(32).toString("hex"), adminToken: randomBytes(16).toString("hex"), evidenceKey: generatePrivateKey() });
 
 function readKey(envName: string, fallback: string): Hex {
   const file = process.env[envName] ?? join(LOCAL, fallback);
@@ -60,9 +62,8 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
     log(`${ok ? "✔" : "✘"} ${name}: ${detail}`);
   };
 
-  // One principal per run: the run's budget and approver key belong to it. The gateway key is new every run as well; when
-  // the reclaim step writes into an earlier run's principal, that chain records the change as a rotation without a
-  // handover (the earlier session key is gone) and its bundle still verifies (ADR-0020).
+  // One principal per run: the run's budget and approver key belong to it. The session key is new every run too, but the
+  // receipts are signed by the evidence key kept in local/testnet-deploy.json (ADR-0023), so a chain's key never changes.
   const principalId = `org-acme-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
   const ownerKey = readKey("SPENDMARSHAL_TESTNET_OWNER_KEY_FILE", "testnet-owner.key");
   const operatorKey = readKey("SPENDMARSHAL_TESTNET_GATEWAY_KEY_FILE", "testnet-gateway.key"); // deploys once, funds each run
@@ -108,11 +109,12 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
   let treasury: Address; // the payee's receiving address; stable across runs because the root session's allowlist names it
   let secrets: Secrets;
   if (existsSync(deployFile)) {
-    const cached = JSON.parse(readFileSync(deployFile, "utf8")) as CoreContracts & { treasury?: Address; secrets?: Secrets };
+    const cached = JSON.parse(readFileSync(deployFile, "utf8")) as CoreContracts & { treasury?: Address; secrets?: Omit<Secrets, "evidenceKey"> & { evidenceKey?: Hex } };
     core = cached;
     treasury = cached.treasury ?? privateKeyToAccount(generatePrivateKey()).address;
-    secrets = cached.secrets ?? newSecrets();
-    if (!cached.treasury || !cached.secrets) writeFileSync(deployFile, JSON.stringify({ ...core, treasury, secrets }, null, 2));
+    // a cache from before the evidence key gets one now, kept from then on
+    secrets = cached.secrets ? { ...cached.secrets, evidenceKey: cached.secrets.evidenceKey ?? generatePrivateKey() } : newSecrets();
+    if (!cached.treasury || !cached.secrets?.evidenceKey) writeFileSync(deployFile, JSON.stringify({ ...core, treasury, secrets }, null, 2));
     // A registry from before per-chain anchors (ADR-0021) cannot take this run's anchor, so the operator replaces it once
     // and the cache keeps the new one. Bundles anchored in the old one still verify: each anchor names its registry.
     let registryNote = "";
@@ -159,9 +161,10 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
 
   // ── 4. gateway + payee (payee settles through the public facilitator) ───────
   const dataDir = join(LOCAL, "testnet-data"); // kept across runs: the next run reclaims what a failed run left pre-approved
-  // The runner is the only writer of this store and uses a fresh session key per run, so it declares the keys that signed
-  // its earlier runs' chains: the reclaim step continues those chains with a rotation that has no handover. A gateway
-  // refuses a chain whose head an undeclared key signed (ADR-0022); a stable evidence key would end these rotations.
+  log(`receipts are signed by the evidence key ${privateKeyToAccount(secrets.evidenceKey).address}, the same in every run (ADR-0023)`);
+  // Chains written before the evidence key were signed by earlier runs' session keys, which are gone. The runner is the only
+  // writer of this store, so it declares the keys that signed its chain heads: the reclaim step continues such a chain with
+  // one rotation that has no handover (ADR-0022), and the evidence key signs it from then on.
   const earlierKeys = await (async () => {
     const s = await openStore({ driver: "sqlite", dataDir });
     try {
@@ -194,6 +197,7 @@ export async function runTestnet(opts: { log?: (line: string) => void } = {}): P
       rpcUrl: RPC,
       chainId: CHAIN_ID,
       gatewayPrivateKey: gatewayKey,
+      evidencePrivateKey: secrets.evidenceKey,
       previousGatewayAddresses: earlierKeys,
       sessionSecret: secrets.sessionSecret,
       credentialRootKey: secrets.credentialRootKey,

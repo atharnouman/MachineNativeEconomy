@@ -222,13 +222,22 @@ describe("gateway key history", () => {
     expect(check(await verifyBundle(invented), "gateway.keys")?.ok).toBe(false);
   });
 
-  it("requires an anchor that names its sender to name the key that signed the anchored receipt", async () => {
-    const receipts = await generations();
-    const anchor = (count: number, party?: string) => ({ head: receipts[count - 1]!.hash, count, txHash: "0x1", blockNumber: "1", registry: "0x9", ...(party ? { party } : {}) });
-    const ok = await verifyBundle(bundle(receipts, { anchors: [anchor(2, k1.address), anchor(4, k2.address), anchor(6, k3.address), anchor(6)] }));
-    expect(check(ok, "anchors.match")).toEqual({ check: "anchors.match", ok: true, detail: "4 anchors" });
-    const wrong = await verifyBundle(bundle(receipts, { anchors: [anchor(4, k1.address)] }));
-    expect(check(wrong, "anchors.match")?.detail).toBe(`anchor ${receipts[3]!.hash.slice(0, 10)} was sent by ${k1.address}, not by the key that signed receipt #4`);
+  it("accepts an anchor that names its sender only when an evidence.anchored receipt records it (ADR-0023)", async () => {
+    // the sender is the gateway's on-chain key, which need not be the key that signs receipts
+    const relayer = privateKeyToAccount("0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba").address;
+    const prefix = await chain([{ by: k1 }, { by: k1 }]);
+    const rec = { head: prefix[1]!.hash, count: 2, txHash: `0x${"1".repeat(64)}`, blockNumber: "7", registry: "0x9", party: relayer };
+    const receipts = await chain([{ by: k1 }, { by: k1 }, { by: k1, kind: "evidence.anchored", data: rec }, { by: k1 }]);
+    expect(receipts.slice(0, 2)).toEqual(prefix);
+    const anchors = (...xs: Array<Partial<typeof rec>>) => ({ anchors: xs.map((x) => ({ ...rec, ...x })) });
+    expect(check(await verifyBundle(bundle(receipts, anchors({}))), "anchors.match")).toEqual({ check: "anchors.match", ok: true, detail: "1 anchors" });
+    // claiming another sender, or another transaction, for the recorded anchor fails
+    const notRecorded = (party: string) => `anchor ${rec.head.slice(0, 10)} sent by ${party} is not recorded by an evidence.anchored receipt`;
+    expect(check(await verifyBundle(bundle(receipts, anchors({ party: k2.address }))), "anchors.match")?.detail).toBe(notRecorded(k2.address));
+    expect(check(await verifyBundle(bundle(receipts, anchors({ txHash: `0x${"2".repeat(64)}` }))), "anchors.match")?.detail).toBe(notRecorded(relayer));
+    // an anchor that records no sender predates ADR-0020 and is only matched to its head
+    const { party: _party, ...legacy } = rec;
+    expect(check(await verifyBundle(bundle(receipts, { anchors: [legacy] })), "anchors.match")?.ok).toBe(true);
   });
 
   it("names the key that signed any position, which is the sender of an anchor that records none", async () => {

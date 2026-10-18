@@ -23,16 +23,25 @@ export interface GatewayConfig {
   port: number;
   rpcUrl: string;
   chainId: number;
-  /** Signs receipts, submits sessions/anchors, relays settlements. Dev: also owns the AgentAccount. */
+  /**
+   * The gateway's on-chain key: holds the root session, submits sessions and anchors, relays settlements. Dev: also owns
+   * the AgentAccount. It also signs receipts unless `evidencePrivateKey` is set.
+   */
   gatewayPrivateKey: Hex;
   /**
-   * Earlier gateway keys, kept only while rotating: each one signs the handover of the receipt chains it signed to
-   * `gatewayPrivateKey` (ADR-0020). Configured principals are handed over at startup, any other chain on its next
+   * Signs receipts: the evidence key auditors pin (ADR-0023). It never sends a transaction, so it needs no funds, and it
+   * stays put while `gatewayPrivateKey` changes. Default: `gatewayPrivateKey`. Setting it on an existing store is a key
+   * rotation that the gateway key, still held, hands over.
+   */
+  evidencePrivateKey?: Hex;
+  /**
+   * Earlier receipt-signing keys, kept only while rotating: each one signs the handover of the receipt chains it signed
+   * to the current one (ADR-0020). Configured principals are handed over at startup, any other chain on its next
    * receipt. Remove them once the chains that matter have been handed over.
    */
   previousGatewayKeys?: Hex[];
   /**
-   * Earlier gateway addresses whose keys are gone (lost, destroyed, a fresh key per run): chains they signed are
+   * Earlier receipt-signing addresses whose keys are gone (lost, destroyed, a fresh key per run): chains they signed are
    * continued with a rotation that has no handover, which a verifier accepts only when it trusts both keys. A chain
    * signed by any key that is neither held nor listed here is refused (ADR-0022).
    */
@@ -102,6 +111,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     rpcUrl: env.SPENDMARSHAL_RPC_URL ?? "http://127.0.0.1:8545",
     chainId: Number(env.SPENDMARSHAL_CHAIN_ID ?? 31337),
     gatewayPrivateKey: need("SPENDMARSHAL_GATEWAY_PRIVATE_KEY") as Hex,
+    evidencePrivateKey: env.SPENDMARSHAL_EVIDENCE_PRIVATE_KEY ? (env.SPENDMARSHAL_EVIDENCE_PRIVATE_KEY as Hex) : undefined,
     previousGatewayKeys: env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS ? (env.SPENDMARSHAL_PREVIOUS_GATEWAY_PRIVATE_KEYS.split(",").map((s) => s.trim()).filter(Boolean) as Hex[]) : undefined,
     previousGatewayAddresses: env.SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES ? (env.SPENDMARSHAL_PREVIOUS_GATEWAY_ADDRESSES.split(",").map((s) => s.trim()).filter(Boolean) as Address[]) : undefined,
     sessionSecret: need("SPENDMARSHAL_SESSION_SECRET"),

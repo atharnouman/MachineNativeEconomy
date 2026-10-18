@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { randomId, nowIso, receiptHash, receiptSigner, gatewayKeyHandoverMessage, type GatewayKeyRotatedData, type Receipt, type ReceiptBody, type ReceiptKind } from "@spendmarshal/core";
 import type { Store } from "./store.js";
-import type { Signer } from "./signer.js";
+import { receiptKeyOf, type Signer } from "./signer.js";
 import type { Metrics } from "./metrics.js";
 
 type ReceiptMeta = Partial<Pick<Receipt, "agentId" | "credentialId" | "intentId" | "intentHash" | "approvalId" | "subscriptionId" | "rail" | "policyHash">>;
@@ -31,6 +31,8 @@ export class ReceiptLog {
   /** chain head per principal, seeded from the store once; an append never reads the chain. `key` signed the head. */
   private readonly heads = new Map<string, { seq: number; hash: string; key: Address }>();
   private readonly declared: Set<string>;
+  /** the key that signs this log's receipts: the evidence key, or the gateway key (ADR-0023) */
+  private readonly key: Address;
 
   constructor(
     private readonly store: Store,
@@ -39,6 +41,7 @@ export class ReceiptLog {
     private readonly opts: ReceiptLogOptions = {},
   ) {
     this.declared = new Set((opts.previousGatewayAddresses ?? []).map((a) => a.toLowerCase()));
+    this.key = receiptKeyOf(signer);
   }
 
   append(principalId: string, kind: ReceiptKind, data: Record<string, unknown>, meta: ReceiptMeta = {}): Promise<Receipt> {
@@ -70,7 +73,7 @@ export class ReceiptLog {
       const last = this.store.lastReceipt(principalId);
       if (last) {
         // a head whose signature does not even parse cannot name a key; appending then works as before key history
-        let key = this.signer.address;
+        let key = this.key;
         try {
           key = receiptSigner(last);
         } catch {
@@ -85,10 +88,10 @@ export class ReceiptLog {
 
   private async adoptKey(principalId: string): Promise<Receipt | null> {
     const head = this.head(principalId);
-    if (!head || head.key.toLowerCase() === this.signer.address.toLowerCase()) return null;
-    const message = gatewayKeyHandoverMessage({ principalId, seq: head.seq + 1, prev: head.hash, prevAddress: head.key, address: this.signer.address });
+    if (!head || head.key.toLowerCase() === this.key.toLowerCase()) return null;
+    const message = gatewayKeyHandoverMessage({ principalId, seq: head.seq + 1, prev: head.hash, prevAddress: head.key, address: this.key });
     const handover = (await this.signer.signKeyHandover?.(head.key, message)) ?? null;
-    const facts = { principalId, seq: head.seq, signer: head.key, gateway: this.signer.address };
+    const facts = { principalId, seq: head.seq, signer: head.key, gateway: this.key };
     if (handover === null && !this.declared.has(head.key.toLowerCase())) {
       this.metrics?.chainRefusals.inc();
       this.opts.log?.warn(facts, "refused to continue a receipt chain whose head an unknown key signed");
@@ -97,7 +100,7 @@ export class ReceiptLog {
         { statusCode: 409 },
       );
     }
-    const data: GatewayKeyRotatedData = { prevAddress: head.key, address: this.signer.address, handover };
+    const data: GatewayKeyRotatedData = { prevAddress: head.key, address: this.key, handover };
     const rotation = await this.write(principalId, "gateway.key.rotated", { ...data }, {});
     this.metrics?.gatewayKeyRotations.inc({ handover: handover ? "yes" : "no" });
     if (handover) this.opts.log?.info(facts, "receipt chain handed over to this gateway's key, signed by the previous key");
@@ -122,7 +125,7 @@ export class ReceiptLog {
     const sig = await this.signer.signReceiptHash(hash);
     const receipt: Receipt = { ...body, hash, sig };
     this.store.appendReceipt(receipt);
-    this.heads.set(principalId, { seq: receipt.seq, hash: receipt.hash, key: this.signer.address });
+    this.heads.set(principalId, { seq: receipt.seq, hash: receipt.hash, key: this.key });
     this.metrics?.receipts.inc({ kind });
     return receipt;
   }
