@@ -41,6 +41,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:pg-clean": "node scripts/drop-test-databases.mjs",
     "start": "tsx src/main.ts"
   },
   "dependencies": {
