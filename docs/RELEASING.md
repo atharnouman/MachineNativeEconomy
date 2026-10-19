@@ -4,11 +4,22 @@ Two packages are published: `@spendmarshal/core` (types, policy evaluator, evide
 (`spendmarshal verify`, `spendmarshal audit-logs`). The CLI depends on core at the same version, so core goes first.
 Everything else in the monorepo stays unpublished for now.
 
+The maintainer runs every command below personally. No assistant or automation logs in to npm, and nothing is ever written
+to the user-level `~/.npmrc`: the token lives in one git-ignored file that only the maintainer writes.
+
 ## Once
 
-- An npm account with two-factor authentication, and an npm organisation named `spendmarshal`: a scoped package can only be
-  published under a scope that belongs to the publisher, and organisations are free for public packages.
-- `npm login` in a terminal (it opens the browser). Never paste a token anywhere.
+1. An npm account with two-factor authentication, and an npm organisation named `spendmarshal`: a scoped package can only
+   be published under a scope that belongs to the publisher, and organisations are free for public packages.
+2. A granular access token on npmjs.com (Access Tokens, Generate New Token, Granular): read and write on packages and
+   scopes, limited to the `@spendmarshal` scope, with two-factor required for publishing, and an expiry.
+3. The token goes into `local\.npmrc` in the project folder (`local/` is git-ignored), as one line:
+
+   ```
+   //registry.npmjs.org/:_authToken=<the token>
+   ```
+
+   Nothing else reads that file; it is passed to npm by path, never printed.
 
 ## Each release
 
@@ -18,23 +29,20 @@ pnpm build
 pnpm test
 ```
 
-Bump the version in both `packages/core/package.json` and `packages/cli/package.json` to the same number, commit, then:
+Bump the version in both `packages/core/package.json` and `packages/cli/package.json` to the same number and commit.
+Then pack with pnpm, which rewrites the CLI's `workspace:*` dependency to the published version and runs
+`prepublishOnly` (a rebuild, so a stale `dist` cannot ship), and publish each tarball with npm and the token file:
 
 ```bash
-pnpm --filter @spendmarshal/core publish --no-git-checks
+cd packages/core && pnpm pack && npm publish spendmarshal-core-0.0.1.tgz --access public --userconfig ../../local/.npmrc && rm spendmarshal-core-0.0.1.tgz
 ```
 
 ```bash
-pnpm --filter @spendmarshal/cli publish --no-git-checks
+cd packages/cli && pnpm pack && npm publish spendmarshal-cli-0.0.1.tgz --access public --userconfig ../../local/.npmrc && rm spendmarshal-cli-0.0.1.tgz
 ```
 
-`pnpm publish` rewrites the CLI's `workspace:*` dependency to the published version and runs `prepublishOnly`, which
-rebuilds, so a stale `dist` cannot ship. `--no-git-checks` is needed only when publishing from a branch other than the
-repository's default; drop it on `main`. A dry run that uploads nothing:
-
-```bash
-pnpm --filter @spendmarshal/cli publish --dry-run --no-git-checks
-```
+Replace `0.0.1` with the version being released. A dry run that uploads nothing: add `--dry-run` to the `npm publish`
+command; `pnpm pack` alone shows the tarball's contents.
 
 Afterwards, anyone can run the diagnostic on their own machine without installing anything:
 
