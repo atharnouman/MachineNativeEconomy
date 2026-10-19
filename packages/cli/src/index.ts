@@ -16,9 +16,10 @@ const USAGE = `spendmarshal <command>
         [--gateway-key ADDRESS]...    gateway keys you trust: every key that signed the chain must be one, or linked to one by handovers
   policy lint FILE                    parse a policy file and print its hash
   audit-logs EXPORT                   read-only diagnostic over a LiteLLM spend-log export (offline, metadata only):
-        [--format text|html|json]     repeated requests, retry storms, failed and empty spend, expensive models on
-        [--out FILE]                  small outputs, caps against real use; see docs/AUDIT_LOGS.md
-        [--window 10m] [--storm-calls 5] [--storm-window 1m] [--expensive 5]
+        [--format text|html|json]     repeated requests, retry storms, possible loops, failed and empty calls,
+        [--out FILE]                  expensive models on small outputs, unattributed spend, caps against real use;
+        [--window 10m] [--storm-calls 5] [--storm-window 1m]        see docs/AUDIT_LOGS.md
+        [--loop-calls 10] [--loop-gap 90s] [--expensive 5]
         [--prices FILE] [--budgets FILE]...
 `;
 
@@ -63,6 +64,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         window: { type: "string", default: "10m" },
         "storm-calls": { type: "string", default: "5" },
         "storm-window": { type: "string", default: "1m" },
+        "loop-calls": { type: "string", default: "10" },
+        "loop-gap": { type: "string", default: "90s" },
         expensive: { type: "string", default: "5" },
         prices: { type: "string" },
         budgets: { type: "string", multiple: true },
@@ -75,13 +78,17 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     let text: string;
     try {
       const stormCalls = Number(values["storm-calls"] ?? "5");
+      const loopCalls = Number(values["loop-calls"] ?? "10");
       const expensive = Number(values.expensive ?? "5");
       if (!Number.isInteger(stormCalls) || stormCalls < 2) throw new Error("--storm-calls must be a whole number of at least 2");
+      if (!Number.isInteger(loopCalls) || loopCalls < 3) throw new Error("--loop-calls must be a whole number of at least 3");
       if (!Number.isFinite(expensive) || expensive < 0) throw new Error("--expensive must be a number of dollars per million tokens");
       const report = audit(readFileSync(file, "utf8"), {
         windowMs: parseWindow(values.window ?? "10m"),
         stormCalls,
         stormWindowMs: parseWindow(values["storm-window"] ?? "1m"),
+        loopCalls,
+        loopGapMs: parseWindow(values["loop-gap"] ?? "90s"),
         expensivePerMillion: expensive,
         prices: values.prices ? (JSON.parse(readFileSync(values.prices, "utf8")) as PriceTable) : undefined,
         budgets: values.budgets?.length ? mergeBudgets(values.budgets.map((f) => parseBudgets(readFileSync(f, "utf8")))) : undefined,
