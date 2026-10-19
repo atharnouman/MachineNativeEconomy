@@ -203,10 +203,10 @@ Credential caveats (`spend_cap`, `per_tx_max`, `allowed_payees`, `allowed_rails`
 | `packages/payee` | Accept-side middleware `paid()` for x402, MPP and L402, Web Bot Auth verification, subscription offers and the `SubscriptionBook` billing client; example payee. |
 | `packages/sdk-ts` | `SpendMarshalClient` / `SpendMarshalAdmin`, framework-neutral tool definitions. |
 | `packages/mcp-server` | MCP server over the SDK. |
-| `packages/cli` | `spendmarshal export-evidence`, `spendmarshal verify`, `spendmarshal policy lint`. |
+| `packages/cli` | `spendmarshal export-evidence`, `spendmarshal verify`, `spendmarshal policy lint`, `spendmarshal audit-logs` (read-only diagnostic over a LiteLLM spend-log export, offline: [docs](docs/AUDIT_LOGS.md)). |
 | `packages/devnet` | anvil lifecycle, deployment, EIP-7702 delegation helper, dev keys. |
 | `examples/thin-slice`, `examples/phase1` | The two demos and their end-to-end tests; each ships a real sample evidence bundle. |
-| `docs/` | [ARCHITECTURE](docs/ARCHITECTURE.md), [PHASE1](docs/PHASE1.md), [THREAT_MODEL](docs/THREAT_MODEL.md), [ROADMAP](docs/ROADMAP.md), [ADRs](docs/adr/). |
+| `docs/` | [ARCHITECTURE](docs/ARCHITECTURE.md), [PHASE1](docs/PHASE1.md), [THREAT_MODEL](docs/THREAT_MODEL.md), [ROADMAP](docs/ROADMAP.md), [AUDIT_LOGS](docs/AUDIT_LOGS.md), [ADRs](docs/adr/). |
 
 ## Design principles
 

@@ -3,8 +3,11 @@ import { parseArgs } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parsePolicyYaml, policyHash } from "@spendmarshal/core";
 import { verifyEvidence, formatReport } from "./verify.js";
+import { audit, formatAuditHtml, formatAuditText, mergeBudgets, parseBudgets, parseWindow, type PriceTable } from "./audit.js";
 
 export { verifyEvidence, formatReport };
+export { audit, formatAuditText, formatAuditHtml, parseBudgets, parseExport } from "./audit.js";
+export type { AuditReport, AuditOptions, Finding, Budgets, PriceTable, SpendRow } from "./audit.js";
 
 const USAGE = `spendmarshal <command>
 
@@ -12,6 +15,11 @@ const USAGE = `spendmarshal <command>
   verify FILE [--rpc URL]             offline verification of an evidence bundle (+ on-chain anchors with --rpc)
         [--gateway-key ADDRESS]...    gateway keys you trust: every key that signed the chain must be one, or linked to one by handovers
   policy lint FILE                    parse a policy file and print its hash
+  audit-logs EXPORT                   read-only diagnostic over a LiteLLM spend-log export (offline, metadata only):
+        [--format text|html|json]     repeated requests, retry storms, failed and empty spend, expensive models on
+        [--out FILE]                  small outputs, caps against real use; see docs/AUDIT_LOGS.md
+        [--window 10m] [--storm-calls 5] [--storm-window 1m] [--expensive 5]
+        [--prices FILE] [--budgets FILE]...
 `;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -44,6 +52,49 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const p = parsePolicyYaml(readFileSync(file, "utf8"));
     console.log(`ok: principal ${p.principalId}, ${Object.keys(p.budgets).length} budgets, ${Object.keys(p.agents).length} agents, ${p.rules.length} rules`);
     console.log(`hash: ${policyHash(p)}`);
+    return 0;
+  }
+  if (cmd === "audit-logs") {
+    const { values, positionals } = parseArgs({
+      args: rest,
+      options: {
+        format: { type: "string", default: "text" },
+        out: { type: "string" },
+        window: { type: "string", default: "10m" },
+        "storm-calls": { type: "string", default: "5" },
+        "storm-window": { type: "string", default: "1m" },
+        expensive: { type: "string", default: "5" },
+        prices: { type: "string" },
+        budgets: { type: "string", multiple: true },
+      },
+      allowPositionals: true,
+    });
+    const file = positionals[0];
+    const format = values.format ?? "text";
+    if (!file || (format !== "text" && format !== "html" && format !== "json")) return usage();
+    let text: string;
+    try {
+      const stormCalls = Number(values["storm-calls"] ?? "5");
+      const expensive = Number(values.expensive ?? "5");
+      if (!Number.isInteger(stormCalls) || stormCalls < 2) throw new Error("--storm-calls must be a whole number of at least 2");
+      if (!Number.isFinite(expensive) || expensive < 0) throw new Error("--expensive must be a number of dollars per million tokens");
+      const report = audit(readFileSync(file, "utf8"), {
+        windowMs: parseWindow(values.window ?? "10m"),
+        stormCalls,
+        stormWindowMs: parseWindow(values["storm-window"] ?? "1m"),
+        expensivePerMillion: expensive,
+        prices: values.prices ? (JSON.parse(readFileSync(values.prices, "utf8")) as PriceTable) : undefined,
+        budgets: values.budgets?.length ? mergeBudgets(values.budgets.map((f) => parseBudgets(readFileSync(f, "utf8")))) : undefined,
+      });
+      text = format === "json" ? JSON.stringify(report, null, 2) : format === "html" ? formatAuditHtml(report) : formatAuditText(report);
+    } catch (e) {
+      console.error(`audit-logs: ${(e as Error).message}`);
+      return 2;
+    }
+    if (values.out) {
+      writeFileSync(values.out, text);
+      console.log(`wrote ${values.out}`);
+    } else console.log(text);
     return 0;
   }
   return usage();
