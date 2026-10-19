@@ -31,7 +31,7 @@ pnpm test
 
 Bump the version in both `packages/core/package.json` and `packages/cli/package.json` to the same number and commit.
 Then pack with pnpm, which rewrites the CLI's `workspace:*` dependency to the published version and runs
-`prepublishOnly` (a rebuild, so a stale `dist` cannot ship), and publish each tarball with npm and the token file:
+`prepack` (a rebuild, so a stale `dist` cannot ship), and publish each tarball with npm and the token file:
 
 ```bash
 cd packages/core && pnpm pack && npm publish spendmarshal-core-0.0.1.tgz --access public --userconfig ../../local/.npmrc && rm spendmarshal-core-0.0.1.tgz
