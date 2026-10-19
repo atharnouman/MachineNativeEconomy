@@ -11,6 +11,8 @@ to the user-level `~/.npmrc`: the token lives in one git-ignored file that only 
 
 1. An npm account with two-factor authentication, and an npm organisation named `spendmarshal`: a scoped package can only
    be published under a scope that belongs to the publisher, and organisations are free for public packages.
+   Sign in with the passkey or security key, never with a recovery code: a recovery-code sign-in puts the account on a
+   72-hour security hold during which npm refuses to create organisations or tokens and to publish.
 2. A granular access token on npmjs.com (Access Tokens, Generate New Token, Granular): read and write on packages and
    scopes, limited to the `@spendmarshal` scope, with two-factor required for publishing, and an expiry.
 3. The token goes into `local\.npmrc` in the project folder (`local/` is git-ignored), as one line:
