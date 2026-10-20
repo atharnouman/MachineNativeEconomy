@@ -4,10 +4,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parsePolicyYaml, policyHash } from "@spendmarshal/core";
 import { verifyEvidence, formatReport } from "./verify.js";
 import { audit, formatAuditHtml, formatAuditText, mergeBudgets, parseBudgets, parseWindow, type PriceTable } from "./audit.js";
+import { buildStatement, formatStatementHtml, formatStatementText, parsePeriod } from "./statement.js";
+import { createHash } from "node:crypto";
+import { basename } from "node:path";
 
 export { verifyEvidence, formatReport };
 export { audit, formatAuditText, formatAuditHtml, parseBudgets, parseExport } from "./audit.js";
 export type { AuditReport, AuditOptions, Finding, Budgets, PriceTable, SpendRow } from "./audit.js";
+export { buildStatement, formatStatementText, formatStatementHtml, parsePeriod, parseAmount, human } from "./statement.js";
+export type { Statement, StatementOptions, Reconciliation, Period } from "./statement.js";
 
 const USAGE = `spendmarshal <command>
 
@@ -21,6 +26,11 @@ const USAGE = `spendmarshal <command>
         [--window 10m] [--storm-calls 5] [--storm-window 1m]        see docs/AUDIT_LOGS.md
         [--loop-calls 10] [--loop-gap 90s] [--expensive 5]
         [--prices FILE] [--budgets FILE]...
+  statement BUNDLE                   a client's statement from its evidence bundle: settlements by agent, payee and
+        [--period 2026-10]            rail, approvals, denials, policy versions, mandates, events; verified first
+        [--provider-total 0.18]       (--unverified to produce one anyway, marked); reconciled to the provider's
+        [--payee ADDRESS]             figure when given, for one payee when named; see docs/STATEMENT.md
+        [--boundary-days 2] [--format text|html|json] [--out FILE] [--gateway-key ADDRESS]...
 `;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -96,6 +106,60 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       text = format === "json" ? JSON.stringify(report, null, 2) : format === "html" ? formatAuditHtml(report) : formatAuditText(report);
     } catch (e) {
       console.error(`audit-logs: ${(e as Error).message}`);
+      return 2;
+    }
+    if (values.out) {
+      writeFileSync(values.out, text);
+      console.log(`wrote ${values.out}`);
+    } else console.log(text);
+    return 0;
+  }
+  if (cmd === "statement") {
+    const { values, positionals } = parseArgs({
+      args: rest,
+      options: {
+        period: { type: "string" },
+        "provider-total": { type: "string" },
+        payee: { type: "string" },
+        "boundary-days": { type: "string", default: "2" },
+        format: { type: "string", default: "text" },
+        out: { type: "string" },
+        unverified: { type: "boolean", default: false },
+        "gateway-key": { type: "string", multiple: true },
+      },
+      allowPositionals: true,
+    });
+    const file = positionals[0];
+    const format = values.format ?? "text";
+    if (!file || (format !== "text" && format !== "html" && format !== "json")) return usage();
+    let text: string;
+    try {
+      const bytes = readFileSync(file);
+      const report = await verifyEvidence(JSON.parse(bytes.toString("utf8")), { trustedGatewayKeys: values["gateway-key"] });
+      if (!report.bundle) {
+        console.log(formatReport(report));
+        console.error("statement: the file is not an evidence bundle");
+        return 2;
+      }
+      if (!report.ok && !values.unverified) {
+        console.log(formatReport(report));
+        console.error("statement: the bundle does not verify; pass --unverified to produce a statement marked as such");
+        return 2;
+      }
+      const boundaryDays = Number(values["boundary-days"] ?? "2");
+      if (!Number.isInteger(boundaryDays) || boundaryDays < 0) throw new Error("--boundary-days must be a whole number of days");
+      const statement = buildStatement(report.bundle, {
+        period: values.period ? parsePeriod(values.period) : undefined,
+        providerTotal: values["provider-total"],
+        payee: values.payee,
+        boundaryDays,
+        sourceName: basename(file),
+        sourceSha256: createHash("sha256").update(bytes).digest("hex"),
+        verification: report,
+      });
+      text = format === "json" ? JSON.stringify(statement, null, 2) : format === "html" ? formatStatementHtml(statement) : formatStatementText(statement);
+    } catch (e) {
+      console.error(`statement: ${(e as Error).message}`);
       return 2;
     }
     if (values.out) {
